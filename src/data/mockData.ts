@@ -30,7 +30,7 @@ export const SAMPLE_COLLECTIONS: Collection[] = [
     title: 'New Arrivals SS26',
     slug: 'new-arrivals',
     description: 'The latest silhouettes crafted in pure linens, mercerized cottons, and architectural wools.',
-    banner_image: '/Assets/hero/hero-landscape.jpg',
+    banner_image: '/Assets/editorial/lookbook-hero-ivory.jpg',
     is_smart: false,
     sort_order: 1,
     is_active: true,
@@ -41,7 +41,7 @@ export const SAMPLE_COLLECTIONS: Collection[] = [
     title: 'Best Sellers',
     slug: 'best-sellers',
     description: 'Our most coveted wardrobe anchors, defined by timeless tailoring and elevated fits.',
-    banner_image: '/Assets/hero/hero-mobile.jpg',
+    banner_image: '/Assets/editorial/tanoah-women-atelier.jpg',
     is_smart: false,
     sort_order: 2,
     is_active: true,
@@ -52,7 +52,7 @@ export const SAMPLE_COLLECTIONS: Collection[] = [
     title: 'Archive & Special Offers',
     slug: 'sale',
     description: 'Curated seasonal reductions and archive pieces at exclusive prices.',
-    banner_image: '/Assets/hero/hero-landscape.jpg',
+    banner_image: '/Assets/editorial/lookbook-drape-indigo.jpg',
     is_smart: false,
     sort_order: 3,
     is_active: true,
@@ -63,7 +63,7 @@ export const SAMPLE_COLLECTIONS: Collection[] = [
     title: 'The Monochrome Edit',
     slug: 'monochrome',
     description: 'Tonal black, white, and deep indigo pieces for effortless high-contrast dressing.',
-    banner_image: '/Assets/hero/hero-mobile.jpg',
+    banner_image: '/Assets/editorial/lookbook-detail-embroidery.jpg',
     is_smart: false,
     sort_order: 4,
     is_active: true,
@@ -94,8 +94,8 @@ export const SAMPLE_PRODUCTS: Product[] = [
     short_description: '280 GSM custom-milled combed cotton with drop-shoulder tailoring and a high structured collar.',
     description: 'Engineered for an elevated casual silhouette, this heavyweight tee is woven from 100% long-staple organic cotton. The 280 GSM weight gives it substantial structure that drapes without clinging. Pre-shrunk and double-mercerized for a silken hand feel that deepens with wear.',
     images: [
-      { id: 'img-1a', image_url: '/Assets/hero/hero-mobile.jpg', sort_order: 1, is_primary: true },
-      { id: 'img-1b', image_url: '/Assets/hero/hero-landscape.jpg', sort_order: 2, is_primary: false },
+      { id: 'img-1a', image_url: '/Assets/editorial/lookbook-hero-ivory.jpg', sort_order: 1, is_primary: true },
+      { id: 'img-1b', image_url: '/Assets/editorial/lookbook-detail-embroidery.jpg', sort_order: 2, is_primary: false },
     ],
     variants: [
       {
@@ -212,8 +212,8 @@ export const SAMPLE_PRODUCTS: Product[] = [
     short_description: 'Pure 100% Normandy flax linen with a Cuban camp collar and genuine mother-of-pearl buttons.',
     description: 'Designed for effortless warm-weather tailoring. Made from premium European flax that breathes with natural thermal regulation. Finished with relaxed French seams and custom-engraved shell buttons.',
     images: [
-      { id: 'img-2a', image_url: '/Assets/hero/hero-landscape.jpg', sort_order: 1, is_primary: true },
-      { id: 'img-2b', image_url: '/Assets/hero/hero-mobile.jpg', sort_order: 2, is_primary: false },
+      { id: 'img-2a', image_url: '/Assets/editorial/lookbook-detail-embroidery.jpg', sort_order: 1, is_primary: true },
+      { id: 'img-2b', image_url: '/Assets/editorial/lookbook-hero-ivory.jpg', sort_order: 2, is_primary: false },
     ],
     variants: [
       {
@@ -300,8 +300,8 @@ export const SAMPLE_PRODUCTS: Product[] = [
     short_description: 'Bias-cut 22mm Mulberry silk-satin with adjustable rouleau straps and subtle cowl neckline.',
     description: 'An iconic editorial silhouette designed to skim the body. Cut on the bias for fluid kinetic drape. Perfect paired with an oversized tailored blazer for evening or flat sandals for coastal luxury.',
     images: [
-      { id: 'img-3a', image_url: '/Assets/hero/hero-mobile.jpg', sort_order: 1, is_primary: true },
-      { id: 'img-3b', image_url: '/Assets/hero/hero-landscape.jpg', sort_order: 2, is_primary: false },
+      { id: 'img-3a', image_url: '/Assets/editorial/tanoah-women-atelier.jpg', sort_order: 1, is_primary: true },
+      { id: 'img-3b', image_url: '/Assets/editorial/lookbook-drape-indigo.jpg', sort_order: 2, is_primary: false },
     ],
     variants: [
       {
@@ -388,8 +388,8 @@ export const SAMPLE_PRODUCTS: Product[] = [
     short_description: 'High-rise twin front pleats with extended waistband tab and clean break hems.',
     description: 'Crafted from tropical worsted wool with 2% elastane for effortless movement. Features double inward-facing deep pleats, side adjusters, and blind-stitched hems.',
     images: [
-      { id: 'img-4a', image_url: '/Assets/hero/hero-landscape.jpg', sort_order: 1, is_primary: true },
-      { id: 'img-4b', image_url: '/Assets/hero/hero-mobile.jpg', sort_order: 2, is_primary: false },
+      { id: 'img-4a', image_url: '/Assets/editorial/lookbook-drape-indigo.jpg', sort_order: 1, is_primary: true },
+      { id: 'img-4b', image_url: '/Assets/editorial/lookbook-hero-ivory.jpg', sort_order: 2, is_primary: false },
     ],
     variants: [
       {
@@ -510,7 +510,7 @@ export const DEFAULT_FEATURED_COLLECTIONS_CONFIG: FeaturedCollectionsConfig = {
       id: 'fc-1',
       title: "MEN'S ATELIER",
       subtitle: 'Tailored Trousers, Linen Shirts & Outerwear',
-      image: '/Assets/hero/hero-mobile.jpg',
+      image: '/Assets/editorial/lookbook-hero-ivory.jpg',
       link: '/collections/men',
       collection_slug: 'men',
       is_active: true,
@@ -520,7 +520,7 @@ export const DEFAULT_FEATURED_COLLECTIONS_CONFIG: FeaturedCollectionsConfig = {
       id: 'fc-2',
       title: "WOMEN'S COLLECTION",
       subtitle: 'Fluid Dresses, Silk Blouses & Wide Pants',
-      image: '/Assets/hero/hero-landscape.jpg',
+      image: '/Assets/editorial/tanoah-women-atelier.jpg',
       link: '/collections/women',
       collection_slug: 'women',
       is_active: true,
@@ -530,7 +530,7 @@ export const DEFAULT_FEATURED_COLLECTIONS_CONFIG: FeaturedCollectionsConfig = {
       id: 'fc-3',
       title: 'THE MONOCHROME EDIT',
       subtitle: 'Minimalist Tonal Ensembles & Sets',
-      image: '/Assets/hero/hero-mobile.jpg',
+      image: '/Assets/editorial/lookbook-drape-indigo.jpg',
       link: '/collections/monochrome',
       collection_slug: 'monochrome',
       is_active: true,

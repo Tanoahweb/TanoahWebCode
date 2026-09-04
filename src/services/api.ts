@@ -332,7 +332,10 @@ export const api = {
       localStorage.setItem('tanoah_store_settings', JSON.stringify(updated));
 
       try {
-        await supabase.from('store_settings').upsert([updated]);
+        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+        if (existing?.id) {
+          await supabase.from('store_settings').update(settings).eq('id', existing.id);
+        }
       } catch {}
 
       return true;
@@ -376,10 +379,13 @@ export const api = {
       localStorage.setItem('tanoah_navigation_menu', JSON.stringify(payload));
 
       try {
-        await supabase
-          .from('store_settings')
-          .update({ navigation_config: payload })
-          .neq('id', 'placeholder');
+        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+        if (existing?.id) {
+          await supabase
+            .from('store_settings')
+            .update({ navigation_config: payload })
+            .eq('id', existing.id);
+        }
       } catch {}
 
       if (typeof window !== 'undefined') {
@@ -427,10 +433,13 @@ export const api = {
       localStorage.setItem('tanoah_home_featured_collections', JSON.stringify(payload));
 
       try {
-        await supabase
-          .from('store_settings')
-          .update({ featured_collections_config: payload })
-          .neq('id', 'placeholder');
+        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+        if (existing?.id) {
+          await supabase
+            .from('store_settings')
+            .update({ featured_collections_config: payload })
+            .eq('id', existing.id);
+        }
       } catch {}
 
       if (typeof window !== 'undefined') {
