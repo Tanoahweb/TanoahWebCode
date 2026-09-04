@@ -1,0 +1,532 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
+import { useUIStore } from '../../store/useUIStore';
+import { formatPrice } from '../../utils/formatters';
+import { Button } from '../../components/common/Button';
+import { TaxInvoiceModal } from '../../components/checkout/TaxInvoiceModal';
+import { api } from '../../services/api';
+import { SavedAddress } from '../../types';
+
+export const AccountPage: React.FC = () => {
+  const { user, profile, signOut } = useAuthStore();
+  const wishlistItems = useWishlistStore((s) => s.items);
+  const { addToast } = useUIStore();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'returns' | 'profile'>('orders');
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any | null>(null);
+
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [newAddressForm, setNewAddressForm] = useState({
+    first_name: profile?.full_name?.split(' ')[0] || '',
+    last_name: profile?.full_name?.split(' ').slice(1).join(' ') || '',
+    phone: profile?.phone || (user?.user_metadata?.phone as string) || '',
+    address: '',
+    apartment: '',
+    city: '',
+    state: 'Maharashtra',
+    postal_code: '',
+    is_default: false,
+  });
+
+  const loadUserData = async () => {
+    if (!user) return;
+    setIsLoadingData(true);
+    try {
+      const [addrList, orderList] = await Promise.all([
+        api.getUserAddresses(user.id, user.email),
+        api.getUserOrders(user.id, user.email),
+      ]);
+      setAddresses(addrList);
+      setOrders(orderList);
+    } catch (err) {
+      console.warn('Error loading user data in account page:', err);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUserData();
+  }, [user]);
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAddressForm.first_name || !newAddressForm.phone || !newAddressForm.address || !newAddressForm.city || !newAddressForm.postal_code) {
+      addToast({ type: 'error', title: 'Missing Information', description: 'Please complete all required address fields.' });
+      return;
+    }
+
+    try {
+      await api.saveUserAddress({
+        ...newAddressForm,
+        user_id: user?.id,
+        email: user?.email,
+      });
+      addToast({ type: 'success', title: 'Address Saved', description: 'New delivery address has been saved to your account.' });
+      setIsAddingAddress(false);
+      setNewAddressForm({
+        first_name: profile?.full_name?.split(' ')[0] || '',
+        last_name: profile?.full_name?.split(' ').slice(1).join(' ') || '',
+        phone: profile?.phone || (user?.user_metadata?.phone as string) || '',
+        address: '',
+        apartment: '',
+        city: '',
+        state: 'Maharashtra',
+        postal_code: '',
+        is_default: false,
+      });
+      loadUserData();
+    } catch (err) {
+      addToast({ type: 'error', title: 'Save Failed', description: 'Could not save address. Please try again.' });
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    try {
+      await api.deleteUserAddress(id, user?.id, user?.email);
+      addToast({ type: 'success', title: 'Address Removed', description: 'Address was removed from your address book.' });
+      loadUserData();
+    } catch (err) {
+      addToast({ type: 'error', title: 'Action Failed', description: 'Could not delete address.' });
+    }
+  };
+
+  const handleSetDefaultAddress = async (id: string) => {
+    try {
+      await api.setDefaultUserAddress(id, user?.id, user?.email);
+      addToast({ type: 'success', title: 'Default Address Updated', description: 'Default delivery address has been updated.' });
+      loadUserData();
+    } catch (err) {
+      addToast({ type: 'error', title: 'Action Failed', description: 'Could not update default address.' });
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
+
+  return (
+    <div className="w-full bg-[#FAFAFA] font-poppins min-h-screen py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Welcome Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-8 border-b border-[#E7E7E7] mb-8 gap-4">
+          <div>
+            <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-widest uppercase">
+              CLIENT DASHBOARD
+            </span>
+            <h1 className="font-wondra text-3xl sm:text-4xl text-black">
+              WELCOME, {profile?.full_name || user?.email?.split('@')[0] || 'GUEST'}
+            </h1>
+            <p className="text-xs text-[#666666] mt-0.5">{user?.email || 'Logged in user'}</p>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-4 py-2 border border-[#E7E7E7] hover:border-black rounded-[4px] text-xs font-semibold uppercase text-black bg-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+
+        {/* Account Body Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-xs">
+          {/* Tabs Sidebar (Col 3) */}
+          <div className="lg:col-span-3 space-y-1 bg-white p-4 border border-[#E7E7E7] rounded-[4px] shadow-sm">
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[4px] font-medium transition-colors text-left ${
+                activeTab === 'orders' ? 'bg-[#3F3F8F] text-white font-semibold' : 'text-black hover:bg-[#F8F8F8]'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>Order History</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('addresses')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[4px] font-medium transition-colors text-left ${
+                activeTab === 'addresses' ? 'bg-[#3F3F8F] text-white font-semibold' : 'text-black hover:bg-[#F8F8F8]'
+              }`}
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Address Book</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('returns')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[4px] font-medium transition-colors text-left ${
+                activeTab === 'returns' ? 'bg-[#3F3F8F] text-white font-semibold' : 'text-black hover:bg-[#F8F8F8]'
+              }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Returns & Exchanges</span>
+            </button>
+
+            <Link
+              to="/wishlist"
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-[4px] font-medium text-black hover:bg-[#F8F8F8] transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Heart className="w-4 h-4 text-[#3F3F8F]" />
+                <span>Saved Wishlist</span>
+              </div>
+              <span className="text-[10px] bg-[#EEEEF8] text-[#3F3F8F] px-2 py-0.5 rounded-full font-bold">
+                {wishlistItems.length}
+              </span>
+            </Link>
+          </div>
+
+          {/* Tab Content Panel (Col 9) */}
+          <div className="lg:col-span-9 bg-white p-6 sm:p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm text-left">
+            {activeTab === 'orders' && (
+              <div className="space-y-6">
+                <h3 className="font-wondra text-2xl text-black">YOUR PURCHASES</h3>
+                {isLoadingData ? (
+                  <div className="py-12 text-center text-[#666666]">Loading orders...</div>
+                ) : orders.length === 0 ? (
+                  <div className="p-8 text-center bg-[#FAFAFA] border border-[#E7E7E7] rounded-[4px] space-y-3">
+                    <Package className="w-8 h-8 text-[#888888] mx-auto" />
+                    <h4 className="font-semibold text-black">No purchases yet</h4>
+                    <p className="text-xs text-[#666666]">Explore our atelier collections and discover refined essentials.</p>
+                    <Link to="/collections/all">
+                      <Button variant="primary" size="sm">Explore Collections</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((ord: any) => {
+                      const orderNum = ord.order_number || ord.orderNumber;
+                      return (
+                        <div key={orderNum} className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-4">
+                          <div className="flex flex-wrap justify-between items-center pb-3 border-b border-[#E7E7E7] gap-2">
+                            <div>
+                              <span className="text-[10px] text-[#888888] uppercase block">Order No.</span>
+                              <strong className="font-mono text-sm text-black">{orderNum}</strong>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[#888888] uppercase block">Total</span>
+                              <strong className="text-black">{formatPrice(ord.grand_total || ord.grandTotal)}</strong>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[#888888] uppercase block">Fulfillment</span>
+                              <span className="bg-[#EEEEF8] text-[#3F3F8F] font-semibold px-2 py-0.5 rounded-[2px] uppercase text-[10px]">
+                                {ord.status || 'CONFIRMED'}
+                              </span>
+                            </div>
+                            <Link to={`/tracking?order=${orderNum}`}>
+                              <button className="px-3 py-1.5 bg-black text-white hover:bg-[#3F3F8F] rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1">
+                                <span>Track</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+                            </Link>
+                          </div>
+
+                          <div className="space-y-2">
+                            {ord.items?.map((it: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center text-xs">
+                                <span className="font-medium text-black">
+                                  {it.product?.title || it.product_title || 'Garment Piece'} ({it.variant?.color_name || it.variant_title || 'Atelier'} / {it.variant?.size || ''})
+                                </span>
+                                <span className="text-[#666666]">Qty: {it.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-2 flex flex-wrap items-center gap-4 text-[11px] border-t border-[#E7E7E7]">
+                            <Link to={`/account/returns?order=${orderNum}`} className="text-[#3F3F8F] hover:underline font-semibold">
+                              Request Return / Exchange
+                            </Link>
+                            <button
+                              onClick={() => setSelectedInvoiceOrder({
+                                orderNumber: orderNum,
+                                date: ord.created_at || ord.date,
+                                items: ord.items,
+                                subtotal: ord.subtotal || ord.grand_total || ord.grandTotal,
+                                discount: ord.discount_total || ord.discount || 0,
+                                shipping: ord.shipping_total || ord.shipping || 0,
+                                codFee: ord.codFee || 0,
+                                grandTotal: ord.grand_total || ord.grandTotal,
+                                formData: ord.formData || {
+                                  firstName: ord.shipping_address?.first_name || profile?.full_name?.split(' ')[0] || 'Client',
+                                  lastName: ord.shipping_address?.last_name || profile?.full_name?.split(' ')[1] || '',
+                                  email: ord.guest_email || user?.email || 'client@example.com',
+                                  phone: ord.guest_phone || ord.shipping_address?.phone || '+91 98765 43210',
+                                  address: ord.shipping_address?.address || 'Bespoke Atelier Delivery Address',
+                                  city: ord.shipping_address?.city || 'Mumbai',
+                                  state: ord.shipping_address?.state || 'Maharashtra',
+                                  postalCode: ord.shipping_address?.postal_code || '400001',
+                                  paymentMethod: ord.payment_method || 'online',
+                                }
+                              })}
+                              className="text-black hover:text-[#3F3F8F] hover:underline font-semibold flex items-center gap-1"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                              <span>View Tax Invoice</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'addresses' && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E7E7E7]">
+                  <div>
+                    <h3 className="font-wondra text-2xl text-black">SAVED ADDRESSES</h3>
+                    <p className="text-xs text-[#666666] mt-0.5">Manage your delivery addresses for seamless 1-click checkout.</p>
+                  </div>
+                  {!isAddingAddress && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingAddress(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] font-semibold text-xs transition-colors self-start sm:self-auto"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add New Address</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Add New Address Form Modal/Panel */}
+                {isAddingAddress && (
+                  <form onSubmit={handleSaveAddress} className="p-5 border-2 border-[#3F3F8F]/30 bg-[#EEEEF8]/10 rounded-[4px] space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-semibold text-black text-sm">Add New Delivery Address</h4>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingAddress(false)}
+                        className="text-[#888888] hover:text-black"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">First Name *</label>
+                        <input
+                          required
+                          type="text"
+                          value={newAddressForm.first_name}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, first_name: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">Last Name *</label>
+                        <input
+                          required
+                          type="text"
+                          value={newAddressForm.last_name}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, last_name: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">Mobile Phone *</label>
+                        <input
+                          required
+                          type="tel"
+                          placeholder="+91 98765 43210"
+                          value={newAddressForm.phone}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">Street Address *</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="House / building / street"
+                          value={newAddressForm.address}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, address: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">City *</label>
+                        <input
+                          required
+                          type="text"
+                          value={newAddressForm.city}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, city: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">State *</label>
+                        <select
+                          value={newAddressForm.state}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, state: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
+                        >
+                          <option value="Maharashtra">Maharashtra</option>
+                          <option value="Delhi">Delhi</option>
+                          <option value="Karnataka">Karnataka</option>
+                          <option value="Tamil Nadu">Tamil Nadu</option>
+                          <option value="Telangana">Telangana</option>
+                          <option value="Gujarat">Gujarat</option>
+                          <option value="Kerala">Kerala</option>
+                          <option value="West Bengal">West Bengal</option>
+                          <option value="Rajasthan">Rajasthan</option>
+                          <option value="Haryana">Haryana</option>
+                          <option value="Uttar Pradesh">Uttar Pradesh</option>
+                          <option value="Other">Other States</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-black uppercase mb-1">Postal Code *</label>
+                        <input
+                          required
+                          type="text"
+                          maxLength={6}
+                          value={newAddressForm.postal_code}
+                          onChange={(e) => setNewAddressForm({ ...newAddressForm, postal_code: e.target.value })}
+                          className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="addr_default_chk"
+                        checked={newAddressForm.is_default}
+                        onChange={(e) => setNewAddressForm({ ...newAddressForm, is_default: e.target.checked })}
+                        className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer"
+                      />
+                      <label htmlFor="addr_default_chk" className="text-xs text-black cursor-pointer select-none">
+                        Make this my default delivery address
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] font-semibold text-xs transition-colors"
+                      >
+                        Save Address
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingAddress(false)}
+                        className="px-4 py-2 border border-[#E7E7E7] hover:border-black rounded-[4px] font-semibold text-xs transition-colors text-black"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Addresses Grid */}
+                {addresses.length === 0 && !isAddingAddress ? (
+                  <div className="p-8 text-center bg-[#FAFAFA] border border-[#E7E7E7] rounded-[4px] space-y-3">
+                    <MapPin className="w-8 h-8 text-[#888888] mx-auto" />
+                    <h4 className="font-semibold text-black">No saved addresses found</h4>
+                    <p className="text-xs text-[#666666]">Add a delivery address to expedite your future checkout experience.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingAddress(true)}
+                      className="px-4 py-2 bg-black text-white hover:bg-[#3F3F8F] rounded-[4px] font-semibold text-xs transition-colors"
+                    >
+                      + Add Address Now
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {addresses.map((addr) => (
+                      <div
+                        key={addr.id}
+                        className={`p-4 border rounded-[4px] space-y-1 relative transition-all ${
+                          addr.is_default
+                            ? 'border-[#3F3F8F] bg-[#EEEEF8]/20 shadow-sm'
+                            : 'border-[#E7E7E7] bg-white'
+                        }`}
+                      >
+                        {addr.is_default && (
+                          <span className="text-[9px] bg-[#3F3F8F] text-white px-2 py-0.5 rounded font-bold uppercase absolute top-4 right-4">
+                            DEFAULT
+                          </span>
+                        )}
+                        <h4 className="font-semibold text-black text-sm">{addr.first_name} {addr.last_name}</h4>
+                        <p className="text-[#444444] text-xs leading-relaxed">{addr.address}{addr.apartment ? `, ${addr.apartment}` : ''}</p>
+                        <p className="text-[#666666] text-xs">{addr.city}, {addr.state} - <span className="font-mono">{addr.postal_code}</span></p>
+                        <p className="text-[#666666] text-xs pt-0.5">Phone: <span className="font-medium text-black">{addr.phone}</span></p>
+
+                        <div className="pt-3 mt-2 border-t border-[#E7E7E7] flex items-center justify-between">
+                          {!addr.is_default ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefaultAddress(addr.id)}
+                              className="text-xs text-[#3F3F8F] hover:underline font-medium"
+                            >
+                              Set as Default
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Primary Address
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium inline-flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'returns' && (
+              <div className="space-y-6">
+                <h3 className="font-wondra text-2xl text-black">RETURNS & EXCHANGES</h3>
+                <p className="text-xs text-[#666666]">
+                  We provide a complimentary 7-day doorstep return and size-exchange policy for all unworn garments with original tags intact.
+                </p>
+                <Link to="/account/returns">
+                  <Button variant="primary" size="md">
+                    SUBMIT NEW RETURN REQUEST
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {selectedInvoiceOrder && (
+        <TaxInvoiceModal
+          isOpen={Boolean(selectedInvoiceOrder)}
+          onClose={() => setSelectedInvoiceOrder(null)}
+          order={selectedInvoiceOrder}
+        />
+      )}
+    </div>
+  );
+};

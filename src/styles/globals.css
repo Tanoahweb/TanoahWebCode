@@ -1,0 +1,90 @@
+﻿@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #3F3F8F;
+  --color-primary-hover: #343476;
+  --color-primary-light: #EEEEF8;
+
+  --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F8F8F8;
+  --color-surface-subtle: #FAFAFA;
+
+  --color-text: #000000;
+  --color-text-brand: #3F3F8F;
+  --color-text-muted: #666666;
+
+  --color-border: #E7E7E7;
+}
+
+html {
+  background-color: #FFFFFF;
+  color: #000000;
+  scroll-behavior: smooth;
+}
+
+/* Lenis smooth scrolling rules */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+/* Global scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAFAFA;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5D5ED;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3F3F8F;
+}
+
+/* Editorial typography utility */
+.font-wondra {
+  font-family: 'Wondra', serif;
+  letter-spacing: -0.01em;
+}
+
+.font-poppins {
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
