@@ -19,7 +19,7 @@ export const ProductListPage: React.FC = () => {
 
   const loadProducts = () => {
     api.getProducts().then((data) => {
-      if (data && data.length > 0) {
+      if (data) {
         setProducts(data);
       }
     });
@@ -27,6 +27,10 @@ export const ProductListPage: React.FC = () => {
 
   React.useEffect(() => {
     loadProducts();
+    window.addEventListener('tanoah_products_updated', loadProducts);
+    return () => {
+      window.removeEventListener('tanoah_products_updated', loadProducts);
+    };
   }, []);
 
   const handleDeleteProduct = async (product: Product) => {

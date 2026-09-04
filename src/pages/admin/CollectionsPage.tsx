@@ -21,12 +21,13 @@ import {
   HelpCircle,
   Square,
   RectangleVertical,
+  Tags,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
-import { Collection, Product, FeaturedCollectionsConfig, FeaturedCollectionItem } from '../../types';
+import { Collection, Product, FeaturedCollectionsConfig, FeaturedCollectionItem, Category } from '../../types';
 import { DEFAULT_FEATURED_COLLECTIONS_CONFIG } from '../../data/mockData';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 
@@ -34,13 +35,15 @@ export const CollectionsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'registry' | 'showcase'>(
-    tabFromUrl === 'showcase' ? 'showcase' : 'registry'
+  const [activeTab, setActiveTab] = useState<'registry' | 'categories' | 'showcase'>(
+    tabFromUrl === 'showcase' ? 'showcase' : tabFromUrl === 'categories' ? 'categories' : 'registry'
   );
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [catSearchTerm, setCatSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   // Home Screen Showcase State
@@ -57,16 +60,26 @@ export const CollectionsPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [bannerImage, setBannerImage] = useState('');
 
+  // Modal / Form state for categories
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [catName, setCatName] = useState('');
+  const [catSlug, setCatSlug] = useState('');
+  const [catDescription, setCatDescription] = useState('');
+  const [catImage, setCatImage] = useState('');
+
   const loadData = async () => {
     setIsLoading(true);
-    const [cols, prods, featCfg] = await Promise.all([
+    const [cols, prods, featCfg, cats] = await Promise.all([
       api.getCollections(),
       api.getProducts(),
       api.getFeaturedCollectionsConfig(),
+      api.getCategories(),
     ]);
     setCollections(cols || []);
     setProducts(prods || []);
     if (featCfg) setShowcaseConfig(featCfg);
+    setCategories(cats || []);
     setIsLoading(false);
   };
 
@@ -74,9 +87,9 @@ export const CollectionsPage: React.FC = () => {
     loadData();
   }, []);
 
-  const handleTabChange = (tab: 'registry' | 'showcase') => {
+  const handleTabChange = (tab: 'registry' | 'categories' | 'showcase') => {
     setActiveTab(tab);
-    setSearchParams(tab === 'showcase' ? { tab: 'showcase' } : {});
+    setSearchParams(tab === 'showcase' ? { tab: 'showcase' } : tab === 'categories' ? { tab: 'categories' } : {});
   };
 
   const handleOpenCreate = () => {
@@ -139,6 +152,78 @@ export const CollectionsPage: React.FC = () => {
         description: `Collection ${col.title} has been removed.`,
       });
       loadData();
+    }
+  };
+
+  // Category Handlers
+  const handleOpenCreateCategory = () => {
+    setEditingCategory(null);
+    setCatName('');
+    setCatSlug('');
+    setCatDescription('');
+    setCatImage('');
+    setIsCatModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (cat: Category) => {
+    setEditingCategory(cat);
+    setCatName(cat.name);
+    setCatSlug(cat.slug);
+    setCatDescription(cat.description || '');
+    setCatImage(cat.image_url || '');
+    setIsCatModalOpen(true);
+  };
+
+  const handleCatNameChange = (val: string) => {
+    setCatName(val);
+    if (!editingCategory) {
+      setCatSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+    }
+  };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catName.trim()) return;
+
+    const catToSave: Category = {
+      id: editingCategory ? editingCategory.id : crypto.randomUUID(),
+      name: catName.trim(),
+      slug: catSlug.trim() || catName.trim().toLowerCase().replace(/\s+/g, '-'),
+      description: catDescription.trim(),
+      image_url: catImage || undefined,
+      sort_order: editingCategory ? editingCategory.sort_order : categories.length + 1,
+      is_active: true,
+    };
+
+    const success = await api.saveCategory(catToSave);
+    if (success) {
+      addToast({
+        type: 'success',
+        title: editingCategory ? 'Category Updated' : 'Category Created',
+        description: `Category "${catToSave.name}" is active and synced across all devices.`,
+      });
+      setIsCatModalOpen(false);
+      loadData();
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        description: 'Could not save category to Supabase database.',
+      });
+    }
+  };
+
+  const handleDeleteCategory = async (cat: Category) => {
+    if (window.confirm(`Are you sure you want to remove category "${cat.name}"?`)) {
+      const success = await api.deleteCategory(cat.id);
+      if (success) {
+        addToast({
+          type: 'info',
+          title: 'Category Deleted',
+          description: `Category "${cat.name}" has been removed.`,
+        });
+        loadData();
+      }
     }
   };
 
@@ -284,6 +369,15 @@ export const CollectionsPage: React.FC = () => {
               >
                 CREATE COLLECTION
               </Button>
+            ) : activeTab === 'categories' ? (
+              <Button
+                variant="primary"
+                size="md"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={handleOpenCreateCategory}
+              >
+                CREATE CATEGORY
+              </Button>
             ) : (
               <div className="flex items-center gap-2">
                 <Button
@@ -321,6 +415,19 @@ export const CollectionsPage: React.FC = () => {
           >
             <FolderTree className="w-4 h-4" />
             <span>Collections Catalog ({collections.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('categories')}
+            className={`pb-3 px-4 font-semibold text-xs flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === 'categories'
+                ? 'border-[#3F3F8F] text-[#3F3F8F]'
+                : 'border-transparent text-neutral-500 hover:text-black'
+            }`}
+          >
+            <Tags className="w-4 h-4" />
+            <span>Categories Registry ({categories.length})</span>
           </button>
 
           <button
@@ -443,6 +550,123 @@ export const CollectionsPage: React.FC = () => {
                         </tr>
                       );
                     })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : activeTab === 'categories' ? (
+          <>
+            {/* Search & Counter */}
+            <div className="bg-white p-3 border border-[#E7E7E7] rounded-[4px] shadow-sm flex items-center justify-between gap-4">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={catSearchTerm}
+                  onChange={(e) => setCatSearchTerm(e.target.value)}
+                  className="w-full bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div className="text-[11px] text-neutral-500 font-medium">
+                {categories.length} Cloud-Synced {categories.length === 1 ? 'Category' : 'Categories'}
+              </div>
+            </div>
+
+            {/* Categories Table */}
+            <div className="bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
+                  <tr>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Slug Identifier</th>
+                    <th className="p-4">Description</th>
+                    <th className="p-4">Associated Products</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E7E7E7]">
+                  {categories.filter((c) =>
+                    c.name.toLowerCase().includes(catSearchTerm.toLowerCase()) ||
+                    c.slug.toLowerCase().includes(catSearchTerm.toLowerCase())
+                  ).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-[#888888]">
+                        No categories found. Click "CREATE CATEGORY" above to add one.
+                      </td>
+                    </tr>
+                  ) : (
+                    categories
+                      .filter((c) =>
+                        c.name.toLowerCase().includes(catSearchTerm.toLowerCase()) ||
+                        c.slug.toLowerCase().includes(catSearchTerm.toLowerCase())
+                      )
+                      .map((cat) => {
+                        const matchingCount = products.filter(
+                          (p) => p.category_id === cat.id || p.category_name?.toLowerCase() === cat.slug.toLowerCase() || p.gender === cat.slug
+                        ).length;
+
+                        return (
+                          <tr key={cat.id} className="hover:bg-[#FAFAFA] transition-colors">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-14 bg-neutral-100 rounded-[2px] overflow-hidden border border-[#E7E7E7] shrink-0">
+                                  <img
+                                    src={cat.image_url || '/Assets/hero/hero-mobile.jpg'}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-black text-sm">{cat.name}</div>
+                                  <div className="text-[10px] text-[#888888] font-mono">
+                                    /collections/{cat.slug}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4 font-mono text-neutral-600">{cat.slug}</td>
+                            <td className="p-4 text-[#666666] max-w-xs truncate">
+                              {cat.description || 'Department category for garments and silhouettes.'}
+                            </td>
+                            <td className="p-4 font-semibold text-black">
+                              {matchingCount} {matchingCount === 1 ? 'item' : 'items'}
+                            </td>
+                            <td className="p-4">
+                              <span className="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
+                                ACTIVE
+                              </span>
+                            </td>
+                            <td className="p-4 text-right space-x-2">
+                              <Link
+                                to={`/collections/${cat.slug}`}
+                                target="_blank"
+                                className="inline-block p-1 text-neutral-500 hover:text-black"
+                                title="View on Storefront"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                              <button
+                                onClick={() => handleOpenEditCategory(cat)}
+                                className="inline-block p-1 text-neutral-500 hover:text-[#3F3F8F]"
+                                title="Edit Category"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCategory(cat)}
+                                className="inline-block p-1 text-neutral-400 hover:text-red-600"
+                                title="Delete Category"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                   )}
                 </tbody>
               </table>
@@ -981,6 +1205,92 @@ export const CollectionsPage: React.FC = () => {
                   </button>
                   <Button variant="primary" size="md" type="submit">
                     {editingCollection ? 'SAVE CHANGES' : 'CREATE COLLECTION'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Category Modal */}
+        {isCatModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+            <div className="bg-white rounded-[4px] max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-3 border-b border-[#E7E7E7]">
+                <h3 className="font-wondra text-lg text-black">
+                  {editingCategory ? 'EDIT CATEGORY' : 'NEW CATEGORY'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsCatModalOpen(false)}
+                  className="text-neutral-400 hover:text-black text-lg font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCategory} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase text-neutral-700 mb-1">
+                    Category Name *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="E.g., Kurtas, Sarees, Formal Wear"
+                    value={catName}
+                    onChange={(e) => handleCatNameChange(e.target.value)}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase text-neutral-700 mb-1">
+                    URL Slug
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="kurtas"
+                    value={catSlug}
+                    onChange={(e) => setCatSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, ''))}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase text-neutral-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Editorial description of this category..."
+                    value={catDescription}
+                    onChange={(e) => setCatDescription(e.target.value)}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+
+                <div>
+                  <SingleImageDropzone
+                    value={catImage}
+                    onChange={setCatImage}
+                    label="Category Photography"
+                    helperText="Upload category card image (WebP, PNG, JPG)."
+                    aspectRatio="4/5"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-[#E7E7E7] flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCatModalOpen(false)}
+                    className="px-4 py-2 border border-[#E7E7E7] text-neutral-700 hover:bg-[#F8F8F8] rounded-[4px] font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <Button variant="primary" size="md" type="submit">
+                    {editingCategory ? 'SAVE CHANGES' : 'CREATE CATEGORY'}
                   </Button>
                 </div>
               </form>

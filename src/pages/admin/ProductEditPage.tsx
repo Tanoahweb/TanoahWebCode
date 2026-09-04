@@ -27,7 +27,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { SAMPLE_CATEGORIES } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
-import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection } from '../../types';
+import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category } from '../../types';
 import { MediaUploader } from '../../components/admin/MediaUploader';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 
@@ -153,18 +153,21 @@ export const ProductEditPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [brand, setBrand] = useState('TANOAH');
-  // Product Types state with inline creation (User Request 2)
-  const [productTypes, setProductTypes] = useState<string[]>(getStoredProductTypes);
+  // Product Types state with inline creation
+  const [productTypes, setProductTypes] = useState<string[]>(DEFAULT_PRODUCT_TYPES);
   const [productType, setProductType] = useState('Sarees');
   const [isAddingNewType, setIsAddingNewType] = useState(false);
   const [newTypeInput, setNewTypeInput] = useState('');
 
-  // Collections state (User Request 1)
+  // Categories state from Supabase
+  const [categories, setCategories] = useState<Category[]>(SAMPLE_CATEGORIES);
+  const [categoryId, setCategoryId] = useState<string>(SAMPLE_CATEGORIES[0]?.id || '');
+
+  // Collections state
   const [availableCollections, setAvailableCollections] = useState<Collection[]>([]);
   const [selectedCollectionSlugs, setSelectedCollectionSlugs] = useState<string[]>([]);
   const [collectionSearch, setCollectionSearch] = useState('');
   const [gender, setGender] = useState<'men' | 'women' | 'unisex'>('unisex');
-  const [categoryId, setCategoryId] = useState(SAMPLE_CATEGORIES[0]?.id || '');
   const [status, setStatus] = useState<'active' | 'draft' | 'archived'>('active');
   const [basePrice, setBasePrice] = useState<number>(2499);
   const [compareAtPrice, setCompareAtPrice] = useState<number>(2999);
@@ -358,6 +361,21 @@ export const ProductEditPage: React.FC = () => {
       }
     });
 
+    // Load available categories from Supabase
+    api.getCategories().then((cats) => {
+      if (isMounted && cats && cats.length > 0) {
+        setCategories(cats);
+        setCategoryId((prev) => prev || cats[0].id);
+      }
+    });
+
+    // Load available product types from Supabase
+    api.getProductTypes().then((types) => {
+      if (isMounted && types && types.length > 0) {
+        setProductTypes(types);
+      }
+    });
+
     if (isEditing && id) {
       setIsLoading(true);
       api.getProductById(id).then(async (match) => {
@@ -368,6 +386,9 @@ export const ProductEditPage: React.FC = () => {
             setTitle(match.title || '');
             setSlug(match.slug || '');
             setBrand(match.brand || 'TANOAH');
+            if (match.category_id) {
+              setCategoryId(match.category_id);
+            }
             if (match.product_type) {
               setProductType(match.product_type);
               setProductTypes((prev) =>
@@ -864,7 +885,7 @@ export const ProductEditPage: React.FC = () => {
     );
   };
 
-  const handleSaveNewProductType = () => {
+  const handleSaveNewProductType = async () => {
     const trimmed = newTypeInput.trim();
     if (!trimmed) {
       setIsAddingNewType(false);
@@ -883,20 +904,15 @@ export const ProductEditPage: React.FC = () => {
       return;
     }
 
-    const updated = [...productTypes, trimmed];
-    setProductTypes(updated);
-    try {
-      const customOnly = updated.filter((t) => !DEFAULT_PRODUCT_TYPES.includes(t));
-      localStorage.setItem('tanoah_custom_product_types', JSON.stringify(customOnly));
-    } catch {}
-
+    const updated = await api.saveProductType(trimmed);
+    setProductTypes(updated && updated.length > 0 ? updated : [...productTypes, trimmed]);
     setProductType(trimmed);
     setIsAddingNewType(false);
     setNewTypeInput('');
     addToast({
       type: 'success',
       title: 'Product Type Created',
-      description: `New product type "${trimmed}" created and selected.`,
+      description: `New product type "${trimmed}" created and saved to cloud store.`,
     });
   };
 
@@ -1783,6 +1799,23 @@ export const ProductEditPage: React.FC = () => {
               <h3 className="font-semibold text-black uppercase tracking-wider text-xs">
                 ORGANIZATION
               </h3>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
+                  Category (Department Registry)
+                </label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer font-medium"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-black mb-1 uppercase">

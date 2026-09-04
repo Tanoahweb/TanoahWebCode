@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress } from '@/types';
-import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG } from '@/data/mockData';
+import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category } from '@/types';
+import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
@@ -95,62 +95,25 @@ const sanitizeProduct = (p: Product): Product => {
   };
 };
 
-const getStoredCustomProducts = (): Product[] => {
+// One-time cleanup: wipe deprecated local storage cache keys so all devices synchronize purely with Supabase
+if (typeof window !== 'undefined') {
   try {
-    const raw = localStorage.getItem('tanoah_custom_products');
-    if (!raw) return [];
-    const list = JSON.parse(raw) as Product[];
-    if (!Array.isArray(list)) return [];
-    const sanitized = list.map(sanitizeProduct);
-    try {
-      localStorage.setItem('tanoah_custom_products', JSON.stringify(sanitized));
-    } catch {}
-    return sanitized;
-  } catch {
-    return [];
-  }
-};
-
-const getDeletedProductIds = (): string[] => {
-  try {
-    const raw = localStorage.getItem('tanoah_deleted_product_ids');
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
-
-const applyStockOverrides = (products: Product[]): Product[] => {
-  try {
-    const raw = localStorage.getItem('tanoah_stock_overrides');
-    if (!raw) return products;
-    const stockMap: Record<string, number> = JSON.parse(raw);
-    products.forEach((p) => {
-      if (p.variants) {
-        p.variants.forEach((v) => {
-          if (stockMap[v.id] !== undefined) {
-            v.stock_quantity = stockMap[v.id];
-          }
-        });
-      }
-    });
+    const keysToClean = [
+      'tanoah_custom_products',
+      'tanoah_deleted_product_ids',
+      'tanoah_stock_overrides',
+      'tanoah_custom_collections',
+      'tanoah_home_featured_collections',
+      'tanoah_store_settings',
+    ];
+    keysToClean.forEach((k) => localStorage.removeItem(k));
   } catch {}
-  return products;
-};
+}
 
-const mergeProductsWithCustom = (baseList: Product[]): Product[] => {
-  const custom = getStoredCustomProducts();
-  const deletedIds = getDeletedProductIds();
-
-  const merged = [...custom];
-  baseList.forEach((bp) => {
-    if (!merged.some((m) => m.id === bp.id || m.slug === bp.slug)) {
-      merged.push(sanitizeProduct(bp));
-    }
-  });
-  const filtered = merged.filter((p) => !deletedIds.includes(p.id) && !deletedIds.includes(p.slug));
-  return applyStockOverrides(filtered);
-};
+const getStoredCustomProducts = (): Product[] => [];
+const getDeletedProductIds = (): string[] => [];
+const applyStockOverrides = (products: Product[]): Product[] => products;
+const mergeProductsWithCustom = (baseList: Product[]): Product[] => baseList.map(sanitizeProduct);
 
 // Local order persistence helpers
 const getStoredCustomOrders = (): any[] => {
@@ -310,52 +273,37 @@ const SAMPLE_ORDERS_DETAILED: any[] = [
 ];
 
 export const api = {
-  // Store Settings (Persisted locally & remote)
+  // Store Settings (Direct Supabase)
   async getStoreSettings(): Promise<StoreSettings> {
-    try {
-      const raw = localStorage.getItem('tanoah_store_settings');
-      if (raw) return { ...SAMPLE_SETTINGS, ...JSON.parse(raw) };
-    } catch {}
-
     try {
       const { data, error } = await supabase.from('store_settings').select('*').limit(1).single();
       if (!error && data) return { ...SAMPLE_SETTINGS, ...data } as StoreSettings;
-    } catch {}
-
+      if (error) console.warn('Supabase getStoreSettings warning:', error);
+    } catch (e) {
+      console.warn('Network error fetching store settings:', e);
+    }
     return SAMPLE_SETTINGS;
   },
 
   async saveStoreSettings(settings: Partial<StoreSettings>): Promise<boolean> {
     try {
-      const current = await this.getStoreSettings();
-      const updated = { ...current, ...settings };
-      localStorage.setItem('tanoah_store_settings', JSON.stringify(updated));
-
-      try {
-        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
-        if (existing?.id) {
-          await supabase.from('store_settings').update(settings).eq('id', existing.id);
+      const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+      if (existing?.id) {
+        const { error } = await supabase.from('store_settings').update(settings).eq('id', existing.id);
+        if (error) {
+          console.error('Failed to update store settings in Supabase:', error);
+          return false;
         }
-      } catch {}
-
+      }
       return true;
-    } catch {
+    } catch (err) {
+      console.error('Error saving store settings:', err);
       return false;
     }
   },
 
-  // Header Menu & Mega Menu Navigation (persisted locally & remote)
+  // Header Menu & Mega Menu Navigation (Direct Supabase)
   async getNavigationConfig(): Promise<NavigationConfig> {
-    try {
-      const raw = localStorage.getItem('tanoah_navigation_menu');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.header_menu) && parsed.header_menu.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-
     try {
       const { data, error } = await supabase
         .from('store_settings')
@@ -365,8 +313,9 @@ export const api = {
       if (!error && data?.navigation_config?.header_menu?.length > 0) {
         return data.navigation_config as NavigationConfig;
       }
-    } catch {}
-
+    } catch (e) {
+      console.warn('Network error fetching navigation config:', e);
+    }
     return DEFAULT_NAVIGATION_CONFIG;
   },
 
@@ -376,40 +325,29 @@ export const api = {
         ...config,
         updated_at: new Date().toISOString(),
       };
-      localStorage.setItem('tanoah_navigation_menu', JSON.stringify(payload));
-
-      try {
-        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
-        if (existing?.id) {
-          await supabase
-            .from('store_settings')
-            .update({ navigation_config: payload })
-            .eq('id', existing.id);
+      const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ navigation_config: payload })
+          .eq('id', existing.id);
+        if (error) {
+          console.error('Failed to save navigation config in Supabase:', error);
+          return false;
         }
-      } catch {}
-
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_navigation_updated', { detail: payload }));
       }
-
       return true;
-    } catch {
+    } catch (err) {
+      console.error('Error saving navigation config:', err);
       return false;
     }
   },
 
-  // Home Screen: "Explore The Editions" Featured Collections Showcase
+  // Home Screen: "Explore The Editions" Featured Collections Showcase (Direct Supabase)
   async getFeaturedCollectionsConfig(): Promise<FeaturedCollectionsConfig> {
-    try {
-      const raw = localStorage.getItem('tanoah_home_featured_collections');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-
     try {
       const { data, error } = await supabase
         .from('store_settings')
@@ -419,8 +357,9 @@ export const api = {
       if (!error && (data as any)?.featured_collections_config?.items?.length > 0) {
         return (data as any).featured_collections_config as FeaturedCollectionsConfig;
       }
-    } catch {}
-
+    } catch (e) {
+      console.warn('Network error fetching featured collections config:', e);
+    }
     return DEFAULT_FEATURED_COLLECTIONS_CONFIG;
   },
 
@@ -430,117 +369,208 @@ export const api = {
         ...config,
         updated_at: new Date().toISOString(),
       };
-      localStorage.setItem('tanoah_home_featured_collections', JSON.stringify(payload));
-
-      try {
-        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
-        if (existing?.id) {
-          await supabase
-            .from('store_settings')
-            .update({ featured_collections_config: payload })
-            .eq('id', existing.id);
+      const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ featured_collections_config: payload })
+          .eq('id', existing.id);
+        if (error) {
+          console.error('Failed to update featured collections config in Supabase:', error);
+          return false;
         }
-      } catch {}
-
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_featured_collections_updated', { detail: payload }));
       }
-
       return true;
-    } catch {
+    } catch (err) {
+      console.error('Error saving featured collections config:', err);
       return false;
     }
   },
 
-  // Collections (with custom storage persistence)
+  // Collections Catalog (Direct Supabase)
   async getCollections(): Promise<Collection[]> {
-    let customCols: Collection[] = [];
     try {
-      const raw = localStorage.getItem('tanoah_custom_collections');
-      if (raw) customCols = JSON.parse(raw);
-    } catch {}
-
-    let remoteCols: Collection[] = [];
-    try {
-      const { data, error } = await supabase.from('collections').select('*').eq('is_active', true).order('sort_order');
-      if (!error && data && data.length > 0) remoteCols = data as Collection[];
-    } catch {}
-
-    const base = remoteCols.length > 0 ? remoteCols : SAMPLE_COLLECTIONS;
-    const merged = [...customCols];
-    base.forEach((c) => {
-      if (!merged.some((m) => m.id === c.id || m.slug === c.slug)) {
-        merged.push(c);
+      const { data, error } = await supabase
+        .from('collections')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (!error && data && data.length > 0) {
+        return data as Collection[];
       }
-    });
-    return merged;
+    } catch (e) {
+      console.warn('Network error fetching collections:', e);
+    }
+    return SAMPLE_COLLECTIONS;
   },
 
   async saveCollection(collection: Collection): Promise<boolean> {
     try {
-      const existing = await this.getCollections();
-      const updated = [collection, ...existing.filter((c) => c.id !== collection.id && c.slug !== collection.slug)];
-      localStorage.setItem('tanoah_custom_collections', JSON.stringify(updated));
-
-      // Sync to Supabase
-      try {
-        const payload: any = {
-          title: collection.title,
-          slug: collection.slug,
-          description: collection.description || null,
-          banner_image: collection.banner_image || null,
-          is_smart: !!collection.is_smart,
-          sort_order: collection.sort_order || 0,
-          is_active: collection.is_active !== false,
-        };
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collection.id);
-        if (isUUID) {
-          payload.id = collection.id;
-        }
-        await supabase.from('collections').upsert([payload], { onConflict: 'slug' });
-      } catch (err) {
-        console.warn('Could not sync collection to Supabase:', err);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collection.id);
+      const targetId = isUUID ? collection.id : crypto.randomUUID();
+      const payload: any = {
+        id: targetId,
+        title: collection.title,
+        slug: collection.slug,
+        description: collection.description || null,
+        banner_image: collection.banner_image || null,
+        is_smart: !!collection.is_smart,
+        sort_order: collection.sort_order || 0,
+        is_active: collection.is_active !== false,
+      };
+      const { error } = await supabase.from('collections').upsert([payload], { onConflict: 'slug' });
+      if (error) {
+        console.error('Failed to save collection to Supabase:', error);
+        return false;
       }
-
-      // Broadcast update event so navigation and storefront components auto-sync immediately
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { collection, collections: updated } }));
+        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { collection: { ...collection, id: targetId } } }));
       }
-
       return true;
-    } catch {
+    } catch (err) {
+      console.error('Error saving collection:', err);
       return false;
     }
   },
 
   async deleteCollection(id: string): Promise<boolean> {
     try {
-      const existing = await this.getCollections();
-      const updated = existing.filter((c) => c.id !== id && c.slug !== id);
-      localStorage.setItem('tanoah_custom_collections', JSON.stringify(updated));
-
-      try {
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        if (isUUID) {
-          await supabase.from('collections').delete().eq('id', id);
-        } else {
-          await supabase.from('collections').delete().eq('slug', id);
-        }
-      } catch (err) {
-        console.warn('Could not delete collection from Supabase:', err);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('collections').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete collection from Supabase:', error);
+        return false;
       }
-
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { deletedId: id, collections: updated } }));
+        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { deletedId: id } }));
       }
-
       return true;
-    } catch {
+    } catch (err) {
+      console.error('Error deleting collection:', err);
       return false;
     }
   },
 
-  // Products with variants and images (Merged with custom stored products)
+  // Categories Registry (Direct Supabase)
+  async getCategories(): Promise<Category[]> {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (!error && data && data.length > 0) {
+        return data as Category[];
+      }
+    } catch (e) {
+      console.warn('Network error fetching categories:', e);
+    }
+    return SAMPLE_CATEGORIES;
+  },
+
+  async saveCategory(category: Category): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category.id);
+      const targetId = isUUID ? category.id : crypto.randomUUID();
+      const payload: any = {
+        id: targetId,
+        name: category.name,
+        slug: category.slug,
+        description: category.description || null,
+        image_url: category.image_url || null,
+        parent_id: category.parent_id || null,
+        sort_order: category.sort_order || 0,
+        is_active: category.is_active !== false,
+      };
+      const { error } = await supabase.from('categories').upsert([payload], { onConflict: 'slug' });
+      if (error) {
+        console.error('Failed to save category to Supabase:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_categories_updated', { detail: { category: { ...category, id: targetId } } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving category:', err);
+      return false;
+    }
+  },
+
+  async deleteCategory(id: string): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('categories').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete category from Supabase:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_categories_updated', { detail: { deletedId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      return false;
+    }
+  },
+
+  // Product Types (Persisted in Supabase store_settings.custom_product_types)
+  async getProductTypes(): Promise<string[]> {
+    const DEFAULT_TYPES = [
+      'Sarees',
+      'Dresses',
+      'Trousers',
+      'T-Shirts',
+      'Shirts',
+      'Kurtas',
+      'Lehengas',
+      'Outerwear',
+      'Co-ords',
+      'Accessories',
+    ];
+    try {
+      const { data } = await supabase
+        .from('store_settings')
+        .select('custom_product_types')
+        .limit(1)
+        .single();
+      const custom: string[] = (data as any)?.custom_product_types || [];
+      return Array.from(new Set([...DEFAULT_TYPES, ...custom]));
+    } catch {
+      return DEFAULT_TYPES;
+    }
+  },
+
+  async saveProductType(newType: string): Promise<string[]> {
+    const trimmed = newType.trim();
+    if (!trimmed) return [];
+    try {
+      const current = await this.getProductTypes();
+      if (!current.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+        const updated = [...current, trimmed];
+        const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+        if (existing?.id) {
+          await supabase
+            .from('store_settings')
+            .update({ custom_product_types: updated })
+            .eq('id', existing.id);
+        }
+        return updated;
+      }
+      return current;
+    } catch (err) {
+      console.error('Error saving product type:', err);
+      return [];
+    }
+  },
+
+  // Products with variants and images (Direct Supabase)
   async getProducts(statusFilter?: string): Promise<Product[]> {
     try {
       let query = supabase
@@ -550,34 +580,32 @@ export const api = {
           category:categories(*),
           images:product_images(*),
           variants:product_variants(*)
-        `);
+        `)
+        .order('created_at', { ascending: false });
 
       if (statusFilter && statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
       }
 
       const { data, error } = await query;
-      const base = error || !data || data.length === 0 ? SAMPLE_PRODUCTS : (data as unknown as Product[]);
-      const merged = mergeProductsWithCustom(base);
-      if (statusFilter && statusFilter !== 'all') {
-        return merged.filter((p) => p.status === statusFilter);
+      if (!error && data && data.length > 0) {
+        return (data as unknown as Product[]).map(sanitizeProduct);
       }
-      return merged;
-    } catch {
-      const merged = mergeProductsWithCustom(SAMPLE_PRODUCTS);
-      if (statusFilter && statusFilter !== 'all') {
-        return merged.filter((p) => p.status === statusFilter);
+      if (error) {
+        console.warn('Supabase getProducts error, falling back to sample products:', error);
       }
-      return merged;
+    } catch (err) {
+      console.warn('Network error fetching products from Supabase:', err);
     }
+    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct);
+    if (statusFilter && statusFilter !== 'all') {
+      return sample.filter((p) => p.status === statusFilter);
+    }
+    return sample;
   },
 
-  // Single Product by slug (checks custom stored products first, then Supabase, then mock)
+  // Single Product by slug (Direct Supabase)
   async getProductBySlug(slug: string): Promise<Product | null> {
-    const custom = getStoredCustomProducts();
-    const customMatch = custom.find((p) => p.slug === slug);
-    if (customMatch) return customMatch;
-
     try {
       const { data, error } = await supabase
         .from('products')
@@ -591,147 +619,159 @@ export const api = {
         .single();
 
       if (!error && data) {
-        return data as unknown as Product;
+        return sanitizeProduct(data as unknown as Product);
       }
-    } catch {
-      // fallback
+    } catch (e) {
+      console.warn('Error fetching product by slug from Supabase:', e);
     }
-
-    return SAMPLE_PRODUCTS.find((p: Product) => p.slug === slug) || null;
+    const fallback = SAMPLE_PRODUCTS.find((p: Product) => p.slug === slug);
+    return fallback ? sanitizeProduct(fallback) : null;
   },
 
-  // Single Product by ID
+  // Single Product by ID (Direct Supabase)
   async getProductById(id: string): Promise<Product | null> {
-    const custom = getStoredCustomProducts();
-    const customMatch = custom.find((p) => p.id === id || p.slug === id);
-    if (customMatch) return customMatch;
-
     try {
-      const { data, error } = await supabase
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabase
         .from('products')
         .select(`
           *,
           category:categories(*),
           images:product_images(*),
           variants:product_variants(*)
-        `)
-        .eq('id', id)
-        .single();
+        `);
 
-      if (!error && data) {
-        return data as unknown as Product;
+      if (isUUID) {
+        query = query.eq('id', id);
+      } else {
+        query = query.eq('slug', id);
       }
-    } catch {
-      // fallback
-    }
 
-    return SAMPLE_PRODUCTS.find((p: Product) => p.id === id || p.slug === id) || null;
+      const { data, error } = await query.single();
+      if (!error && data) {
+        return sanitizeProduct(data as unknown as Product);
+      }
+    } catch (e) {
+      console.warn('Error fetching product by ID from Supabase:', e);
+    }
+    const fallback = SAMPLE_PRODUCTS.find((p: Product) => p.id === id || p.slug === id);
+    return fallback ? sanitizeProduct(fallback) : null;
   },
 
-  // Save / Update Product
+  // Save / Update Product (Direct Supabase)
   async saveProduct(product: Product): Promise<{ success: boolean; product: Product }> {
     const sanitized = sanitizeProduct(product);
-    const custom = getStoredCustomProducts();
-    const filtered = custom.filter((p) => p.id !== sanitized.id && p.slug !== sanitized.slug);
-    filtered.unshift(sanitized);
-    localStorage.setItem('tanoah_custom_products', JSON.stringify(filtered));
-
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const targetId = uuidRegex.test(sanitized.id) ? sanitized.id : crypto.randomUUID();
     sanitized.id = targetId;
 
-    try {
-      await supabase.from('products').upsert({
-        id: targetId,
-        title: sanitized.title,
-        slug: sanitized.slug,
-        brand: sanitized.brand || 'TANOAH',
-        product_type: sanitized.product_type || 'Apparel',
-        base_price: sanitized.base_price,
-        sale_price: sanitized.sale_price,
-        compare_at_price: sanitized.compare_at_price,
-        cost_price: sanitized.cost_price,
-        tax_rate: sanitized.tax_rate || 12,
-        hsn_code: sanitized.hsn_code,
-        status: sanitized.status || 'active',
-        is_featured: !!sanitized.is_featured,
-        is_best_seller: !!sanitized.is_best_seller,
-        is_new_arrival: !!sanitized.is_new_arrival,
-        description: sanitized.description || '',
-        short_description: sanitized.short_description || '',
-        tags: sanitized.tags || [],
-        updated_at: new Date().toISOString(),
-      });
+    const validCategoryId = sanitized.category_id && uuidRegex.test(sanitized.category_id)
+      ? sanitized.category_id
+      : null;
 
-      // Sync Images to Supabase
-      if (sanitized.images && sanitized.images.length > 0) {
-        await supabase.from('product_images').delete().eq('product_id', targetId);
-        const imgRows = sanitized.images.map((img, idx) => ({
+    const productRow = {
+      id: targetId,
+      title: sanitized.title,
+      slug: sanitized.slug,
+      brand: sanitized.brand || 'TANOAH',
+      product_type: sanitized.product_type || 'Apparel',
+      category_id: validCategoryId,
+      gender: sanitized.gender || 'unisex',
+      base_price: sanitized.base_price,
+      sale_price: sanitized.sale_price ?? null,
+      compare_at_price: sanitized.compare_at_price ?? null,
+      cost_price: sanitized.cost_price ?? null,
+      tax_rate: sanitized.tax_rate || 12,
+      hsn_code: sanitized.hsn_code ?? null,
+      status: sanitized.status || 'active',
+      is_featured: !!sanitized.is_featured,
+      is_best_seller: !!sanitized.is_best_seller,
+      is_new_arrival: !!sanitized.is_new_arrival,
+      description: sanitized.description || '',
+      short_description: sanitized.short_description || '',
+      tags: sanitized.tags || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: prodError } = await supabase.from('products').upsert(productRow);
+    if (prodError) {
+      console.error('CRITICAL: Supabase save product failed:', prodError);
+      throw new Error(`Failed to save product to database: ${prodError.message}`);
+    }
+
+    // Sync Images to Supabase
+    if (sanitized.images && sanitized.images.length > 0) {
+      await supabase.from('product_images').delete().eq('product_id', targetId);
+      const imgRows = sanitized.images.map((img, idx) => ({
+        id: uuidRegex.test(img.id) ? img.id : crypto.randomUUID(),
+        product_id: targetId,
+        image_url: img.image_url,
+        alt_text: img.alt_text || sanitized.title,
+        sort_order: img.sort_order ?? idx,
+        is_primary: img.is_primary ?? idx === 0,
+        color_name: img.color_name || '',
+        position: idx,
+      }));
+      const { error: insImgErr } = await supabase.from('product_images').insert(imgRows);
+      if (insImgErr) {
+        console.error('Supabase product images insert failed:', insImgErr);
+      }
+    }
+
+    // Sync Variants to Supabase
+    if (sanitized.variants && sanitized.variants.length > 0) {
+      await supabase.from('product_variants').delete().eq('product_id', targetId);
+      const variantRows = sanitized.variants.map((v) => {
+        const varId = uuidRegex.test(v.id) ? v.id : crypto.randomUUID();
+        return {
+          id: varId,
           product_id: targetId,
-          image_url: img.image_url,
-          alt_text: img.alt_text || sanitized.title,
-          sort_order: img.sort_order ?? idx,
-          is_primary: img.is_primary ?? idx === 0,
-          color_name: img.color_name || '',
-          position: idx,
-        }));
-        await supabase.from('product_images').insert(imgRows);
+          title: v.title || `${v.color_name || ''} / ${v.size || ''}`.trim(),
+          sku: v.sku,
+          barcode: v.barcode || null,
+          color_name: v.color_name || '',
+          color_hex: v.color_hex || '#000000',
+          size: v.size || 'Free Size',
+          price: v.price || sanitized.base_price,
+          sale_price: v.sale_price || sanitized.sale_price || null,
+          compare_at_price: v.compare_at_price || sanitized.compare_at_price || null,
+          stock_quantity: v.stock_quantity ?? 0,
+          reserved_stock: 0,
+          low_stock_threshold: v.low_stock_threshold ?? 3,
+          is_active: v.is_active !== false,
+        };
+      });
+      const { error: insVarErr } = await supabase.from('product_variants').insert(variantRows);
+      if (insVarErr) {
+        console.error('Supabase product variants insert failed:', insVarErr);
       }
+    }
 
-      // Sync Variants to Supabase
-      if (sanitized.variants && sanitized.variants.length > 0) {
-        await supabase.from('product_variants').delete().eq('product_id', targetId);
-        const variantRows = sanitized.variants.map((v) => {
-          const varId = uuidRegex.test(v.id) ? v.id : crypto.randomUUID();
-          return {
-            id: varId,
-            product_id: targetId,
-            title: v.title || `${v.color_name || ''} / ${v.size || ''}`.trim(),
-            sku: v.sku,
-            barcode: v.barcode || null,
-            color_name: v.color_name || '',
-            color_hex: v.color_hex || '#000000',
-            size: v.size || 'Free Size',
-            price: v.price || sanitized.base_price,
-            sale_price: v.sale_price || sanitized.sale_price,
-            compare_at_price: v.compare_at_price || sanitized.compare_at_price,
-            stock_quantity: v.stock_quantity ?? 0,
-            low_stock_threshold: v.low_stock_threshold ?? 3,
-            is_active: v.is_active !== false,
-          };
-        });
-        await supabase.from('product_variants').insert(variantRows);
-      }
-    } catch (remoteErr) {
-      console.warn('Supabase remote product sync error:', remoteErr);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tanoah_products_updated', { detail: sanitized }));
     }
 
     return { success: true, product: sanitized };
   },
 
-  // Delete Product (Local custom, blacklist tracking, and remote sync)
+  // Delete Product (Direct Supabase with CASCADE)
   async deleteProduct(productId: string): Promise<boolean> {
-    const custom = getStoredCustomProducts();
-    const updated = custom.filter((p) => p.id !== productId && p.slug !== productId);
-    localStorage.setItem('tanoah_custom_products', JSON.stringify(updated));
-
-    // Also track in deleted IDs blacklist so default sample products don't reappear
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
     try {
-      const raw = localStorage.getItem('tanoah_deleted_product_ids');
-      const deletedIds: string[] = raw ? JSON.parse(raw) : [];
-      if (!deletedIds.includes(productId)) {
-        deletedIds.push(productId);
-        localStorage.setItem('tanoah_deleted_product_ids', JSON.stringify(deletedIds));
+      const query = supabase.from('products').delete();
+      const { error } = isUUID ? await query.eq('id', productId) : await query.eq('slug', productId);
+      if (error) {
+        console.error('Supabase delete product error:', error);
+        return false;
       }
-    } catch {}
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uuidRegex.test(productId)) {
-      try {
-        await supabase.from('products').delete().eq('id', productId);
-      } catch {}
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_products_updated', { detail: { deletedId: productId } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting product from Supabase:', err);
+      return false;
     }
-    return true;
   },
 
   // Banners
@@ -1347,47 +1387,17 @@ export const api = {
     }
   },
 
-  // Admin: Update variant stock & audit log (Dual-sync)
+  // Admin: Update variant stock & audit log (Direct Supabase)
   async updateVariantStock(variantId: string, newQty: number, reason: string = 'manual_adjustment'): Promise<{ success: boolean; message?: string }> {
     try {
       const cleanQty = Math.max(0, Number(newQty) || 0);
-
-      // 1. Update in local custom products
-      const customProducts = getStoredCustomProducts();
-      let updatedCustom = false;
-      customProducts.forEach((p) => {
-        if (p.variants) {
-          p.variants.forEach((v) => {
-            if (v.id === variantId || v.sku === variantId) {
-              v.stock_quantity = cleanQty;
-              updatedCustom = true;
-            }
-          });
-        }
-      });
-      if (updatedCustom) {
-        localStorage.setItem('tanoah_custom_products', JSON.stringify(customProducts));
-      }
-
-      // Also track in a persistent variant stock map for sample products
-      try {
-        const rawStockMap = localStorage.getItem('tanoah_stock_overrides');
-        const stockMap: Record<string, number> = rawStockMap ? JSON.parse(rawStockMap) : {};
-        stockMap[variantId] = cleanQty;
-        localStorage.setItem('tanoah_stock_overrides', JSON.stringify(stockMap));
-      } catch {}
-
-      // 2. Sync to Supabase if UUID
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(variantId);
-      if (isUuid) {
-        try {
-          await supabase
-            .from('product_variants')
-            .update({ stock_quantity: cleanQty })
-            .eq('id', variantId);
-        } catch {}
+      const query = supabase.from('product_variants').update({ stock_quantity: cleanQty });
+      const { error } = isUuid ? await query.eq('id', variantId) : await query.eq('sku', variantId);
+      if (error) {
+        console.error('Supabase stock update error:', error);
+        return { success: false, message: error.message };
       }
-
       return { success: true };
     } catch (err: any) {
       console.error('Error updating stock:', err);

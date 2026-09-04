@@ -33,14 +33,23 @@ export const CatalogPage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    api.getProducts().then((data) => {
-      if (isMounted && data && data.length > 0) setProductsList(data);
-    });
-    api.getCollections().then((cols) => {
-      if (isMounted && cols && cols.length > 0) setCollectionsList(cols);
-    });
+    const fetchCatalogData = () => {
+      api.getProducts().then((data) => {
+        if (isMounted && data) setProductsList(data);
+      });
+      api.getCollections().then((cols) => {
+        if (isMounted && cols && cols.length > 0) setCollectionsList(cols);
+      });
+    };
+
+    fetchCatalogData();
+    window.addEventListener('tanoah_products_updated', fetchCatalogData);
+    window.addEventListener('tanoah_collections_updated', fetchCatalogData);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('tanoah_products_updated', fetchCatalogData);
+      window.removeEventListener('tanoah_collections_updated', fetchCatalogData);
     };
   }, []);
 
