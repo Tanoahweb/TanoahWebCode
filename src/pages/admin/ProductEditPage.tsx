@@ -44,18 +44,7 @@ const DEFAULT_PRODUCT_TYPES = [
   'Accessories',
 ];
 
-const getStoredProductTypes = (): string[] => {
-  try {
-    const raw = localStorage.getItem('tanoah_custom_product_types');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return Array.from(new Set([...DEFAULT_PRODUCT_TYPES, ...parsed]));
-      }
-    }
-  } catch {}
-  return DEFAULT_PRODUCT_TYPES;
-};
+
 
 interface OptionChoice {
   id: string;

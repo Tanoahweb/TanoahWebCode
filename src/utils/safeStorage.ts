@@ -138,43 +138,17 @@ export function purgeStorageBloat(): void {
       }
     }
 
-    // 2. Clean custom products from any giant base64 data URLs
-    const rawProducts = localStorage.getItem('tanoah_custom_products');
-    if (rawProducts) {
-      try {
-        const parsed = JSON.parse(rawProducts);
-        if (Array.isArray(parsed)) {
-          let modified = false;
-          const cleaned = parsed.map((p: any) => {
-            if (p.images && Array.isArray(p.images)) {
-              p.images = p.images.map((img: any) => {
-                if (img.image_url && img.image_url.startsWith('data:') && img.image_url.length > 50000) {
-                  modified = true;
-                  return { ...img, image_url: '/Assets/products/placeholder-product.svg' };
-                }
-                return img;
-              });
-            }
-            if (p.variants && Array.isArray(p.variants)) {
-              p.variants = p.variants.map((v: any) => {
-                if (v.color_image_url && v.color_image_url.startsWith('data:') && v.color_image_url.length > 50000) {
-                  modified = true;
-                  return { ...v, color_image_url: '/Assets/products/placeholder-product.svg' };
-                }
-                return v;
-              });
-            }
-            return p;
-          });
-
-          if (modified) {
-            localStorage.setItem('tanoah_custom_products', JSON.stringify(cleaned));
-          }
-        }
-      } catch {
-        // preserve existing if parsing failed
-      }
-    }
+    // 2. Remove any obsolete/deprecated localStorage keys (all stored in Supabase now)
+    const deprecatedKeys = [
+      'tanoah_custom_products',
+      'tanoah_deleted_product_ids',
+      'tanoah_stock_overrides',
+      'tanoah_custom_collections',
+      'tanoah_home_featured_collections',
+      'tanoah_custom_product_types',
+      'tanoah_store_settings',
+    ];
+    deprecatedKeys.forEach((k) => localStorage.removeItem(k));
 
     // 3. Clean any obsolete temporary caches
     const nonCriticalKeys = [

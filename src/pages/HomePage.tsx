@@ -14,13 +14,23 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    api.getProducts().then((data) => {
-      if (isMounted && data && data.length > 0) {
-        setProducts(data);
-      }
-    });
+    const fetchProducts = () => {
+      api.getProducts().then((data) => {
+        if (isMounted && data) {
+          setProducts(data);
+        }
+      });
+    };
+    fetchProducts();
+
+    const handleUpdate = () => {
+      fetchProducts();
+    };
+    window.addEventListener('tanoah_products_updated', handleUpdate);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('tanoah_products_updated', handleUpdate);
     };
   }, []);
 

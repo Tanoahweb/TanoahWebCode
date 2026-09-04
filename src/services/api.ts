@@ -398,7 +398,7 @@ export const api = {
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data as Collection[];
       }
     } catch (e) {
@@ -463,7 +463,7 @@ export const api = {
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data as Category[];
       }
     } catch (e) {
@@ -588,7 +588,7 @@ export const api = {
       }
 
       const { data, error } = await query;
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return (data as unknown as Product[]).map(sanitizeProduct);
       }
       if (error) {
@@ -1150,46 +1150,29 @@ export const api = {
     return { success: true, order_number: orderNumber };
   },
 
-  // Adjust inventory according to purchase (Issue 5)
+  // Adjust inventory according to purchase (Direct Supabase)
   async adjustInventoryForOrder(items: CartItem[]): Promise<void> {
     try {
-      const stored = localStorage.getItem('tanoah_custom_products');
-      let products: Product[] = stored ? JSON.parse(stored) : [];
-
-      items.forEach((item) => {
-        if (!products.some((p) => p.id === item.product.id)) {
-          products.push(item.product);
-        }
-      });
-
-      items.forEach((item) => {
-        const product = products.find((p) => p.id === item.product.id);
-        if (product && product.variants) {
-          const variant = product.variants.find(
-            (v) =>
-              v.id === item.variant.id ||
-              (v.color_name === item.variant.color_name && v.size === item.variant.size)
-          );
-          if (variant) {
-            variant.stock_quantity = Math.max(0, variant.stock_quantity - item.quantity);
-          }
-        }
-      });
-
-      localStorage.setItem('tanoah_custom_products', JSON.stringify(products));
-
       for (const item of items) {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           item.variant.id
         );
         if (isUuid) {
           try {
-            await supabase.rpc('decrement_inventory', {
-              p_variant_id: item.variant.id,
-              p_quantity: item.quantity,
-            });
-          } catch {
-            // best effort
+            const { data: currentVar } = await supabase
+              .from('product_variants')
+              .select('stock_quantity')
+              .eq('id', item.variant.id)
+              .single();
+            if (currentVar) {
+              const newQty = Math.max(0, (currentVar.stock_quantity ?? 0) - item.quantity);
+              await supabase
+                .from('product_variants')
+                .update({ stock_quantity: newQty })
+                .eq('id', item.variant.id);
+            }
+          } catch (e) {
+            console.warn('Could not update variant stock in Supabase:', e);
           }
         }
       }
