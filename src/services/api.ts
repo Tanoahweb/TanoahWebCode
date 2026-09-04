@@ -482,6 +482,26 @@ export const api = {
       const updated = [collection, ...existing.filter((c) => c.id !== collection.id && c.slug !== collection.slug)];
       localStorage.setItem('tanoah_custom_collections', JSON.stringify(updated));
 
+      // Sync to Supabase
+      try {
+        const payload: any = {
+          title: collection.title,
+          slug: collection.slug,
+          description: collection.description || null,
+          banner_image: collection.banner_image || null,
+          is_smart: !!collection.is_smart,
+          sort_order: collection.sort_order || 0,
+          is_active: collection.is_active !== false,
+        };
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collection.id);
+        if (isUUID) {
+          payload.id = collection.id;
+        }
+        await supabase.from('collections').upsert([payload], { onConflict: 'slug' });
+      } catch (err) {
+        console.warn('Could not sync collection to Supabase:', err);
+      }
+
       // Broadcast update event so navigation and storefront components auto-sync immediately
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { collection, collections: updated } }));
@@ -498,6 +518,17 @@ export const api = {
       const existing = await this.getCollections();
       const updated = existing.filter((c) => c.id !== id && c.slug !== id);
       localStorage.setItem('tanoah_custom_collections', JSON.stringify(updated));
+
+      try {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        if (isUUID) {
+          await supabase.from('collections').delete().eq('id', id);
+        } else {
+          await supabase.from('collections').delete().eq('slug', id);
+        }
+      } catch (err) {
+        console.warn('Could not delete collection from Supabase:', err);
+      }
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { deletedId: id, collections: updated } }));
@@ -606,35 +637,76 @@ export const api = {
     localStorage.setItem('tanoah_custom_products', JSON.stringify(filtered));
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uuidRegex.test(product.id)) {
-      try {
-        await supabase.from('products').upsert({
-          id: product.id,
-          title: product.title,
-          slug: product.slug,
-          brand: product.brand,
-          product_type: product.product_type,
-          base_price: product.base_price,
-          sale_price: product.sale_price,
-          compare_at_price: product.compare_at_price,
-          cost_price: product.cost_price,
-          tax_rate: product.tax_rate,
-          hsn_code: product.hsn_code,
-          status: product.status,
-          is_featured: product.is_featured,
-          is_best_seller: product.is_best_seller,
-          is_new_arrival: product.is_new_arrival,
-          description: product.description,
-          short_description: product.short_description,
-          tags: product.tags,
-          updated_at: new Date().toISOString(),
-        });
-      } catch {
-        // remote sync best effort
+    const targetId = uuidRegex.test(sanitized.id) ? sanitized.id : crypto.randomUUID();
+    sanitized.id = targetId;
+
+    try {
+      await supabase.from('products').upsert({
+        id: targetId,
+        title: sanitized.title,
+        slug: sanitized.slug,
+        brand: sanitized.brand || 'TANOAH',
+        product_type: sanitized.product_type || 'Apparel',
+        base_price: sanitized.base_price,
+        sale_price: sanitized.sale_price,
+        compare_at_price: sanitized.compare_at_price,
+        cost_price: sanitized.cost_price,
+        tax_rate: sanitized.tax_rate || 12,
+        hsn_code: sanitized.hsn_code,
+        status: sanitized.status || 'active',
+        is_featured: !!sanitized.is_featured,
+        is_best_seller: !!sanitized.is_best_seller,
+        is_new_arrival: !!sanitized.is_new_arrival,
+        description: sanitized.description || '',
+        short_description: sanitized.short_description || '',
+        tags: sanitized.tags || [],
+        updated_at: new Date().toISOString(),
+      });
+
+      // Sync Images to Supabase
+      if (sanitized.images && sanitized.images.length > 0) {
+        await supabase.from('product_images').delete().eq('product_id', targetId);
+        const imgRows = sanitized.images.map((img, idx) => ({
+          product_id: targetId,
+          image_url: img.image_url,
+          alt_text: img.alt_text || sanitized.title,
+          sort_order: img.sort_order ?? idx,
+          is_primary: img.is_primary ?? idx === 0,
+          color_name: img.color_name || '',
+          position: idx,
+        }));
+        await supabase.from('product_images').insert(imgRows);
       }
+
+      // Sync Variants to Supabase
+      if (sanitized.variants && sanitized.variants.length > 0) {
+        await supabase.from('product_variants').delete().eq('product_id', targetId);
+        const variantRows = sanitized.variants.map((v) => {
+          const varId = uuidRegex.test(v.id) ? v.id : crypto.randomUUID();
+          return {
+            id: varId,
+            product_id: targetId,
+            title: v.title || `${v.color_name || ''} / ${v.size || ''}`.trim(),
+            sku: v.sku,
+            barcode: v.barcode || null,
+            color_name: v.color_name || '',
+            color_hex: v.color_hex || '#000000',
+            size: v.size || 'Free Size',
+            price: v.price || sanitized.base_price,
+            sale_price: v.sale_price || sanitized.sale_price,
+            compare_at_price: v.compare_at_price || sanitized.compare_at_price,
+            stock_quantity: v.stock_quantity ?? 0,
+            low_stock_threshold: v.low_stock_threshold ?? 3,
+            is_active: v.is_active !== false,
+          };
+        });
+        await supabase.from('product_variants').insert(variantRows);
+      }
+    } catch (remoteErr) {
+      console.warn('Supabase remote product sync error:', remoteErr);
     }
 
-    return { success: true, product };
+    return { success: true, product: sanitized };
   },
 
   // Delete Product (Local custom, blacklist tracking, and remote sync)
