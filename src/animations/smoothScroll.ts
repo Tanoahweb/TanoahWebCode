@@ -1,15 +1,15 @@
-﻿import Lenis from 'lenis';
+import Lenis from 'lenis';
 import { gsap, ScrollTrigger, isReducedMotion } from './gsap';
 
 let lenisInstance: Lenis | null = null;
+let tickerCallback: ((time: number) => void) | null = null;
 
 export const initSmoothScroll = (): Lenis | null => {
   if (typeof window === 'undefined') return null;
   if (isReducedMotion()) return null;
 
   if (lenisInstance) {
-    lenisInstance.destroy();
-    lenisInstance = null;
+    return lenisInstance;
   }
 
   lenisInstance = new Lenis({
@@ -26,10 +26,10 @@ export const initSmoothScroll = (): Lenis | null => {
     ScrollTrigger.update();
   });
 
-  gsap.ticker.add((time) => {
+  tickerCallback = (time: number) => {
     lenisInstance?.raf(time * 1000);
-  });
-
+  };
+  gsap.ticker.add(tickerCallback);
   gsap.ticker.lagSmoothing(0);
 
   return lenisInstance;
@@ -39,6 +39,10 @@ export const getLenis = (): Lenis | null => lenisInstance;
 
 export const destroySmoothScroll = () => {
   if (lenisInstance) {
+    if (tickerCallback) {
+      gsap.ticker.remove(tickerCallback);
+      tickerCallback = null;
+    }
     lenisInstance.destroy();
     lenisInstance = null;
   }
