@@ -27,6 +27,7 @@ import { LookbookPage } from './pages/LookbookPage';
 // Auth & Account
 import { LoginPage } from './pages/Auth/LoginPage';
 import { RegisterPage } from './pages/Auth/RegisterPage';
+import { ResetPasswordPage } from './pages/Auth/ResetPasswordPage';
 import { AccountPage } from './pages/Account/AccountPage';
 import { ReturnsPage } from './pages/Account/ReturnsPage';
 
@@ -91,6 +92,7 @@ const AppContent: React.FC = () => {
           {/* Auth & Account */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/account/returns" element={<ReturnsPage />} />
 

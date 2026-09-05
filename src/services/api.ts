@@ -2141,4 +2141,32 @@ export const api = {
 
     return merged;
   },
+
+  async deleteUserAccountPermanently(userId?: string): Promise<boolean> {
+    if (userId) {
+      try {
+        const { error } = await supabase.rpc('delete_user_account');
+        if (error) {
+          console.warn('Supabase rpc delete_user_account error:', error);
+        }
+      } catch (err) {
+        console.warn('deleteUserAccountPermanently exception:', err);
+      }
+
+      try {
+        localStorage.removeItem(`tanoah_saved_addresses_${userId}`);
+      } catch {}
+    }
+
+    try {
+      localStorage.removeItem('tanoah_saved_addresses');
+      localStorage.removeItem('tanoah_wishlist');
+    } catch {}
+
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+
+    return true;
+  },
 };

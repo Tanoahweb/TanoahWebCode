@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
+import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X, AlertTriangle, Lock, Shield, KeyRound } from 'lucide-react';
+import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -11,7 +12,7 @@ import { api } from '../../services/api';
 import { SavedAddress } from '../../types';
 
 export const AccountPage: React.FC = () => {
-  const { user, profile, signOut } = useAuthStore();
+  const { user, profile, signOut, initialize } = useAuthStore();
   const wishlistItems = useWishlistStore((s) => s.items);
   const { addToast } = useUIStore();
   const navigate = useNavigate();
@@ -33,6 +34,26 @@ export const AccountPage: React.FC = () => {
     postal_code: '',
     is_default: false,
   });
+
+  // Profile & Security states
+  const [profileName, setProfileName] = useState(profile?.full_name || (user?.user_metadata?.full_name as string) || '');
+  const [profilePhone, setProfilePhone] = useState(profile?.phone || (user?.user_metadata?.phone as string) || '');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Password update states
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  // Account deletion states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  useEffect(() => {
+    if (profile?.full_name) setProfileName(profile.full_name);
+    if (profile?.phone) setProfilePhone(profile.phone);
+  }, [profile]);
 
   const loadUserData = async () => {
     if (!user) return;
@@ -107,6 +128,87 @@ export const AccountPage: React.FC = () => {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: profileName,
+          phone: profilePhone,
+        },
+      });
+
+      if (error) {
+        addToast({ type: 'error', title: 'Update Failed', description: error.message });
+      } else {
+        await initialize();
+        addToast({ type: 'success', title: 'Profile Updated', description: 'Your personal details have been saved.' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Error', description: err.message || 'Could not update profile.' });
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      addToast({ type: 'error', title: 'Password Too Short', description: 'Password must be at least 6 characters.' });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      addToast({ type: 'error', title: 'Passwords Mismatch', description: 'New passwords do not match.' });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        addToast({ type: 'error', title: 'Password Update Failed', description: error.message });
+      } else {
+        setNewPassword('');
+        setConfirmNewPassword('');
+        addToast({ type: 'success', title: 'Password Changed', description: 'Your new password has been set successfully.' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Error', description: err.message || 'Could not change password.' });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      addToast({ type: 'error', title: 'Confirmation Required', description: 'Please type DELETE to confirm account deletion.' });
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await api.deleteUserAccountPermanently(user?.id);
+      addToast({
+        type: 'success',
+        title: 'Account Permanently Deleted',
+        description: 'Your account and personal data have been completely removed.',
+      });
+      await signOut();
+      navigate('/');
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Deletion Failed',
+        description: err.message || 'Could not delete account. Please try again.',
+      });
+      setIsDeletingAccount(false);
+    }
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate('/');
@@ -168,6 +270,16 @@ export const AccountPage: React.FC = () => {
             >
               <RotateCcw className="w-4 h-4" />
               <span>Returns & Exchanges</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[4px] font-medium transition-colors text-left ${
+                activeTab === 'profile' ? 'bg-[#3F3F8F] text-white font-semibold' : 'text-black hover:bg-[#F8F8F8]'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Profile & Security</span>
             </button>
 
             <Link
@@ -516,9 +628,218 @@ export const AccountPage: React.FC = () => {
                 </Link>
               </div>
             )}
+
+            {activeTab === 'profile' && (
+              <div className="space-y-8">
+                <div>
+                  <h3 className="font-wondra text-2xl text-black">PROFILE & SECURITY</h3>
+                  <p className="text-xs text-[#666666] mt-0.5">
+                    Manage your personal account details, change your password, or permanently delete your account.
+                  </p>
+                </div>
+
+                {/* 1. Personal Details */}
+                <form onSubmit={handleUpdateProfile} className="p-6 border border-[#E7E7E7] rounded-[4px] space-y-4 bg-white">
+                  <div className="flex items-center gap-2 pb-2 border-b border-[#E7E7E7]">
+                    <User className="w-4 h-4 text-[#3F3F8F]" />
+                    <h4 className="font-semibold text-black text-sm">Personal Information</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="Your full name"
+                        className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                        Mobile Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                      Email Address (Account Identifier)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        disabled
+                        value={user?.email || ''}
+                        className="w-full p-2.5 bg-[#F9F9F9] border border-[#E7E7E7] rounded-[4px] text-xs text-neutral-600 cursor-not-allowed"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Verified
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isUpdatingProfile}
+                      className="px-5 py-2.5 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] font-semibold text-xs transition-colors"
+                    >
+                      {isUpdatingProfile ? 'Saving Details...' : 'Save Profile Changes'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* 2. Change Password */}
+                <form onSubmit={handleUpdatePassword} className="p-6 border border-[#E7E7E7] rounded-[4px] space-y-4 bg-white">
+                  <div className="flex items-center gap-2 pb-2 border-b border-[#E7E7E7]">
+                    <KeyRound className="w-4 h-4 text-[#3F3F8F]" />
+                    <h4 className="font-semibold text-black text-sm">Update Password</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="At least 6 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Re-enter new password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isUpdatingPassword || !newPassword}
+                      className="px-5 py-2.5 bg-black hover:bg-[#3F3F8F] disabled:opacity-40 disabled:hover:bg-black text-white rounded-[4px] font-semibold text-xs transition-colors"
+                    >
+                      {isUpdatingPassword ? 'Updating Password...' : 'Update Password'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* 3. Danger Zone / Permanent Deletion */}
+                <div className="p-6 border border-red-200 bg-red-50/40 rounded-[4px] space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-red-200 text-red-700">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <h4 className="font-bold text-sm uppercase tracking-wide">Danger Zone: Delete Account</h4>
+                  </div>
+
+                  <p className="text-xs text-neutral-700 leading-relaxed">
+                    Permanently delete your Tanoah user account, personal profile, and saved delivery addresses. Once completed, your account cannot be recovered and you will be signed out immediately.
+                  </p>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteConfirmText('');
+                        setIsDeleteModalOpen(true);
+                      }}
+                      className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-[4px] font-semibold text-xs transition-colors inline-flex items-center gap-2 shadow-xs"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete My Account Permanently</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Account Deletion Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white max-w-md w-full p-6 sm:p-8 rounded-lg shadow-2xl border border-red-200 space-y-5 text-left">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-bold text-black font-wondra">Permanently Delete Account?</h3>
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                This action is <strong className="text-red-600">completely irreversible</strong>. Your personal profile, contact information, and saved delivery addresses will be permanently deleted.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-red-50 border border-red-100 rounded text-xs text-red-800 space-y-1.5">
+              <p className="font-semibold">Confirmation required:</p>
+              <p>
+                To confirm permanent deletion, please type <strong className="font-mono text-red-900 bg-red-100 px-1.5 py-0.5 rounded border border-red-200">DELETE</strong> in the field below:
+              </p>
+            </div>
+
+            <div>
+              <input
+                type="text"
+                placeholder="Type DELETE to confirm"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="w-full p-2.5 border border-neutral-300 rounded font-mono text-xs focus:outline-none focus:border-red-600"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 py-2.5 border border-neutral-300 hover:border-black rounded text-xs font-semibold transition-colors text-black"
+                disabled={isDeletingAccount}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText.trim().toUpperCase() !== 'DELETE' || isDeletingAccount}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+              >
+                {isDeletingAccount ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Account</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedInvoiceOrder && (
         <TaxInvoiceModal
