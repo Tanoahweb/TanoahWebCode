@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnnouncementBar } from './components/layout/AnnouncementBar';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -77,6 +77,8 @@ const AppContent: React.FC = () => {
         <Routes>
           {/* Storefront Routes */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/collections" element={<Navigate to="/collections/all" replace />} />
+          <Route path="/catalog" element={<Navigate to="/collections/all" replace />} />
           <Route path="/collections/:collection" element={<CatalogPage />} />
           <Route path="/products/:slug" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />

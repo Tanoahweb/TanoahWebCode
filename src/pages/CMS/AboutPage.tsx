@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Feather, Leaf, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Feather, Leaf, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export const AboutPage: React.FC = () => {
   return (
@@ -8,8 +8,8 @@ export const AboutPage: React.FC = () => {
       {/* 1. Header & Hero Introduction */}
       <section className="pt-24 pb-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="text-center space-y-4 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#3F3F8F]/10 border border-[#3F3F8F]/20 text-[#3F3F8F] text-[11px] font-medium tracking-[0.2em] uppercase">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#F5F5F3] border border-[#E5E5E2] text-[#444444] text-[11px] font-medium tracking-[0.2em] uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#3F3F8F]" />
             <span>The Maison Story</span>
           </div>
 
@@ -43,7 +43,7 @@ export const AboutPage: React.FC = () => {
               </p>
             </div>
             <Link
-              to="/catalog"
+              to="/collections/all"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-black text-xs uppercase tracking-widest font-medium rounded hover:bg-[#3F3F8F] hover:text-white transition-colors duration-300 shadow-lg"
             >
               <span>Explore Collection</span>
@@ -98,7 +98,7 @@ export const AboutPage: React.FC = () => {
                   to="/pages/contact"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-transparent border border-[#CCCCCC] text-[#222222] text-xs uppercase tracking-widest font-medium rounded hover:border-[#3F3F8F] hover:text-[#3F3F8F] transition-colors duration-300"
                 >
-                  <span>Connect With Atelier</span>
+                  <span>Connect with Tanoah</span>
                 </Link>
               </div>
             </div>
@@ -212,7 +212,7 @@ export const AboutPage: React.FC = () => {
 
               <div className="pt-2 flex flex-wrap items-center gap-4">
                 <Link
-                  to="/catalog"
+                  to="/collections/all"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#3F3F8F] text-white text-xs uppercase tracking-widest font-medium rounded hover:bg-[#2F2F75] transition-colors duration-300 shadow-sm"
                 >
                   <span>Discover The Releases</span>
@@ -280,7 +280,7 @@ export const AboutPage: React.FC = () => {
             <div className="relative p-8 rounded-xl bg-[#FCFCFB] border border-[#EAEAE7] hover:border-[#3F3F8F]/40 hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
               <div className="space-y-5">
                 <div className="w-12 h-12 rounded-lg bg-[#3F3F8F]/10 text-[#3F3F8F] flex items-center justify-center group-hover:bg-[#3F3F8F] group-hover:text-white transition-colors duration-300">
-                  <Sparkles className="w-6 h-6" />
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div>
                   <span className="text-[10px] uppercase tracking-[0.2em] text-[#888888] font-medium">
@@ -355,7 +355,7 @@ export const AboutPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <Link
-              to="/catalog"
+              to="/collections/all"
               className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-black text-xs uppercase tracking-widest font-semibold rounded hover:bg-[#3F3F8F] hover:text-white transition-colors duration-300 shadow-md"
             >
               <span>Explore The Collection</span>
