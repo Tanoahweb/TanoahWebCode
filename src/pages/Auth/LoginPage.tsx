@@ -17,6 +17,13 @@ export const LoginPage: React.FC = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [isForgotLoading, setIsForgotLoading] = useState(false);
   const [isForgotSubmitted, setIsForgotSubmitted] = useState(false);
+  const [accountNotFoundError, setAccountNotFoundError] = useState<string | null>(null);
+
+  // Direct OTP & Password reset states
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const { addToast } = useUIStore();
   const { initialize } = useAuthStore();
@@ -54,7 +61,10 @@ export const LoginPage: React.FC = () => {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail) {
+    setAccountNotFoundError(null);
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+
+    if (!cleanEmail) {
       addToast({ type: 'error', title: 'Email Required', description: 'Please enter your registered email address.' });
       return;
     }
@@ -62,7 +72,30 @@ export const LoginPage: React.FC = () => {
     setIsForgotLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      // 1. Verify that customer account exists in auth.users
+      const { data: userExists, error: checkError } = await supabase.rpc('check_user_exists', {
+        email_to_check: cleanEmail,
+      });
+
+      if (checkError) {
+        console.warn('check_user_exists warning:', checkError);
+      }
+
+      if (!userExists) {
+        setAccountNotFoundError(
+          'No customer account was found with this email address. Please check your spelling or register a new account.'
+        );
+        addToast({
+          type: 'error',
+          title: 'Account Not Found',
+          description: 'No registered customer account exists with this email address.',
+        });
+        setIsForgotLoading(false);
+        return;
+      }
+
+      // 2. Dispatch reset token to registered customer
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
@@ -72,14 +105,78 @@ export const LoginPage: React.FC = () => {
         setIsForgotSubmitted(true);
         addToast({
           type: 'success',
-          title: 'Reset Link Dispatched',
-          description: `Instructions have been sent to ${forgotEmail}.`,
+          title: 'Verification Code Dispatched',
+          description: `Verification details have been sent to ${cleanEmail}.`,
         });
       }
     } catch (err: any) {
       addToast({ type: 'error', title: 'Error', description: err.message || 'Could not send reset instructions.' });
     } finally {
       setIsForgotLoading(false);
+    }
+  };
+
+  const handleVerifyOtpAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      addToast({ type: 'error', title: 'Invalid Code', description: 'Please enter the 6-digit code received in your email.' });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      addToast({ type: 'error', title: 'Password Too Short', description: 'Password must be at least 6 characters.' });
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      addToast({ type: 'error', title: 'Passwords Mismatch', description: 'New passwords do not match.' });
+      return;
+    }
+
+    setIsResettingPassword(true);
+
+    try {
+      // 1. Verify OTP with Supabase recovery token
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: otpCode.trim(),
+        type: 'recovery',
+      });
+
+      if (error) {
+        addToast({
+          type: 'error',
+          title: 'Verification Failed',
+          description: error.message || 'The verification code is incorrect or has expired.',
+        });
+        setIsResettingPassword(false);
+        return;
+      }
+
+      // 2. Update user's password with new credentials
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        addToast({ type: 'error', title: 'Password Update Failed', description: updateError.message });
+        setIsResettingPassword(false);
+        return;
+      }
+
+      await initialize();
+      addToast({
+        type: 'success',
+        title: 'Password Reset Successful',
+        description: 'Welcome to your Tanoah account! You are now logged in.',
+      });
+      navigate('/account');
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Reset Error', description: err.message || 'Could not reset password.' });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -95,37 +192,121 @@ export const LoginPage: React.FC = () => {
           </h1>
           <p className="text-xs text-[#666666]">
             {isForgotPassword
-              ? "Enter your account email and we'll send you a link to reset your password."
+              ? isForgotSubmitted
+                ? 'Enter the 6-digit code sent to your email to set a new password.'
+                : "Enter your account email and we'll send you instructions to reset your password."
               : 'Access your orders, bespoke wishlist and saved addresses.'}
           </p>
         </div>
 
         {isForgotPassword ? (
           isForgotSubmitted ? (
-            <div className="space-y-6 text-center py-4">
-              <div className="w-12 h-12 rounded-full bg-[#EEEEF8] text-[#3F3F8F] flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-black">Check Your Inbox</h3>
-                <p className="text-xs text-[#666666] leading-relaxed">
-                  We have sent a password reset link to <strong className="text-black font-semibold">{forgotEmail}</strong>. Please check your inbox and spam folder, then follow the instructions in the email.
+            <div className="space-y-5">
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Verification Code Dispatched</span>
+                </div>
+                <p className="text-[11px] text-emerald-700 leading-relaxed pl-6">
+                  We sent a 6-digit code to <strong className="text-emerald-950 font-semibold">{forgotEmail}</strong>. You can enter the code below or click the link in your email.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  setIsForgotPassword(false);
-                  setIsForgotSubmitted(false);
-                }}
-                className="w-full text-xs uppercase"
-              >
-                Back to Sign In
-              </Button>
+
+              <form onSubmit={handleVerifyOtpAndReset} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    6-Digit Verification Code *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    maxLength={10}
+                    placeholder="e.g. 123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono text-center tracking-widest text-base focus:outline-none focus:border-[#3F3F8F]"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      required
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                    />
+                    <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Confirm New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      required
+                      type="password"
+                      placeholder="Re-enter new password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                    />
+                    <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="lg"
+                  type="submit"
+                  isLoading={isResettingPassword}
+                  icon={<ArrowRight className="w-4 h-4" />}
+                  className="w-full py-3.5 font-semibold text-xs mt-2"
+                >
+                  VERIFY & RESET PASSWORD
+                </Button>
+
+                <div className="flex items-center justify-between pt-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isForgotLoading}
+                    className="text-[#3F3F8F] hover:underline font-medium"
+                  >
+                    Resend Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotSubmitted(false);
+                      setOtpCode('');
+                    }}
+                    className="text-neutral-500 hover:text-black font-medium"
+                  >
+                    Change Email
+                  </button>
+                </div>
+              </form>
             </div>
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
+              {accountNotFoundError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-700 space-y-1">
+                  <p className="font-semibold">{accountNotFoundError}</p>
+                  <Link to="/register" className="text-red-900 font-bold underline block mt-1">
+                    Click here to create an account &rarr;
+                  </Link>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[11px] font-semibold text-black uppercase mb-1">
                   Email Address *
@@ -136,7 +317,10 @@ export const LoginPage: React.FC = () => {
                     type="email"
                     placeholder="you@domain.com"
                     value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
+                    onChange={(e) => {
+                      setForgotEmail(e.target.value);
+                      if (accountNotFoundError) setAccountNotFoundError(null);
+                    }}
                     className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
                   />
                   <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -151,12 +335,15 @@ export const LoginPage: React.FC = () => {
                 icon={<ArrowRight className="w-4 h-4" />}
                 className="w-full py-3.5 font-semibold text-xs mt-2"
               >
-                SEND RESET LINK
+                SEND VERIFICATION CODE
               </Button>
 
               <button
                 type="button"
-                onClick={() => setIsForgotPassword(false)}
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setAccountNotFoundError(null);
+                }}
                 className="w-full py-2.5 text-xs text-neutral-600 hover:text-black font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
