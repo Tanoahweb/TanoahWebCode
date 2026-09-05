@@ -132,7 +132,7 @@ export const QuickViewModal: React.FC = () => {
         <div className="flex flex-col justify-between text-left">
           <div className="space-y-4">
             <div className="text-[11px] text-[#888888] uppercase tracking-widest font-semibold">
-              {quickViewProduct.brand || 'TANOAH'} • {quickViewProduct.product_type || 'APPAREL'}
+              {quickViewProduct.category_name ? `${quickViewProduct.category_name.toUpperCase()} • ` : ''}{quickViewProduct.product_type || 'APPAREL'}
             </div>
 
             <h2 className="font-wondra text-2xl text-black leading-tight">

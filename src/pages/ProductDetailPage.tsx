@@ -394,7 +394,7 @@ export const ProductDetailPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-poppins font-semibold text-[#888888] tracking-widest uppercase">
-                  {product.brand} • {product.gender?.toUpperCase() || 'UNISEX'}
+                  {product.category_name ? `${product.category_name.toUpperCase()} • ` : ''}{product.gender?.toUpperCase() || 'UNISEX'}
                 </span>
                 <div className="flex items-center gap-1 text-[#3F3F8F] text-xs">
                   <Star className="w-3.5 h-3.5 fill-current" />

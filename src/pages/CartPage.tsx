@@ -129,9 +129,6 @@ export const CartPage: React.FC = () => {
                     </Link>
 
                     <div className="flex-1 space-y-1 text-xs">
-                      <div className="text-[10px] text-[#888888] uppercase tracking-wider">
-                        {item.product.brand}
-                      </div>
                       <Link
                         to={`/products/${item.product.slug}`}
                         className="font-medium text-black hover:text-[#3F3F8F] text-sm block"

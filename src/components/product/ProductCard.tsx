@@ -248,16 +248,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       </div>
 
       {/* Product Details */}
-      <div className="pt-3 pb-1 flex flex-col font-poppins text-xs">
-        {/* Brand / Category */}
-        <div className="text-[10px] text-[#888888] uppercase tracking-widest font-medium">
-          {product.brand || 'TANOAH EDITORIAL'}
-        </div>
-
+      <div className="pt-2.5 pb-1 flex flex-col font-poppins text-xs">
         {/* Title */}
         <Link
           to={`/products/${product.slug}${activeColor ? `?color=${encodeURIComponent(activeColor.name)}` : ''}`}
-          className="font-medium text-black hover:text-[#3F3F8F] line-clamp-1 mt-0.5 text-sm transition-colors"
+          className="font-medium text-black hover:text-[#3F3F8F] line-clamp-1 text-sm transition-colors"
         >
           {product.title}
         </Link>
@@ -274,9 +269,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </div>
 
-        {/* Color Swatches */}
+        {/* Color Swatches (Desktop only) */}
         {colors.length > 1 && (
-          <div className="flex items-center gap-1.5 mt-2.5">
+          <div className="hidden md:flex items-center gap-1.5 mt-2.5">
             {colors.map((color, idx) => (
               <button
                 key={color.name}
@@ -300,8 +295,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
         )}
 
-        {/* Available Sizes Pills */}
-        <div className="flex items-center gap-1 mt-2 text-[10px] text-[#666666]">
+        {/* Available Sizes Pills (Desktop only) */}
+        <div className="hidden md:flex items-center gap-1 mt-2 text-[10px] text-[#666666]">
           {activeVariants.slice(0, 5).map((v) => (
             <span
               key={v.id}
