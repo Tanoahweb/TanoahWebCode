@@ -271,6 +271,17 @@ export interface Banner {
   is_active: boolean;
 }
 
+export interface DeliverySpeedTier {
+  id: string;
+  name: string;
+  description: string;
+  estimated_days: string;
+  charge: number;
+  is_free_eligible: boolean;
+  is_active: boolean;
+  is_default?: boolean;
+}
+
 export interface StoreSettings {
   store_name: string;
   logo_url: string;
@@ -289,6 +300,7 @@ export interface StoreSettings {
   free_shipping_threshold: number;
   standard_shipping_rate: number;
   express_shipping_rate: number;
+  delivery_speeds_config?: DeliverySpeedTier[];
   cod_enabled: boolean;
   cod_fee: number;
   cod_min_order: number;

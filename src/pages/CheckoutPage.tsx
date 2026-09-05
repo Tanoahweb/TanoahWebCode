@@ -12,7 +12,8 @@ import { openCashfreePayment } from '../services/cashfree';
 import { paymentService } from '../services/paymentService';
 import { PublicPaymentConfig } from '../types/paymentGateway';
 import { emailService } from '../services/emailService';
-import { SavedAddress } from '../types';
+import { SavedAddress, DeliverySpeedTier } from '../types';
+import { DEFAULT_DELIVERY_SPEEDS } from '../data/mockData';
 import { safeSetItem, sanitizeOrderForStorage } from '../utils/safeStorage';
 
 export const CheckoutPage: React.FC = () => {
@@ -47,11 +48,21 @@ export const CheckoutPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [storeSettings, setStoreSettings] = useState<any>(null);
   const [paymentConfig, setPaymentConfig] = useState<PublicPaymentConfig | null>(null);
+  const [deliverySpeeds, setDeliverySpeeds] = useState<DeliverySpeedTier[]>(DEFAULT_DELIVERY_SPEEDS);
 
   useEffect(() => {
     let isMounted = true;
     api.getStoreSettings().then((s) => {
       if (isMounted && s) setStoreSettings(s);
+    });
+    api.getDeliverySpeeds().then((speeds) => {
+      if (isMounted && speeds && speeds.length > 0) {
+        setDeliverySpeeds(speeds);
+        const defaultTier = speeds.find((s) => s.is_default && s.is_active) || speeds.find((s) => s.is_active);
+        if (defaultTier) {
+          setFormData((prev) => ({ ...prev, shippingMethod: defaultTier.id }));
+        }
+      }
     });
     paymentService.getPublicPaymentConfig().then((cfg) => {
       if (isMounted && cfg) {
@@ -60,8 +71,8 @@ export const CheckoutPage: React.FC = () => {
           setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
         } else if (!cfg.razorpay.enabled && cfg.cashfree.enabled) {
           setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
-        } else if (!cfg.razorpay.enabled && !cfg.cashfree.enabled && cfg.cod.enabled) {
-          setFormData((prev) => ({ ...prev, paymentMethod: 'cod' }));
+        } else {
+          setFormData((prev) => ({ ...prev, paymentMethod: 'razorpay' }));
         }
       }
     });
@@ -146,14 +157,17 @@ export const CheckoutPage: React.FC = () => {
   const subtotal = getSubtotal();
   const discount = getDiscountAmount();
   const freeShipThreshold = storeSettings?.free_shipping_threshold ?? 1999;
-  const standardFee = storeSettings?.standard_shipping_rate ?? 149;
-  const expressFee = storeSettings?.express_shipping_rate ?? 299;
-  const configuredCodFee = storeSettings?.cod_fee ?? 99;
 
-  const baseShipping = subtotal >= freeShipThreshold ? 0 : standardFee;
-  const shipping = formData.shippingMethod === 'express' ? expressFee : baseShipping;
-  const codFee = formData.paymentMethod === 'cod' ? configuredCodFee : 0;
-  const grandTotal = Math.max(0, subtotal - discount + shipping + codFee);
+  const activeSpeeds = deliverySpeeds.filter((s) => s.is_active);
+  const selectedSpeed =
+    activeSpeeds.find((s) => s.id === formData.shippingMethod) ||
+    activeSpeeds.find((s) => s.is_default) ||
+    activeSpeeds[0] ||
+    deliverySpeeds[0];
+
+  const isFreeEligible = Boolean(selectedSpeed?.is_free_eligible && subtotal >= freeShipThreshold);
+  const shipping = isFreeEligible ? 0 : (selectedSpeed?.charge ?? 0);
+  const grandTotal = Math.max(0, subtotal - discount + shipping);
 
   const handleApplyVoucher = async (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim().toUpperCase();
@@ -238,6 +252,7 @@ export const CheckoutPage: React.FC = () => {
       payment_method: formData.paymentMethod,
       payment_status: paymentStatus,
       payment_gateway_ref: paymentRef,
+      courier_name: `India Post (${selectedSpeed?.name || 'Standard'})`,
       subtotal,
       discount_total: discount,
       shipping_total: shipping,
@@ -269,13 +284,14 @@ export const CheckoutPage: React.FC = () => {
       discount_total: discount,
       shipping,
       shipping_total: shipping,
-      codFee,
+      codFee: 0,
       grandTotal,
       grand_total: grandTotal,
       payment_method: formData.paymentMethod,
       payment_status: paymentStatus,
       payment_gateway_ref: paymentRef,
       paymentGatewayRef: paymentRef,
+      courier_name: `India Post (${selectedSpeed?.name || 'Standard'})`,
       date: new Date().toISOString(),
     };
 
@@ -312,10 +328,6 @@ export const CheckoutPage: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      if (formData.paymentMethod === 'cod') {
-        await processOrderCreation(undefined, 'pending');
-        return;
-      }
 
       // Online Cashfree Payment Flow
       if (formData.paymentMethod === 'cashfree') {
@@ -742,49 +754,57 @@ export const CheckoutPage: React.FC = () => {
 
             {/* 3. Shipping Method */}
             <div className="p-6 bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-4">
-              <h3 className="font-wondra text-xl text-black">3. DELIVERY SPEED</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-wondra text-xl text-black">3. DELIVERY SPEED</h3>
+                <span className="text-[11px] text-neutral-500 font-medium">
+                  Doorstep Delivery via India Post
+                </span>
+              </div>
               <div className="space-y-3">
-                <label className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
-                  formData.shippingMethod === 'standard' ? 'border-[#3F3F8F] bg-[#EEEEF8]/40' : 'border-[#E7E7E7]'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="shippingMethod"
-                      value="standard"
-                      checked={formData.shippingMethod === 'standard'}
-                      onChange={handleInputChange}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <div>
-                      <div className="font-semibold text-black">Standard Express Delivery (3–5 Days)</div>
-                      <div className="text-[11px] text-[#666666]">Insured doorstep air delivery</div>
-                    </div>
-                  </div>
-                  <span className="font-semibold text-black">
-                    {baseShipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(baseShipping)}
-                  </span>
-                </label>
-
-                <label className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
-                  formData.shippingMethod === 'express' ? 'border-[#3F3F8F] bg-[#EEEEF8]/40' : 'border-[#E7E7E7]'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="shippingMethod"
-                      value="express"
-                      checked={formData.shippingMethod === 'express'}
-                      onChange={handleInputChange}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <div>
-                      <div className="font-semibold text-black">Priority Atelier Express (1–2 Days)</div>
-                      <div className="text-[11px] text-[#666666]">Priority dispatch with dedicated concierge support</div>
-                    </div>
-                  </div>
-                  <span className="font-semibold text-black">{formatPrice(299)}</span>
-                </label>
+                {activeSpeeds.map((tier) => {
+                  const isSelected = formData.shippingMethod === tier.id;
+                  const tierFee =
+                    tier.is_free_eligible && subtotal >= freeShipThreshold ? 0 : tier.charge;
+                  return (
+                    <label
+                      key={tier.id}
+                      className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-[#3F3F8F] bg-[#EEEEF8]/40 shadow-xs'
+                          : 'border-[#E7E7E7] hover:border-neutral-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="shippingMethod"
+                          value={tier.id}
+                          checked={isSelected}
+                          onChange={handleInputChange}
+                          className="accent-[#3F3F8F]"
+                        />
+                        <div>
+                          <div className="font-semibold text-black flex items-center gap-2">
+                            <span>{tier.name}</span>
+                            <span className="text-[10px] font-normal text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
+                              {tier.estimated_days}
+                            </span>
+                          </div>
+                          {tier.description && (
+                            <div className="text-[11px] text-[#666666] mt-0.5">{tier.description}</div>
+                          )}
+                        </div>
+                      </div>
+                      <span className="font-semibold text-black text-sm">
+                        {tierFee === 0 ? (
+                          <strong className="text-[#3F3F8F]">FREE</strong>
+                        ) : (
+                          formatPrice(tierFee)
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -861,40 +881,6 @@ export const CheckoutPage: React.FC = () => {
                       </span>
                     </label>
                   )}
-
-                {/* Cash on Delivery Option */}
-                {(!paymentConfig || paymentConfig.cod?.enabled !== false) && (
-                  <label
-                    className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
-                      formData.paymentMethod === 'cod'
-                        ? 'border-[#3F3F8F] bg-[#EEEEF8]/40'
-                        : 'border-[#E7E7E7]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="cod"
-                        checked={formData.paymentMethod === 'cod'}
-                        onChange={handleInputChange}
-                        className="accent-[#3F3F8F]"
-                      />
-                      <div>
-                        <div className="font-semibold text-black flex items-center gap-2">
-                          <span>Cash on Delivery (COD)</span>
-                          <Banknote className="w-4 h-4 text-neutral-600" />
-                        </div>
-                        <div className="text-[11px] text-[#666666]">
-                          Pay upon delivery (+₹{paymentConfig?.cod?.extra_fee ?? 99} handling fee)
-                        </div>
-                      </div>
-                    </div>
-                    <span className="font-semibold text-neutral-700">
-                      +₹{paymentConfig?.cod?.extra_fee ?? 99}
-                    </span>
-                  </label>
-                )}
               </div>
             </div>
           </div>
@@ -1008,15 +994,9 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 )}
                 <div className="flex justify-between text-[#666666]">
-                  <span>Delivery ({formData.shippingMethod})</span>
+                  <span>Delivery ({selectedSpeed?.name || 'Standard'})</span>
                   <span>{shipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(shipping)}</span>
                 </div>
-                {codFee > 0 && (
-                  <div className="flex justify-between text-[#666666]">
-                    <span>COD Convenience Fee</span>
-                    <span>{formatPrice(codFee)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-base font-semibold text-black pt-3 border-t border-[#E7E7E7]">
                   <span>Total Amount</span>
                   <span className="text-[#3F3F8F] text-xl font-bold">{formatPrice(grandTotal)}</span>
@@ -1031,7 +1011,7 @@ export const CheckoutPage: React.FC = () => {
                 icon={<ArrowRight className="w-4 h-4" />}
                 className="w-full py-4 text-sm font-semibold"
               >
-                {formData.paymentMethod === 'cod' ? 'PLACE COD ORDER' : `PAY ${formatPrice(grandTotal)}`}
+                PAY {formatPrice(grandTotal)}
               </Button>
 
               <div className="pt-2 text-center text-[10px] text-[#888888] space-y-1">

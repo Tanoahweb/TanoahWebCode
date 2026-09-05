@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category } from '@/types';
-import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES } from '@/data/mockData';
+import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier } from '@/types';
+import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
@@ -323,6 +323,45 @@ export const api = {
       return true;
     } catch (err) {
       console.error('Error saving store settings:', err);
+      return false;
+    }
+  },
+
+  // Delivery Speeds & Rates (Direct Supabase)
+  async getDeliverySpeeds(): Promise<DeliverySpeedTier[]> {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('delivery_speeds_config')
+        .limit(1)
+        .single();
+      if (!error && data?.delivery_speeds_config && Array.isArray(data.delivery_speeds_config) && data.delivery_speeds_config.length > 0) {
+        return data.delivery_speeds_config as DeliverySpeedTier[];
+      }
+      if (error) console.warn('Supabase getDeliverySpeeds warning:', error);
+    } catch (e) {
+      console.warn('Network error fetching delivery speeds:', e);
+    }
+    return DEFAULT_DELIVERY_SPEEDS;
+  },
+
+  async saveDeliverySpeeds(speeds: DeliverySpeedTier[]): Promise<boolean> {
+    try {
+      const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ delivery_speeds_config: speeds })
+          .eq('id', existing.id);
+        if (error) {
+          console.error('Failed to update delivery speeds in Supabase:', error);
+          return false;
+        }
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error saving delivery speeds:', err);
       return false;
     }
   },
@@ -1039,6 +1078,8 @@ export const api = {
     payment_method: string;
     payment_status: string;
     payment_gateway_ref?: string;
+    courier_name?: string;
+    delivery_speed?: string;
     subtotal: number;
     discount_total: number;
     shipping_total: number;
@@ -1072,6 +1113,8 @@ export const api = {
       payment_method: params.payment_method,
       payment_status: params.payment_status,
       payment_gateway_ref: params.payment_gateway_ref || null,
+      courier_name: params.courier_name || 'India Post',
+      delivery_speed: params.delivery_speed,
       subtotal: params.subtotal,
       discount_total: params.discount_total,
       shipping_total: params.shipping_total,

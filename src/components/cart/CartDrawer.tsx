@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { X, Trash2, Heart, ArrowRight, ShoppingBag, Gift, FileText, Tag } from 'lucide-react';
+import { X, Trash2, Heart, ArrowRight, ShoppingBag, Tag } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -28,18 +28,12 @@ export const CartDrawer: React.FC = () => {
     freeShippingThreshold,
     coupon,
     applyCoupon,
-    giftNote,
-    setGiftNote,
-    orderNote,
-    setOrderNote,
   } = useCartStore();
 
   const { addItem: addToWishlist } = useWishlistStore();
   const { addToast } = useUIStore();
 
   const [couponInput, setCouponInput] = useState('');
-  const [showGiftNote, setShowGiftNote] = useState(Boolean(giftNote));
-  const [showOrderNote, setShowOrderNote] = useState(Boolean(orderNote));
 
   useEffect(() => {
     const lenis = getLenis();
@@ -313,52 +307,6 @@ export const CartDrawer: React.FC = () => {
                       APPLY
                     </button>
                   </form>
-                )}
-              </div>
-
-              {/* Gift Note Toggle */}
-              <div className="border border-[#E7E7E7] rounded-[4px] p-2.5">
-                <button
-                  onClick={() => setShowGiftNote(!showGiftNote)}
-                  className="flex items-center justify-between w-full text-black font-medium"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Gift className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                    <span>Add Complimentary Gift Message</span>
-                  </span>
-                  <span>{showGiftNote ? '−' : '+'}</span>
-                </button>
-                {showGiftNote && (
-                  <textarea
-                    rows={2}
-                    value={giftNote}
-                    onChange={(e) => setGiftNote(e.target.value)}
-                    placeholder="Write your bespoke message here..."
-                    className="w-full mt-2 p-2 text-xs border border-[#E7E7E7] rounded-[2px] focus:outline-none focus:border-[#3F3F8F]"
-                  />
-                )}
-              </div>
-
-              {/* Order Note Toggle */}
-              <div className="border border-[#E7E7E7] rounded-[4px] p-2.5">
-                <button
-                  onClick={() => setShowOrderNote(!showOrderNote)}
-                  className="flex items-center justify-between w-full text-black font-medium"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                    <span>Special Delivery Instructions</span>
-                  </span>
-                  <span>{showOrderNote ? '−' : '+'}</span>
-                </button>
-                {showOrderNote && (
-                  <textarea
-                    rows={2}
-                    value={orderNote}
-                    onChange={(e) => setOrderNote(e.target.value)}
-                    placeholder="E.g., Please leave package with security concierge..."
-                    className="w-full mt-2 p-2 text-xs border border-[#E7E7E7] rounded-[2px] focus:outline-none focus:border-[#3F3F8F]"
-                  />
                 )}
               </div>
 

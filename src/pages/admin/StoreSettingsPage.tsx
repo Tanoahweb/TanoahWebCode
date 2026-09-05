@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Gift,
   CreditCard,
+  Truck,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
@@ -30,14 +31,17 @@ import { IMAGE_PRESETS } from '../../config/imagePresets';
 import { AtelierSettingsTab } from '../../components/admin/AtelierSettingsTab';
 import { OfferPopupSettingsTab } from '../../components/admin/OfferPopupSettingsTab';
 import { PaymentGatewaysSettingsTab } from '../../components/admin/PaymentGatewaysSettingsTab';
+import { DeliverySettingsTab } from '../../components/admin/DeliverySettingsTab';
 import { r2Service } from '../../services/r2Service';
 
 export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'store' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media'>(() => {
+  const [activeTab, setActiveTab] = useState<
+    'store' | 'delivery' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media'
+  >(() => {
     const tabParam = new URLSearchParams(window.location.search).get('tab');
-    if (['payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tabParam || '')) {
+    if (['delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tabParam || '')) {
       return tabParam as any;
     }
     return 'store';
@@ -45,7 +49,7 @@ export const StoreSettingsPage: React.FC = () => {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['store', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tab)) {
+    if (tab && ['store', 'delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -63,10 +67,8 @@ export const StoreSettingsPage: React.FC = () => {
     contactEmail: 'concierge@tanoah.com',
     phone: '+91 98765 43210',
     freeShippingThreshold: 1999,
-    standardShippingFee: 149,
-    expressShippingFee: 299,
-    codEnabled: true,
-    codFee: 99,
+    standardShippingFee: 99,
+    expressShippingFee: 199,
     gstNumber: '27AAAAA0000A1Z5',
     defaultTaxRate: 12,
   });
@@ -98,16 +100,15 @@ export const StoreSettingsPage: React.FC = () => {
       } else {
         addToast({
           type: 'error',
-          title: 'R2 Connection Failed',
+          title: 'Connection Failed',
           description: res.message,
         });
       }
     } catch (err: any) {
-      setR2TestResult({ success: false, message: err.message || 'Connection error' });
       addToast({
         type: 'error',
-        title: 'R2 Test Error',
-        description: err.message || 'Failed to connect to Cloudflare R2.',
+        title: 'Connection Failed',
+        description: err.message || 'Could not connect to Cloudflare R2.',
       });
     } finally {
       setIsTestingR2(false);
@@ -125,10 +126,8 @@ export const StoreSettingsPage: React.FC = () => {
           contactEmail: s.contact_email || s.contactEmail || 'concierge@tanoah.com',
           phone: s.contact_phone || s.phone || '+91 98765 43210',
           freeShippingThreshold: s.free_shipping_threshold || s.freeShippingThreshold || 1999,
-          standardShippingFee: s.standard_shipping_rate || s.standardShippingFee || 149,
-          expressShippingFee: s.express_shipping_rate || s.expressShippingFee || 299,
-          codEnabled: s.cod_enabled !== undefined ? s.cod_enabled : true,
-          codFee: s.cod_fee || s.codFee || 99,
+          standardShippingFee: s.standard_shipping_rate || s.standardShippingFee || 99,
+          expressShippingFee: s.express_shipping_rate || s.expressShippingFee || 199,
           gstNumber: s.gst_number || s.gstNumber || '27AAAAA0000A1Z5',
           defaultTaxRate: s.default_tax_rate || s.defaultTaxRate || 12,
         });
@@ -206,8 +205,8 @@ export const StoreSettingsPage: React.FC = () => {
       free_shipping_threshold: Number(settings.freeShippingThreshold),
       standard_shipping_rate: Number(settings.standardShippingFee),
       express_shipping_rate: Number(settings.expressShippingFee),
-      cod_enabled: settings.codEnabled,
-      cod_fee: Number(settings.codFee),
+      cod_enabled: false,
+      cod_fee: 0,
       gst_number: settings.gstNumber,
       default_tax_rate: Number(settings.defaultTaxRate),
     });
@@ -286,6 +285,20 @@ export const StoreSettingsPage: React.FC = () => {
           </button>
           <button
             onClick={() => {
+              setActiveTab('delivery');
+              setSearchParams({ tab: 'delivery' });
+            }}
+            className={`pb-3 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'delivery'
+                ? 'border-b-2 border-[#3F3F8F] text-[#3F3F8F]'
+                : 'text-neutral-500 hover:text-black'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span>Delivery Speeds & Rates</span>
+          </button>
+          <button
+            onClick={() => {
               setActiveTab('payments');
               setSearchParams({ tab: 'payments' });
             }}
@@ -355,6 +368,9 @@ export const StoreSettingsPage: React.FC = () => {
             <span>Media & Cloudflare R2 Pipeline</span>
           </button>
         </div>
+
+        {/* Tab: Delivery Speeds & Rates */}
+        {activeTab === 'delivery' && <DeliverySettingsTab />}
 
         {/* Tab: Payment Gateways (Razorpay & Cashfree) */}
         {activeTab === 'payments' && <PaymentGatewaysSettingsTab />}
@@ -450,12 +466,14 @@ export const StoreSettingsPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                  COD Handling Surcharge (₹)
+                  Express Shipping Fee (₹)
                 </label>
                 <input
                   type="number"
-                  value={settings.codFee}
-                  onChange={(e) => setSettings({ ...settings, codFee: Number(e.target.value) })}
+                  value={settings.expressShippingFee}
+                  onChange={(e) =>
+                    setSettings({ ...settings, expressShippingFee: Number(e.target.value) })
+                  }
                   className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
                 />
               </div>

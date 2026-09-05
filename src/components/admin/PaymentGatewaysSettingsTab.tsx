@@ -34,8 +34,8 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sub-tab selection: 'razorpay' | 'cashfree' | 'cod'
-  const [activeSubTab, setActiveSubTab] = useState<'razorpay' | 'cashfree' | 'cod'>('razorpay');
+  // Sub-tab selection: 'razorpay' | 'cashfree'
+  const [activeSubTab, setActiveSubTab] = useState<'razorpay' | 'cashfree'>('razorpay');
 
   // Password / Secret visibility toggles
   const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
@@ -295,24 +295,6 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
           ) : (
             <span className="text-[10px] bg-neutral-100 text-neutral-500 px-1.5 py-0.2 rounded">
               OFF
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('cod')}
-          className={`pb-3 text-xs font-semibold tracking-wider uppercase transition-colors flex items-center gap-2 relative ${
-            activeSubTab === 'cod'
-              ? 'text-[#3F3F8F] border-b-2 border-[#3F3F8F]'
-              : 'text-neutral-500 hover:text-black'
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          <span>Cash on Delivery (COD)</span>
-          {config.cod.enabled && (
-            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded">
-              ₹{config.cod.extra_fee} FEE
             </span>
           )}
         </button>
@@ -804,93 +786,6 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
                   <span>Save Cashfree Settings</span>
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 3. CASH ON DELIVERY (COD) TAB                                             */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'cod' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-[4px] border border-[#E7E7E7] space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E7E7E7]">
-              <div>
-                <h3 className="font-semibold text-black text-sm">Cash on Delivery (COD)</h3>
-                <p className="text-neutral-500 text-xs mt-0.5">
-                  Allow customers to pay cash when their order arrives at doorstep.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.cod.enabled}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      cod: { ...prev.cod, enabled: e.target.checked },
-                    }))
-                  }
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3F3F8F]"></div>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
-                  COD Handling Fee (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={config.cod.extra_fee}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      cod: { ...prev.cod, extra_fee: Number(e.target.value) },
-                    }))
-                  }
-                  className="w-full px-3.5 py-2.5 border border-[#D5D5D5] rounded-[4px] text-xs focus:border-[#3F3F8F] focus:outline-none"
-                />
-                <span className="text-[11px] text-neutral-400 mt-1 block">
-                  Additional fee charged to cover courier COD handling risks.
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
-                  Maximum Order Value for COD (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={config.cod.max_order_amount || 50000}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      cod: { ...prev.cod, max_order_amount: Number(e.target.value) },
-                    }))
-                  }
-                  className="w-full px-3.5 py-2.5 border border-[#D5D5D5] rounded-[4px] text-xs focus:border-[#3F3F8F] focus:outline-none"
-                />
-                <span className="text-[11px] text-neutral-400 mt-1 block">
-                  Orders above this value must be prepaid online to avoid cancellation losses.
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-end">
-              <Button
-                onClick={handleSave}
-                isLoading={isSaving}
-                className="bg-[#3F3F8F] hover:bg-[#323275] text-white px-5 py-2 text-xs flex items-center gap-2"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Save COD Settings</span>
-              </Button>
             </div>
           </div>
         </div>

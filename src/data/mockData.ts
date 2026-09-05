@@ -1,4 +1,4 @@
-import { Product, Category, Collection, StoreSettings, Coupon, FeaturedCollectionsConfig } from '../types';
+import { Product, Category, Collection, StoreSettings, Coupon, FeaturedCollectionsConfig, DeliverySpeedTier } from '../types';
 
 export const SAMPLE_CATEGORIES: Category[] = [
   {
@@ -441,6 +441,39 @@ export const SAMPLE_PRODUCTS: Product[] = [
   },
 ];
 
+export const DEFAULT_DELIVERY_SPEEDS: DeliverySpeedTier[] = [
+  {
+    id: 'standard',
+    name: 'Standard Delivery (India Post)',
+    description: 'Insured doorstep delivery across India via India Post Speed Post',
+    estimated_days: '4–6 Business Days',
+    charge: 99,
+    is_free_eligible: true,
+    is_active: true,
+    is_default: true,
+  },
+  {
+    id: 'express',
+    name: 'Express Air Dispatch',
+    description: 'Priority courier dispatch with expedited handling and live transit tracking',
+    estimated_days: '2–3 Business Days',
+    charge: 199,
+    is_free_eligible: false,
+    is_active: true,
+    is_default: false,
+  },
+  {
+    id: 'priority',
+    name: 'Priority Atelier Dispatch',
+    description: 'Same-day atelier tailoring & next-business-day expedited courier dispatch',
+    estimated_days: '1–2 Business Days',
+    charge: 299,
+    is_free_eligible: false,
+    is_active: true,
+    is_default: false,
+  },
+];
+
 export const SAMPLE_SETTINGS: StoreSettings = {
   store_name: 'TANOAH',
   logo_url: '/Assets/brand/logo-blue.png',
@@ -457,12 +490,13 @@ export const SAMPLE_SETTINGS: StoreSettings = {
   tax_inclusive_pricing: true,
   default_tax_rate: 12.0,
   free_shipping_threshold: 1999.0,
-  standard_shipping_rate: 149.0,
-  express_shipping_rate: 299.0,
-  cod_enabled: true,
-  cod_fee: 99.0,
-  cod_min_order: 500,
-  cod_max_order: 50000,
+  standard_shipping_rate: 99.0,
+  express_shipping_rate: 199.0,
+  delivery_speeds_config: DEFAULT_DELIVERY_SPEEDS,
+  cod_enabled: false,
+  cod_fee: 0,
+  cod_min_order: 0,
+  cod_max_order: 0,
   low_stock_threshold: 3,
   order_prefix: 'TAN-',
   invoice_prefix: 'INV-TAN-',

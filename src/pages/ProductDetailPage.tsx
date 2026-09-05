@@ -596,7 +596,7 @@ export const ProductDetailPage: React.FC = () => {
               {pincodeStatus === 'valid' && (
                 <div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-[2px] mt-1 space-y-0.5">
                   <p className="font-semibold">✓ Express Delivery Available to {pincode}</p>
-                  <p>Estimated Delivery: 2–3 Business Days | Cash on Delivery Available</p>
+                  <p>Estimated Delivery: 3–5 Business Days | Insured Doorstep Delivery via India Post</p>
                 </div>
               )}
               {pincodeStatus === 'invalid' && (

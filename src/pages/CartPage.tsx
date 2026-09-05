@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Heart, ArrowRight, ShoppingBag, ShieldCheck, Tag, Gift, FileText } from 'lucide-react';
+import { Trash2, Heart, ArrowRight, ShoppingBag, ShieldCheck, Tag } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useWishlistStore } from '../store/useWishlistStore';
 import { useUIStore } from '../store/useUIStore';
@@ -22,10 +22,6 @@ export const CartPage: React.FC = () => {
     freeShippingThreshold,
     coupon,
     applyCoupon,
-    giftNote,
-    setGiftNote,
-    orderNote,
-    setOrderNote,
   } = useCartStore();
 
   const { addItem: addToWishlist } = useWishlistStore();
@@ -193,37 +189,6 @@ export const CartPage: React.FC = () => {
                   </div>
                 );
               })}
-            </div>
-
-            {/* Notes Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 border border-[#E7E7E7] rounded-[4px] bg-[#FAFAFA] space-y-2">
-                <label className="flex items-center gap-1.5 font-semibold text-black uppercase tracking-wider">
-                  <Gift className="w-4 h-4 text-[#3F3F8F]" />
-                  <span>Complimentary Gift Message</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={giftNote}
-                  onChange={(e) => setGiftNote(e.target.value)}
-                  placeholder="Include a bespoke gift card note..."
-                  className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[2px] text-xs focus:outline-none focus:border-[#3F3F8F]"
-                />
-              </div>
-
-              <div className="p-4 border border-[#E7E7E7] rounded-[4px] bg-[#FAFAFA] space-y-2">
-                <label className="flex items-center gap-1.5 font-semibold text-black uppercase tracking-wider">
-                  <FileText className="w-4 h-4 text-[#3F3F8F]" />
-                  <span>Delivery Instructions</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={orderNote}
-                  onChange={(e) => setOrderNote(e.target.value)}
-                  placeholder="Special instructions for the courier..."
-                  className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[2px] text-xs focus:outline-none focus:border-[#3F3F8F]"
-                />
-              </div>
             </div>
           </div>
 

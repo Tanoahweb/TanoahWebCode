@@ -128,9 +128,9 @@ export const PolicyPage: React.FC = () => {
             </div>
 
             <div className="space-y-2 border-b border-[#E7E7E7] pb-4">
-              <h4 className="font-semibold text-black text-sm">Do you offer Cash on Delivery (COD)?</h4>
+              <h4 className="font-semibold text-black text-sm">What payment options do you accept?</h4>
               <p className="leading-relaxed">
-                Yes, Cash on Delivery is available across most serviceable pincodes in India with a nominal handling fee.
+                We accept 100% secure online prepaid payments via UPI (Google Pay, PhonePe, Paytm), Credit &amp; Debit Cards (Visa, Mastercard, RuPay, Amex), Net Banking, and digital wallets. To safeguard boutique atelier craftsmanship and guarantee swift insured transit, Cash on Delivery (COD) is not offered.
               </p>
             </div>
 
