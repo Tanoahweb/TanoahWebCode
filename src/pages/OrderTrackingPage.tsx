@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, CheckCircle2, Truck } from 'lucide-react';
+import { Search, CheckCircle2, Truck, ExternalLink, Copy, Check } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { api } from '../services/api';
 
 const STEPS = [
   { key: 'placed', label: 'Order Placed', desc: 'Order received & confirmed by atelier' },
   { key: 'processing', label: 'Handcrafted / Prepared', desc: 'Garments inspected & packaged in luxury box' },
-  { key: 'shipped', label: 'Dispatched via Air Courier', desc: 'Picked up by BlueDart Express' },
-  { key: 'out', label: 'Out for Delivery', desc: 'Courier agent on route to address' },
+  { key: 'shipped', label: 'Dispatched via India Post', desc: 'Handed over to India Post (Speed Post / Parcel)' },
+  { key: 'out', label: 'Out for Delivery', desc: 'India Post postman out for delivery to address' },
   { key: 'delivered', label: 'Delivered', desc: 'Signed & handed over to client' },
 ];
 
@@ -19,17 +19,24 @@ export const OrderTrackingPage: React.FC = () => {
   const [orderQuery, setOrderQuery] = useState(initialOrder);
   const [contactQuery, setContactQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [trackingResult, setTrackingResult] = useState<any>(
     initialOrder
       ? {
           orderNumber: initialOrder,
           currentStep: 1,
-          courier: 'BlueDart Express',
-          trackingId: 'BD8391024IN',
-          estimatedDelivery: 'Within 2–3 Business Days',
+          courier: 'India Post (Speed Post)',
+          trackingId: 'ED849201948IN',
+          estimatedDelivery: 'Within 2–4 Business Days',
         }
       : null
   );
+
+  const handleCopyTracking = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +57,9 @@ export const OrderTrackingPage: React.FC = () => {
         setTrackingResult({
           orderNumber: order.order_number,
           currentStep: step,
-          courier: order.courier_name || 'BlueDart Express Air',
-          trackingId: order.tracking_number || `BD${Math.floor(10000000 + Math.random() * 90000000)}IN`,
-          estimatedDelivery: 'Within 2–3 Business Days',
+          courier: order.courier_name || 'India Post (Speed Post)',
+          trackingId: order.tracking_number || `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+          estimatedDelivery: 'Within 2–4 Business Days',
           grandTotal: order.grand_total,
           itemsCount: order.items?.length || 1,
         });
@@ -61,18 +68,18 @@ export const OrderTrackingPage: React.FC = () => {
         setTrackingResult({
           orderNumber: orderNum,
           currentStep: 1,
-          courier: 'BlueDart Express Air',
-          trackingId: `BD${Math.floor(10000000 + Math.random() * 90000000)}IN`,
-          estimatedDelivery: 'Within 2–3 Business Days',
+          courier: 'India Post (Speed Post)',
+          trackingId: `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+          estimatedDelivery: 'Within 2–4 Business Days',
         });
       }
     } catch {
       setTrackingResult({
         orderNumber: orderNum,
         currentStep: 1,
-        courier: 'BlueDart Express Air',
-        trackingId: `BD${Math.floor(10000000 + Math.random() * 90000000)}IN`,
-        estimatedDelivery: 'Within 2–3 Business Days',
+        courier: 'India Post (Speed Post)',
+        trackingId: `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+        estimatedDelivery: 'Within 2–4 Business Days',
       });
     } finally {
       setIsLoading(false);
@@ -189,11 +196,60 @@ export const OrderTrackingPage: React.FC = () => {
               })}
             </div>
 
+            {/* India Post Official Tracking Portal Card */}
+            <div className="bg-[#FAF9F6] p-5 sm:p-6 rounded-[4px] border border-[#3F3F8F]/25 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-semibold text-[#3F3F8F] uppercase tracking-wider block mb-0.5">
+                    Official India Post Tracking
+                  </span>
+                  <h4 className="font-semibold text-black text-sm">Track Directly on indiapost.gov.in</h4>
+                </div>
+                <a
+                  href="https://www.indiapost.gov.in/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#3F3F8F] hover:bg-black text-white rounded-[4px] font-semibold text-xs tracking-wider transition-colors shadow-sm"
+                >
+                  <span>TRACK ON INDIAPOST.GOV.IN</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
+              <p className="text-[11px] text-[#666666] leading-relaxed">
+                Tanoah deliveries are dispatched exclusively through India Post. You can track real-time transit scans directly on the India Post portal by copying your consignment number below and pasting it into the Track N Trace box.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-[#E7E7E7] rounded-[4px]">
+                <div>
+                  <span className="text-[10px] text-[#888888] uppercase block">India Post Consignment No.</span>
+                  <span className="font-mono text-sm font-bold text-black">{trackingResult.trackingId}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyTracking(trackingResult.trackingId)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E7E7] hover:border-black rounded-[4px] text-xs font-semibold text-black bg-[#FAFAFA] hover:bg-white transition-colors"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-700">Consignment Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                      <span>Copy Consignment Number</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="p-4 bg-[#EEEEF8] rounded-[4px] border border-[#3F3F8F]/20 flex items-center gap-3 text-xs">
               <Truck className="w-5 h-5 text-[#3F3F8F] shrink-0" />
               <div>
                 <strong className="text-black block">Estimated Delivery: {trackingResult.estimatedDelivery}</strong>
-                <span className="text-[#666666]">Insured courier with signature verification upon delivery.</span>
+                <span className="text-[#666666]">Insured India Post parcel with doorstep signature verification upon delivery.</span>
               </div>
             </div>
           </div>

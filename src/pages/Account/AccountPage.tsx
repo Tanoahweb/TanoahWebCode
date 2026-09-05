@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X, AlertTriangle, Lock, Shield, KeyRound } from 'lucide-react';
+import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X, AlertTriangle, Lock, Shield, KeyRound, Copy } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
@@ -333,13 +333,60 @@ export const AccountPage: React.FC = () => {
                                 {ord.status || 'CONFIRMED'}
                               </span>
                             </div>
-                            <Link to={`/tracking?order=${orderNum}`}>
-                              <button className="px-3 py-1.5 bg-black text-white hover:bg-[#3F3F8F] rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1">
-                                <span>Track</span>
+                            <div className="flex items-center gap-2">
+                              <Link to={`/tracking?order=${orderNum}`}>
+                                <button className="px-3 py-1.5 border border-[#E7E7E7] hover:border-black rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1 text-black bg-white">
+                                  <span>Milestones</span>
+                                </button>
+                              </Link>
+                              <a
+                                href="https://www.indiapost.gov.in/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-[#3F3F8F] text-white hover:bg-black rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                              >
+                                <span>Track on India Post</span>
                                 <ExternalLink className="w-3 h-3" />
-                              </button>
-                            </Link>
+                              </a>
+                            </div>
                           </div>
+
+                          {/* Consignment Banner */}
+                          {ord.tracking_number && (
+                            <div className="bg-[#FAF9F6] border border-[#3F3F8F]/20 p-2.5 rounded-[4px] flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[#666666]">India Post Consignment:</span>
+                                <span className="font-mono font-bold text-black">{ord.tracking_number}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(ord.tracking_number);
+                                    addToast({
+                                      type: 'success',
+                                      title: 'Copied',
+                                      description: 'India Post consignment number copied to clipboard.',
+                                    });
+                                  }}
+                                  className="text-[#3F3F8F] hover:underline font-semibold flex items-center gap-1"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy Number</span>
+                                </button>
+                                <span className="text-[#CCCCCC]">|</span>
+                                <a
+                                  href="https://www.indiapost.gov.in/"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#3F3F8F] hover:underline font-semibold flex items-center gap-1"
+                                >
+                                  <span>Open indiapost.gov.in</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            </div>
+                          )}
 
                           <div className="space-y-2">
                             {ord.items?.map((it: any, idx: number) => (

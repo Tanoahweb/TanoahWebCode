@@ -114,10 +114,10 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
               <div className="text-[10px] font-semibold text-[#3F3F8F] uppercase tracking-wider mb-1">
                 DISPATCH / COURIER DETAILS
               </div>
-              <div className="font-semibold">Doorstep Air Express</div>
+              <div className="font-semibold">India Post Speed Post</div>
               <div className="text-[#666666] leading-relaxed">
-                Courier: BlueDart Express Air<br />
-                Tracking: Insured Tracked Dispatch<br />
+                Courier: India Post (Speed Post)<br />
+                Tracking: Insured Tracked Dispatch (indiapost.gov.in)<br />
                 Place of Supply: {order.formData.state}
               </div>
             </div>

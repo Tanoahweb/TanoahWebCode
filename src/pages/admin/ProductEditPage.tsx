@@ -182,7 +182,7 @@ export const ProductEditPage: React.FC = () => {
       id: 'sec_ship',
       title: 'COMPLIMENTARY SHIPPING & EASY RETURNS',
       content:
-        '• Complimentary express domestic delivery on orders over ₹1,999.\n• Dispatched within 24 hours via BlueDart Air Express (2-3 business days).\n• 14-day doorstep exchange and reverse pickup available.',
+        '• Complimentary express domestic delivery on orders over ₹1,999.\n• Dispatched within 24 hours via India Post Speed Post (2-4 business days).\n• 14-day doorstep exchange and reverse pickup available.',
     },
   ]);
 

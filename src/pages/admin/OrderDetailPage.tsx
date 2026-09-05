@@ -14,6 +14,7 @@ import {
   CreditCard,
   Send,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -35,7 +36,7 @@ export const OrderDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [courierName, setCourierName] = useState('BlueDart Express Air');
+  const [courierName, setCourierName] = useState('India Post (Speed Post)');
   const [status, setStatus] = useState('confirmed');
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
@@ -89,7 +90,7 @@ export const OrderDetailPage: React.FC = () => {
           setOrder(finalOrder);
           setStatus(finalOrder.status || 'confirmed');
           setTrackingNumber(finalOrder.tracking_number || '');
-          setCourierName(finalOrder.courier_name || 'BlueDart Express Air');
+          setCourierName(finalOrder.courier_name || 'India Post (Speed Post)');
         }
         setIsLoading(false);
       }
@@ -105,7 +106,7 @@ export const OrderDetailPage: React.FC = () => {
     setIsUpdating(true);
     try {
       if (order?.id) {
-        await api.updateOrderStatus(order.id, status, trackingNumber);
+        await api.updateOrderStatus(order.id, status, trackingNumber, courierName);
       }
       setOrder((prev: any) => ({
         ...prev,
@@ -225,10 +226,21 @@ export const OrderDetailPage: React.FC = () => {
           <div className="lg:col-span-8 space-y-6">
             {/* 1. Fulfillment Control Card */}
             <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-4">
-              <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#3F3F8F]" />
-                <span>DISPATCH & FULFILLMENT MANAGEMENT</span>
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#3F3F8F]" />
+                  <span>DISPATCH & FULFILLMENT MANAGEMENT</span>
+                </h3>
+                <a
+                  href="https://www.indiapost.gov.in/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3F3F8F] hover:underline"
+                >
+                  <span>Track on indiapost.gov.in</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
@@ -255,29 +267,44 @@ export const OrderDetailPage: React.FC = () => {
                   <select
                     value={courierName}
                     onChange={(e) => setCourierName(e.target.value)}
-                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer"
+                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer font-medium"
                   >
-                    <option value="BlueDart Express Air">BlueDart Express Air</option>
-                    <option value="Delhivery Surface">Delhivery Surface</option>
-                    <option value="DTDC Premium">DTDC Premium</option>
+                    <option value="India Post (Speed Post)">India Post (Speed Post)</option>
+                    <option value="India Post (Registered Parcel)">India Post (Registered Parcel)</option>
+                    <option value="India Post (Business Post)">India Post (Business Post)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                    AWB Tracking Code
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-semibold text-black uppercase">
+                      India Post Consignment No.
+                    </label>
+                    {trackingNumber && (
+                      <a
+                        href="https://www.indiapost.gov.in/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-[#3F3F8F] hover:underline inline-flex items-center gap-0.5 font-semibold"
+                      >
+                        Track <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    placeholder="e.g. BD-849204912"
+                    placeholder="e.g. ED123456789IN"
                     value={trackingNumber}
                     onChange={(e) => setTrackingNumber(e.target.value)}
-                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
+                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F] uppercase"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <p className="text-[11px] text-[#666666]">
+                  Carrier: <strong className="text-black">India Post</strong>. Enter consignment number for customer self-tracking on indiapost.gov.in.
+                </p>
                 <Button
                   variant="primary"
                   size="sm"
@@ -285,7 +312,7 @@ export const OrderDetailPage: React.FC = () => {
                   isLoading={isUpdating}
                   icon={<Send className="w-3.5 h-3.5" />}
                 >
-                  UPDATE STATUS & DISPATCH AWB
+                  UPDATE STATUS & DISPATCH
                 </Button>
               </div>
             </div>

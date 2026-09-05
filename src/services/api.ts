@@ -180,8 +180,8 @@ const SAMPLE_ORDERS_DETAILED: any[] = [
     tax_total: 480,
     grand_total: 3998,
     status: 'shipped',
-    tracking_number: 'BD-849201948IN',
-    courier_name: 'BlueDart Express Air',
+    tracking_number: 'ED849201948IN',
+    courier_name: 'India Post (Speed Post)',
     created_at: '2026-09-02T10:30:00Z',
     items: [
       {
@@ -251,7 +251,7 @@ const SAMPLE_ORDERS_DETAILED: any[] = [
     grand_total: 4999,
     status: 'confirmed',
     tracking_number: '',
-    courier_name: 'Delhivery Surface',
+    courier_name: 'India Post (Speed Post)',
     created_at: '2026-09-02T14:15:00Z',
     items: [
       {
@@ -1317,7 +1317,7 @@ export const api = {
   },
 
   // Admin: Update order status (Dual-sync)
-  async updateOrderStatus(orderId: string, status: string, trackingNumber?: string): Promise<{ success: boolean; message?: string }> {
+  async updateOrderStatus(orderId: string, status: string, trackingNumber?: string, courierName: string = 'India Post (Speed Post)'): Promise<{ success: boolean; message?: string }> {
     try {
       const cleanId = orderId.trim();
 
@@ -1332,7 +1332,7 @@ export const api = {
             status,
             tracking_number: trackingNumber || o.tracking_number,
             trackingNumber: trackingNumber || o.trackingNumber,
-            courier_name: 'BlueDart Express Air',
+            courier_name: courierName || o.courier_name || 'India Post (Speed Post)',
           };
         }
         return o;
@@ -1349,6 +1349,7 @@ export const api = {
           if (parsed.orderNumber === cleanId || parsed.order_number === cleanId || parsed.id === cleanId) {
             parsed.status = status;
             if (trackingNumber) parsed.tracking_number = trackingNumber;
+            parsed.courier_name = courierName || parsed.courier_name || 'India Post (Speed Post)';
             safeSetItem('tanoah_last_order', JSON.stringify(parsed));
           }
         } catch {}
@@ -1358,8 +1359,8 @@ export const api = {
       const updateData: any = { status };
       if (trackingNumber) {
         updateData.tracking_number = trackingNumber;
-        updateData.courier_name = 'BlueDart Express Air';
       }
+      updateData.courier_name = courierName || 'India Post (Speed Post)';
       try {
         await supabase.from('orders').update(updateData).or(`id.eq.${cleanId},order_number.eq.${cleanId}`);
       } catch {}

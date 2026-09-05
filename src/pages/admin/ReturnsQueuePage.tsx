@@ -149,7 +149,7 @@ export const ReturnsQueuePage: React.FC = () => {
               REVERSE PICKUP IN TRANSIT
             </span>
             <div className="text-2xl font-bold text-[#3F3F8F] font-mono">{approvedCount}</div>
-            <p className="text-[11px] text-[#888888] mt-1">Scheduled with BlueDart reverse air</p>
+            <p className="text-[11px] text-[#888888] mt-1">Scheduled with India Post reverse parcel</p>
           </div>
 
           <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm">
