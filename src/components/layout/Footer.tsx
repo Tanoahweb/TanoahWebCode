@@ -146,9 +146,9 @@ export const Footer: React.FC = () => {
           <h4 className="font-wondra text-lg tracking-wider text-white">CLIENT SERVICES</h4>
           <ul className="space-y-2 text-xs font-poppins text-white/80">
             <li><Link to="/tracking" className="hover:text-white underline-offset-4 hover:underline">Track Your Order</Link></li>
-            <li><Link to="/account/returns" className="hover:text-white underline-offset-4 hover:underline">Returns & Exchanges</Link></li>
+            <li><Link to="/pages/refund-policy" className="hover:text-white underline-offset-4 hover:underline">Refund Policy</Link></li>
             <li><Link to="/pages/size-guide" className="hover:text-white underline-offset-4 hover:underline">Fit & Size Guide</Link></li>
-            <li><Link to="/pages/shipping-policy" className="hover:text-white underline-offset-4 hover:underline">Shipping & Delivery</Link></li>
+            <li><Link to="/pages/shipping-policy" className="hover:text-white underline-offset-4 hover:underline">Shipping Policy</Link></li>
             <li><Link to="/pages/faq" className="hover:text-white underline-offset-4 hover:underline">Frequently Asked Questions</Link></li>
             <li><Link to="/pages/contact" className="hover:text-white underline-offset-4 hover:underline">Contact Concierge</Link></li>
           </ul>
@@ -161,8 +161,9 @@ export const Footer: React.FC = () => {
             <li><Link to="/pages/about" className="hover:text-white underline-offset-4 hover:underline">About TANOAH</Link></li>
             <li><Link to="/pages/store-locator" className="hover:text-white underline-offset-4 hover:underline">Store Locator</Link></li>
             <li><Link to="/pages/privacy-policy" className="hover:text-white underline-offset-4 hover:underline">Privacy Policy</Link></li>
-            <li><Link to="/pages/terms" className="hover:text-white underline-offset-4 hover:underline">Terms of Service</Link></li>
+            <li><Link to="/pages/terms" className="hover:text-white underline-offset-4 hover:underline">Terms & Conditions</Link></li>
             <li><Link to="/pages/refund-policy" className="hover:text-white underline-offset-4 hover:underline">Refund Policy</Link></li>
+            <li><Link to="/pages/accessibility" className="hover:text-white underline-offset-4 hover:underline">Accessibility Statement</Link></li>
           </ul>
 
           <div className="pt-4">
@@ -180,10 +181,12 @@ export const Footer: React.FC = () => {
         <div>
           © {new Date().getFullYear()} TANOAH MAISON INC. ALL RIGHTS RESERVED.
         </div>
-        <div className="mt-4 md:mt-0 flex items-center justify-center gap-6">
+        <div className="mt-4 md:mt-0 flex flex-wrap items-center justify-center gap-6">
           <Link to="/pages/privacy-policy" className="hover:text-white">PRIVACY</Link>
           <Link to="/pages/terms" className="hover:text-white">TERMS</Link>
           <Link to="/pages/shipping-policy" className="hover:text-white">SHIPPING</Link>
+          <Link to="/pages/refund-policy" className="hover:text-white">REFUND</Link>
+          <Link to="/pages/accessibility" className="hover:text-white">ACCESSIBILITY</Link>
           <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="hover:text-white">SITEMAP</a>
         </div>
       </div>
