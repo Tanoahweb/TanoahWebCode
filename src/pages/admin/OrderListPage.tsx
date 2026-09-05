@@ -53,22 +53,35 @@ export const OrderListPage: React.FC = () => {
     let isMounted = true;
     api.getAdminOrders().then((liveOrders) => {
       if (isMounted && liveOrders && liveOrders.length > 0) {
-        const formatted = liveOrders.map((o: any) => ({
-          id: o.id || o.order_number || o.orderNumber,
-          orderNumber: o.order_number || o.orderNumber || o.id,
-          customer:
-            (o.shipping_address?.first_name ? `${o.shipping_address.first_name} ${o.shipping_address.last_name || ''}`.trim() : null) ||
-            (o.formData?.firstName ? `${o.formData.firstName} ${o.formData.lastName || ''}`.trim() : null) ||
-            o.guest_email ||
-            'Customer',
-          email: o.guest_email || o.formData?.email || '',
-          total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
-          paymentStatus: o.payment_status || 'paid',
-          fulfillmentStatus: o.status || 'processing',
-          trackingNumber: o.tracking_number || o.trackingNumber || '',
-          courierName: o.courier_name || 'India Post (Speed Post)',
-          date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
-        }));
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const formatted = liveOrders
+          .filter((o: any) => {
+            const num = o.order_number || o.orderNumber || o.id;
+            // Drop rows where order number is a UUID without customer info
+            if (isUUID(num) && !o.shipping_address && !o.guest_email && (!o.items || o.items.length === 0)) {
+              return false;
+            }
+            return true;
+          })
+          .map((o: any) => {
+            const realOrderNum = o.order_number || o.orderNumber || o.id;
+            return {
+              id: o.id || realOrderNum,
+              orderNumber: realOrderNum,
+              customer:
+                (o.shipping_address?.first_name ? `${o.shipping_address.first_name} ${o.shipping_address.last_name || ''}`.trim() : null) ||
+                (o.formData?.firstName ? `${o.formData.firstName} ${o.formData.lastName || ''}`.trim() : null) ||
+                o.guest_email ||
+                'Customer',
+              email: o.guest_email || o.formData?.email || '',
+              total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
+              paymentStatus: o.payment_status || 'paid',
+              fulfillmentStatus: o.status || 'processing',
+              trackingNumber: o.tracking_number || o.trackingNumber || '',
+              courierName: o.courier_name || 'India Post (Speed Post)',
+              date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
+            };
+          });
         setOrders(formatted);
       }
     });
@@ -79,31 +92,58 @@ export const OrderListPage: React.FC = () => {
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     const existing = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
-    const currentTracking = existing?.trackingNumber || '';
+    const realOrderNumber = existing?.orderNumber || orderId;
+    const currentTracking = (existing?.trackingNumber || '').trim();
+
+    // Mandate India Post Consignment No. when admin tries to change the status to Shipped or any status after Shipped (Except cancelled)
+    const isDispatchStatus = ['shipped', 'out_for_delivery', 'delivered'].includes(newStatus.toLowerCase());
+    if (isDispatchStatus && !currentTracking) {
+      addToast({
+        type: 'error',
+        title: 'Consignment No. Required',
+        description: `India Post Consignment No. is mandatory before marking order ${realOrderNumber} as ${newStatus.toUpperCase()}. Please enter the consignment number first.`,
+      });
+      // Abort change; select input remains at its current state
+      return;
+    }
 
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, fulfillmentStatus: newStatus, trackingNumber: currentTracking } : o))
     );
-    await api.updateOrderStatus(orderId, newStatus, currentTracking, 'India Post (Speed Post)');
-    addToast({
-      type: 'success',
-      title: 'Order Status Updated',
-      description: `Order ${orderId} marked as ${newStatus.toUpperCase()}.`,
-    });
+
+    const res = await api.updateOrderStatus(realOrderNumber, newStatus, currentTracking, 'India Post (Speed Post)');
+    if (res.success) {
+      addToast({
+        type: 'success',
+        title: 'Order Status Updated',
+        description: `Order ${realOrderNumber} marked as ${newStatus.toUpperCase()}.`,
+      });
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Update Failed',
+        description: res.message || 'Failed to update order status.',
+      });
+    }
   };
 
   const handleConsignmentChange = async (orderId: string, consignmentNo: string) => {
     const trimmed = consignmentNo.trim().toUpperCase();
+    const existing = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+    const realOrderNumber = existing?.orderNumber || orderId;
+
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, trackingNumber: trimmed } : o))
     );
-    const match = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
-    await api.updateOrderStatus(orderId, match?.fulfillmentStatus || 'shipped', trimmed, 'India Post (Speed Post)');
-    addToast({
-      type: 'success',
-      title: 'Consignment Saved',
-      description: `India Post Consignment ${trimmed || 'cleared'} for order ${orderId}.`,
-    });
+
+    const res = await api.updateOrderStatus(realOrderNumber, existing?.fulfillmentStatus || 'processing', trimmed, 'India Post (Speed Post)');
+    if (res.success) {
+      addToast({
+        type: 'success',
+        title: 'Consignment Saved',
+        description: `India Post Consignment ${trimmed || 'cleared'} for order ${realOrderNumber}.`,
+      });
+    }
   };
 
   return (
@@ -161,13 +201,17 @@ export const OrderListPage: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <input
                           type="text"
-                          placeholder="e.g. ED123456789IN"
+                          placeholder={
+                            ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !ord.trackingNumber
+                              ? 'Required (ED123..)'
+                              : 'e.g. ED123456789IN'
+                          }
                           defaultValue={ord.trackingNumber || ''}
-                          key={ord.trackingNumber || ''}
+                          key={`${ord.orderNumber}-${ord.trackingNumber || ''}`}
                           onBlur={(e) => {
                             const val = e.target.value.trim().toUpperCase();
                             if (val !== (ord.trackingNumber || '')) {
-                              handleConsignmentChange(ord.id, val);
+                              handleConsignmentChange(ord.orderNumber || ord.id, val);
                             }
                           }}
                           onKeyDown={(e) => {
@@ -175,7 +219,11 @@ export const OrderListPage: React.FC = () => {
                               (e.target as HTMLInputElement).blur();
                             }
                           }}
-                          className="w-36 p-1.5 border border-[#E7E7E7] rounded-[4px] font-mono text-xs focus:outline-none focus:border-[#3F3F8F] uppercase bg-white placeholder:normal-case placeholder:font-sans"
+                          className={`w-36 p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans ${
+                            ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !ord.trackingNumber
+                              ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 placeholder:text-rose-500'
+                              : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
+                          }`}
                         />
                         {ord.trackingNumber && (
                           <a
@@ -193,7 +241,7 @@ export const OrderListPage: React.FC = () => {
                     <td className="p-4 text-right">
                       <select
                         value={ord.fulfillmentStatus}
-                        onChange={(e) => handleStatusChange(ord.id, e.target.value)}
+                        onChange={(e) => handleStatusChange(ord.orderNumber || ord.id, e.target.value)}
                         className="p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase"
                       >
                         <option value="pending">Pending</option>

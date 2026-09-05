@@ -111,26 +111,38 @@ export const OrderDetailPage: React.FC = () => {
   }, [id]);
 
   const handleUpdateFulfillment = async () => {
+    const trimmedTracking = trackingNumber.trim().toUpperCase();
+    const orderRef = order?.order_number || order?.orderNumber || order?.id || id;
+    const isDispatchStatus = ['shipped', 'out_for_delivery', 'delivered'].includes(status.toLowerCase());
+
+    if (isDispatchStatus && !trimmedTracking) {
+      addToast({
+        type: 'error',
+        title: 'Consignment No. Required',
+        description: `India Post Consignment No. is mandatory before setting status to ${status.toUpperCase()}. Please enter the consignment number.`,
+      });
+      return;
+    }
+
     setIsUpdating(true);
     try {
-      const orderRef = order?.order_number || order?.orderNumber || order?.id || id;
       if (orderRef) {
-        await api.updateOrderStatus(orderRef, status, trackingNumber, courierName);
+        await api.updateOrderStatus(orderRef, status, trimmedTracking, courierName);
       }
       if (order?.id && order.id !== orderRef) {
-        await api.updateOrderStatus(order.id, status, trackingNumber, courierName);
+        await api.updateOrderStatus(order.id, status, trimmedTracking, courierName);
       }
       setOrder((prev: any) => ({
         ...prev,
         status,
-        tracking_number: trackingNumber,
+        tracking_number: trimmedTracking,
         courier_name: courierName,
       }));
 
       addToast({
         type: 'success',
         title: 'Fulfillment Updated',
-        description: `Order ${order?.orderNumber || order?.order_number || id} status updated to ${status.toUpperCase()}.`,
+        description: `Order ${orderRef} status updated to ${status.toUpperCase()}.`,
       });
     } catch (err: any) {
       addToast({
@@ -290,7 +302,10 @@ export const OrderDetailPage: React.FC = () => {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[11px] font-semibold text-black uppercase">
-                      India Post Consignment No.
+                      India Post Consignment No.{' '}
+                      {['shipped', 'out_for_delivery', 'delivered'].includes(status.toLowerCase()) && (
+                        <span className="text-rose-600 font-bold ml-1 text-[10px]">* Required for {status.toUpperCase()}</span>
+                      )}
                     </label>
                     {trackingNumber && (
                       <a
@@ -305,10 +320,18 @@ export const OrderDetailPage: React.FC = () => {
                   </div>
                   <input
                     type="text"
-                    placeholder="e.g. ED123456789IN"
+                    placeholder={
+                      ['shipped', 'out_for_delivery', 'delivered'].includes(status.toLowerCase())
+                        ? 'Required (e.g. ED123456789IN)'
+                        : 'e.g. ED123456789IN'
+                    }
                     value={trackingNumber}
-                    onChange={(e) => setTrackingNumber(e.target.value)}
-                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F] uppercase"
+                    onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
+                    className={`w-full p-2 border rounded-[4px] text-xs font-mono focus:outline-none uppercase ${
+                      ['shipped', 'out_for_delivery', 'delivered'].includes(status.toLowerCase()) && !trackingNumber.trim()
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
+                    }`}
                   />
                 </div>
               </div>

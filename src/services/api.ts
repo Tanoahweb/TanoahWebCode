@@ -122,19 +122,30 @@ const getStoredCustomOrders = (): any[] => {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((o) => {
-      // Clear legacy dummy tracking numbers
-      if (
-        o.tracking_number === 'ED849201948IN' ||
-        o.tracking_number === 'BD-849201948IN' ||
-        o.tracking_number === 'BD8391024IN' ||
-        o.trackingNumber === 'ED849201948IN'
-      ) {
-        o.tracking_number = '';
-        o.trackingNumber = '';
-      }
-      return o;
-    });
+    const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    return parsed
+      .filter((o) => {
+        // Drop any corrupted dummy stubs where order_number is a raw UUID string without customer info
+        const orderNum = o.order_number || o.orderNumber;
+        if (!orderNum) return false;
+        if (isUUID(orderNum) && !o.customer && !o.guest_email && (!o.items || o.items.length === 0)) {
+          return false;
+        }
+        return true;
+      })
+      .map((o) => {
+        // Clear legacy dummy tracking numbers
+        if (
+          o.tracking_number === 'ED849201948IN' ||
+          o.tracking_number === 'BD-849201948IN' ||
+          o.tracking_number === 'BD8391024IN' ||
+          o.trackingNumber === 'ED849201948IN'
+        ) {
+          o.tracking_number = '';
+          o.trackingNumber = '';
+        }
+        return o;
+      });
   } catch {
     return [];
   }
@@ -1319,15 +1330,35 @@ export const api = {
       remoteOrders = [];
     }
 
-    const merged = [...customOrders];
-    remoteOrders.forEach((ro) => {
-      if (!merged.some((m) => m.order_number === ro.order_number || m.orderNumber === ro.order_number)) {
-        merged.push(ro);
+    // 1. Remote orders from Supabase are the primary source of truth
+    const merged: any[] = [...remoteOrders];
+
+    // 2. Overlay customOrders (guest orders or overridden sample orders)
+    customOrders.forEach((co) => {
+      const coNum = co.order_number || co.orderNumber;
+      if (!coNum) return;
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(coNum);
+      if (isUUID) return;
+
+      const remoteIdx = merged.findIndex(
+        (ro) => (ro.order_number || ro.orderNumber) === coNum || (ro.id && ro.id === co.id)
+      );
+
+      if (remoteIdx === -1) {
+        // Not in remote orders, add to list
+        merged.push(co);
+      } else {
+        // If remote order has no items, fill from local
+        if ((!merged[remoteIdx].items || merged[remoteIdx].items.length === 0) && co.items?.length > 0) {
+          merged[remoteIdx].items = co.items;
+        }
       }
     });
 
+    // 3. Add default sample orders if not already in merged
     SAMPLE_ORDERS_DETAILED.forEach((so) => {
-      if (!merged.some((m) => m.order_number === so.orderNumber || m.orderNumber === so.orderNumber)) {
+      const soNum = so.orderNumber || so.order_number;
+      if (!merged.some((m) => (m.order_number || m.orderNumber) === soNum)) {
         merged.push(so);
       }
     });
@@ -1335,7 +1366,7 @@ export const api = {
     return merged;
   },
 
-  // Admin: Update order status (Dual-sync)
+  // Admin: Update order status (Dual-sync with persistent storage)
   async updateOrderStatus(
     orderId: string,
     status: string,
@@ -1344,72 +1375,9 @@ export const api = {
   ): Promise<{ success: boolean; message?: string }> {
     try {
       const cleanId = orderId.trim();
-      const cleanTracking = trackingNumber !== undefined ? trackingNumber.trim() : undefined;
+      const cleanTracking = trackingNumber !== undefined ? trackingNumber.trim().toUpperCase() : undefined;
 
-      // 1. Update in local custom orders
-      const customOrders = getStoredCustomOrders();
-      let localUpdated = false;
-      const updatedList = customOrders.map((o) => {
-        if (o.id === cleanId || o.orderNumber === cleanId || o.order_number === cleanId) {
-          localUpdated = true;
-          return {
-            ...o,
-            status,
-            tracking_number: cleanTracking !== undefined ? cleanTracking : (o.tracking_number || ''),
-            trackingNumber: cleanTracking !== undefined ? cleanTracking : (o.trackingNumber || ''),
-            courier_name: courierName || o.courier_name || 'India Post (Speed Post)',
-          };
-        }
-        return o;
-      });
-
-      // 2. Also check if it matches a sample order in SAMPLE_ORDERS_DETAILED
-      const sampleMatch = SAMPLE_ORDERS_DETAILED.find(
-        (so) => so.id === cleanId || so.orderNumber === cleanId || so.order_number === cleanId
-      );
-      if (sampleMatch) {
-        sampleMatch.status = status;
-        sampleMatch.tracking_number = cleanTracking !== undefined ? cleanTracking : (sampleMatch.tracking_number || '');
-        sampleMatch.trackingNumber = cleanTracking !== undefined ? cleanTracking : (sampleMatch.trackingNumber || '');
-        sampleMatch.courier_name = courierName || 'India Post (Speed Post)';
-
-        if (!localUpdated) {
-          localUpdated = true;
-          updatedList.push({ ...sampleMatch });
-        }
-      } else if (!localUpdated) {
-        localUpdated = true;
-        updatedList.push({
-          id: cleanId,
-          orderNumber: cleanId,
-          order_number: cleanId,
-          status,
-          tracking_number: cleanTracking !== undefined ? cleanTracking : '',
-          trackingNumber: cleanTracking !== undefined ? cleanTracking : '',
-          courier_name: courierName || 'India Post (Speed Post)',
-        });
-      }
-
-      safeSetItem('tanoah_custom_orders', JSON.stringify(updatedList));
-
-      // 3. Also update last order if matching
-      const rawLast = safeGetItem('tanoah_last_order');
-      if (rawLast) {
-        try {
-          const parsed = JSON.parse(rawLast);
-          if (parsed.orderNumber === cleanId || parsed.order_number === cleanId || parsed.id === cleanId) {
-            parsed.status = status;
-            if (cleanTracking !== undefined) {
-              parsed.tracking_number = cleanTracking;
-              parsed.trackingNumber = cleanTracking;
-            }
-            parsed.courier_name = courierName || parsed.courier_name || 'India Post (Speed Post)';
-            safeSetItem('tanoah_last_order', JSON.stringify(parsed));
-          }
-        } catch {}
-      }
-
-      // 4. Sync to Supabase
+      // 1. Sync to Supabase directly
       const updateData: any = { status };
       if (cleanTracking !== undefined) {
         updateData.tracking_number = cleanTracking || null;
@@ -1426,6 +1394,63 @@ export const api = {
         }
       } catch (e) {
         console.warn('Supabase update order status error:', e);
+      }
+
+      // 2. Update in local custom orders (if present)
+      const customOrders = getStoredCustomOrders();
+      let localUpdated = false;
+      const updatedList = customOrders.map((o) => {
+        if (o.id === cleanId || o.orderNumber === cleanId || o.order_number === cleanId) {
+          localUpdated = true;
+          return {
+            ...o,
+            status,
+            tracking_number: cleanTracking !== undefined ? cleanTracking : (o.tracking_number || ''),
+            trackingNumber: cleanTracking !== undefined ? cleanTracking : (o.trackingNumber || ''),
+            courier_name: courierName || o.courier_name || 'India Post (Speed Post)',
+          };
+        }
+        return o;
+      });
+
+      // 3. If it's a sample order in SAMPLE_ORDERS_DETAILED, update in-memory and persist to customOrders
+      const sampleMatch = SAMPLE_ORDERS_DETAILED.find(
+        (so) => so.id === cleanId || so.orderNumber === cleanId || so.order_number === cleanId
+      );
+      if (sampleMatch) {
+        sampleMatch.status = status;
+        sampleMatch.tracking_number = cleanTracking !== undefined ? cleanTracking : (sampleMatch.tracking_number || '');
+        sampleMatch.trackingNumber = cleanTracking !== undefined ? cleanTracking : (sampleMatch.trackingNumber || '');
+        sampleMatch.courier_name = courierName || 'India Post (Speed Post)';
+
+        const existingIdx = updatedList.findIndex(
+          (o) => o.id === sampleMatch.id || o.orderNumber === sampleMatch.orderNumber || o.order_number === sampleMatch.order_number
+        );
+        if (existingIdx !== -1) {
+          updatedList[existingIdx] = { ...sampleMatch };
+        } else {
+          updatedList.push({ ...sampleMatch });
+        }
+        localUpdated = true;
+      }
+
+      safeSetItem('tanoah_custom_orders', JSON.stringify(updatedList));
+
+      // 4. Also update last order in storage if matching
+      const rawLast = safeGetItem('tanoah_last_order');
+      if (rawLast) {
+        try {
+          const parsed = JSON.parse(rawLast);
+          if (parsed.orderNumber === cleanId || parsed.order_number === cleanId || parsed.id === cleanId) {
+            parsed.status = status;
+            if (cleanTracking !== undefined) {
+              parsed.tracking_number = cleanTracking;
+              parsed.trackingNumber = cleanTracking;
+            }
+            parsed.courier_name = courierName || parsed.courier_name || 'India Post (Speed Post)';
+            safeSetItem('tanoah_last_order', JSON.stringify(parsed));
+          }
+        } catch {}
       }
 
       return { success: true };
