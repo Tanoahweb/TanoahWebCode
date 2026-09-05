@@ -87,6 +87,14 @@ export const OrderDetailPage: React.FC = () => {
           if (localOrderData?.items && localOrderData.items.length > 0) {
             finalOrder.items = localOrderData.items;
           }
+          // Clear any legacy dummy tracking numbers
+          if (
+            finalOrder.tracking_number === 'ED849201948IN' ||
+            finalOrder.tracking_number === 'BD-849201948IN' ||
+            finalOrder.tracking_number === 'BD8391024IN'
+          ) {
+            finalOrder.tracking_number = '';
+          }
           setOrder(finalOrder);
           setStatus(finalOrder.status || 'confirmed');
           setTrackingNumber(finalOrder.tracking_number || '');
@@ -105,7 +113,11 @@ export const OrderDetailPage: React.FC = () => {
   const handleUpdateFulfillment = async () => {
     setIsUpdating(true);
     try {
-      if (order?.id) {
+      const orderRef = order?.order_number || order?.orderNumber || order?.id || id;
+      if (orderRef) {
+        await api.updateOrderStatus(orderRef, status, trackingNumber, courierName);
+      }
+      if (order?.id && order.id !== orderRef) {
         await api.updateOrderStatus(order.id, status, trackingNumber, courierName);
       }
       setOrder((prev: any) => ({
@@ -118,7 +130,7 @@ export const OrderDetailPage: React.FC = () => {
       addToast({
         type: 'success',
         title: 'Fulfillment Updated',
-        description: `Order ${order?.orderNumber || id} status updated to ${status.toUpperCase()}.`,
+        description: `Order ${order?.orderNumber || order?.order_number || id} status updated to ${status.toUpperCase()}.`,
       });
     } catch (err: any) {
       addToast({

@@ -14,8 +14,8 @@ const DEFAULT_ORDERS = [
     email: 'aditya@example.com',
     total: 3998,
     paymentStatus: 'paid',
-    fulfillmentStatus: 'shipped',
-    trackingNumber: 'ED849201948IN',
+    fulfillmentStatus: 'confirmed',
+    trackingNumber: '',
     courierName: 'India Post (Speed Post)',
     date: '2026-09-02',
   },
@@ -38,8 +38,8 @@ const DEFAULT_ORDERS = [
     email: 'karan@example.com',
     total: 11297,
     paymentStatus: 'paid',
-    fulfillmentStatus: 'delivered',
-    trackingNumber: 'ED748291034IN',
+    fulfillmentStatus: 'confirmed',
+    trackingNumber: '',
     courierName: 'India Post (Speed Post)',
     date: '2026-09-01',
   },
@@ -79,12 +79,12 @@ export const OrderListPage: React.FC = () => {
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     const existing = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
-    const tracking = existing?.trackingNumber || (newStatus === 'shipped' ? `ED${Math.floor(10000000 + Math.random() * 90000000)}IN` : '');
+    const currentTracking = existing?.trackingNumber || '';
 
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, fulfillmentStatus: newStatus, trackingNumber: tracking } : o))
+      prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, fulfillmentStatus: newStatus, trackingNumber: currentTracking } : o))
     );
-    await api.updateOrderStatus(orderId, newStatus, tracking, 'India Post (Speed Post)');
+    await api.updateOrderStatus(orderId, newStatus, currentTracking, 'India Post (Speed Post)');
     addToast({
       type: 'success',
       title: 'Order Status Updated',

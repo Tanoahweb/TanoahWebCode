@@ -26,13 +26,14 @@ export const OrderTrackingPage: React.FC = () => {
           orderNumber: initialOrder,
           currentStep: 1,
           courier: 'India Post (Speed Post)',
-          trackingId: 'ED849201948IN',
+          trackingId: '',
           estimatedDelivery: 'Within 2–4 Business Days',
         }
       : null
   );
 
   const handleCopyTracking = (code: string) => {
+    if (!code) return;
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -55,21 +56,21 @@ export const OrderTrackingPage: React.FC = () => {
         else if (order.status === 'delivered') step = 4;
 
         setTrackingResult({
-          orderNumber: order.order_number,
+          orderNumber: order.order_number || order.orderNumber || orderNum,
           currentStep: step,
           courier: order.courier_name || 'India Post (Speed Post)',
-          trackingId: order.tracking_number || `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+          trackingId: order.tracking_number || '',
           estimatedDelivery: 'Within 2–4 Business Days',
           grandTotal: order.grand_total,
           itemsCount: order.items?.length || 1,
         });
       } else {
-        // Fallback simulated tracking for demonstration
+        // Fallback tracking
         setTrackingResult({
           orderNumber: orderNum,
           currentStep: 1,
           courier: 'India Post (Speed Post)',
-          trackingId: `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+          trackingId: '',
           estimatedDelivery: 'Within 2–4 Business Days',
         });
       }
@@ -78,7 +79,7 @@ export const OrderTrackingPage: React.FC = () => {
         orderNumber: orderNum,
         currentStep: 1,
         courier: 'India Post (Speed Post)',
-        trackingId: `ED${Math.floor(10000000 + Math.random() * 90000000)}IN`,
+        trackingId: '',
         estimatedDelivery: 'Within 2–4 Business Days',
       });
     } finally {
@@ -152,9 +153,10 @@ export const OrderTrackingPage: React.FC = () => {
                 <h3 className="font-mono text-lg font-bold text-black">{trackingResult.orderNumber}</h3>
               </div>
               <div className="text-left sm:text-right">
-                <span className="text-[10px] text-[#888888] uppercase tracking-wider">Carrier & AWB</span>
+                <span className="text-[10px] text-[#888888] uppercase tracking-wider">Carrier & Consignment</span>
                 <p className="text-xs font-semibold text-[#3F3F8F]">
-                  {trackingResult.courier} • <span className="font-mono">{trackingResult.trackingId}</span>
+                  {trackingResult.courier} {trackingResult.trackingId ? `• ` : ''}
+                  <span className="font-mono">{trackingResult.trackingId || '(Awaiting Consignment No.)'}</span>
                 </p>
               </div>
             </div>
@@ -223,25 +225,33 @@ export const OrderTrackingPage: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-[#E7E7E7] rounded-[4px]">
                 <div>
                   <span className="text-[10px] text-[#888888] uppercase block">India Post Consignment No.</span>
-                  <span className="font-mono text-sm font-bold text-black">{trackingResult.trackingId}</span>
+                  <span className={`font-mono text-sm ${trackingResult.trackingId ? 'font-bold text-black' : 'text-[#888888] italic'}`}>
+                    {trackingResult.trackingId || 'Consignment number will appear here once dispatched'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyTracking(trackingResult.trackingId)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E7E7] hover:border-black rounded-[4px] text-xs font-semibold text-black bg-[#FAFAFA] hover:bg-white transition-colors"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-emerald-700">Consignment Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                      <span>Copy Consignment Number</span>
-                    </>
-                  )}
-                </button>
+                {trackingResult.trackingId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyTracking(trackingResult.trackingId)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E7E7] hover:border-black rounded-[4px] text-xs font-semibold text-black bg-[#FAFAFA] hover:bg-white transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Consignment Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                        <span>Copy Consignment Number</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-[#888888] font-medium bg-[#EEEEF8] px-2.5 py-1 rounded-[2px]">
+                    Pending Dispatch
+                  </span>
+                )}
               </div>
             </div>
 

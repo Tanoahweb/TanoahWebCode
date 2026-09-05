@@ -120,7 +120,21 @@ const getStoredCustomOrders = (): any[] => {
   try {
     const raw = safeGetItem('tanoah_custom_orders');
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((o) => {
+      // Clear legacy dummy tracking numbers
+      if (
+        o.tracking_number === 'ED849201948IN' ||
+        o.tracking_number === 'BD-849201948IN' ||
+        o.tracking_number === 'BD8391024IN' ||
+        o.trackingNumber === 'ED849201948IN'
+      ) {
+        o.tracking_number = '';
+        o.trackingNumber = '';
+      }
+      return o;
+    });
   } catch {
     return [];
   }
@@ -179,8 +193,8 @@ const SAMPLE_ORDERS_DETAILED: any[] = [
     shipping_total: 0,
     tax_total: 480,
     grand_total: 3998,
-    status: 'shipped',
-    tracking_number: 'ED849201948IN',
+    status: 'confirmed',
+    tracking_number: '',
     courier_name: 'India Post (Speed Post)',
     created_at: '2026-09-02T10:30:00Z',
     items: [
@@ -1191,15 +1205,19 @@ export const api = {
 
     let remoteOrder: any = null;
     try {
-      const { data, error } = await supabase
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanNum);
+      let query = supabase
         .from('orders')
         .select(`
           *,
           items:order_items(*)
-        `)
-        .eq('order_number', cleanNum)
-        .single();
-
+        `);
+      if (isUUID) {
+        query = query.eq('id', cleanNum);
+      } else {
+        query = query.eq('order_number', cleanNum);
+      }
+      const { data, error } = await query.single();
       if (!error && data) {
         remoteOrder = data;
       }
@@ -1248,11 +1266,12 @@ export const api = {
         phone: phone || null,
       }]);
       if (error) throw error;
-      return { success: true, message: 'We will notify you immediately once restocked.' };
+      return { success: true, message: 'Notification confirmed. We will reach out when this piece returns.' };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Failed to register notification.' };
+      return { success: false, message: err.message || 'Waitlist registration failed.' };
     }
   },
+
 
   // Return & Exchange Request
   async submitReturn(params: {
@@ -1317,9 +1336,15 @@ export const api = {
   },
 
   // Admin: Update order status (Dual-sync)
-  async updateOrderStatus(orderId: string, status: string, trackingNumber?: string, courierName: string = 'India Post (Speed Post)'): Promise<{ success: boolean; message?: string }> {
+  async updateOrderStatus(
+    orderId: string,
+    status: string,
+    trackingNumber?: string,
+    courierName: string = 'India Post (Speed Post)'
+  ): Promise<{ success: boolean; message?: string }> {
     try {
       const cleanId = orderId.trim();
+      const cleanTracking = trackingNumber !== undefined ? trackingNumber.trim() : undefined;
 
       // 1. Update in local custom orders
       const customOrders = getStoredCustomOrders();
@@ -1330,40 +1355,78 @@ export const api = {
           return {
             ...o,
             status,
-            tracking_number: trackingNumber || o.tracking_number,
-            trackingNumber: trackingNumber || o.trackingNumber,
+            tracking_number: cleanTracking !== undefined ? cleanTracking : (o.tracking_number || ''),
+            trackingNumber: cleanTracking !== undefined ? cleanTracking : (o.trackingNumber || ''),
             courier_name: courierName || o.courier_name || 'India Post (Speed Post)',
           };
         }
         return o;
       });
-      if (localUpdated) {
-        safeSetItem('tanoah_custom_orders', JSON.stringify(updatedList));
+
+      // 2. Also check if it matches a sample order in SAMPLE_ORDERS_DETAILED
+      const sampleMatch = SAMPLE_ORDERS_DETAILED.find(
+        (so) => so.id === cleanId || so.orderNumber === cleanId || so.order_number === cleanId
+      );
+      if (sampleMatch) {
+        sampleMatch.status = status;
+        sampleMatch.tracking_number = cleanTracking !== undefined ? cleanTracking : (sampleMatch.tracking_number || '');
+        sampleMatch.trackingNumber = cleanTracking !== undefined ? cleanTracking : (sampleMatch.trackingNumber || '');
+        sampleMatch.courier_name = courierName || 'India Post (Speed Post)';
+
+        if (!localUpdated) {
+          localUpdated = true;
+          updatedList.push({ ...sampleMatch });
+        }
+      } else if (!localUpdated) {
+        localUpdated = true;
+        updatedList.push({
+          id: cleanId,
+          orderNumber: cleanId,
+          order_number: cleanId,
+          status,
+          tracking_number: cleanTracking !== undefined ? cleanTracking : '',
+          trackingNumber: cleanTracking !== undefined ? cleanTracking : '',
+          courier_name: courierName || 'India Post (Speed Post)',
+        });
       }
 
-      // Also check last order
+      safeSetItem('tanoah_custom_orders', JSON.stringify(updatedList));
+
+      // 3. Also update last order if matching
       const rawLast = safeGetItem('tanoah_last_order');
       if (rawLast) {
         try {
           const parsed = JSON.parse(rawLast);
           if (parsed.orderNumber === cleanId || parsed.order_number === cleanId || parsed.id === cleanId) {
             parsed.status = status;
-            if (trackingNumber) parsed.tracking_number = trackingNumber;
+            if (cleanTracking !== undefined) {
+              parsed.tracking_number = cleanTracking;
+              parsed.trackingNumber = cleanTracking;
+            }
             parsed.courier_name = courierName || parsed.courier_name || 'India Post (Speed Post)';
             safeSetItem('tanoah_last_order', JSON.stringify(parsed));
           }
         } catch {}
       }
 
-      // 2. Sync to Supabase
+      // 4. Sync to Supabase
       const updateData: any = { status };
-      if (trackingNumber) {
-        updateData.tracking_number = trackingNumber;
+      if (cleanTracking !== undefined) {
+        updateData.tracking_number = cleanTracking || null;
       }
       updateData.courier_name = courierName || 'India Post (Speed Post)';
+      updateData.updated_at = new Date().toISOString();
+
       try {
-        await supabase.from('orders').update(updateData).or(`id.eq.${cleanId},order_number.eq.${cleanId}`);
-      } catch {}
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        if (isUUID) {
+          await supabase.from('orders').update(updateData).eq('id', cleanId);
+        } else {
+          await supabase.from('orders').update(updateData).eq('order_number', cleanId);
+        }
+      } catch (e) {
+        console.warn('Supabase update order status error:', e);
+      }
 
       return { success: true };
     } catch (err: any) {
