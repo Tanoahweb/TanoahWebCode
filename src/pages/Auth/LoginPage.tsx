@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
@@ -24,6 +24,15 @@ export const LoginPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const { addToast } = useUIStore();
   const { initialize } = useAuthStore();
@@ -69,6 +78,15 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
+    if (resendCooldown > 0) {
+      addToast({
+        type: 'info',
+        title: 'Please Wait',
+        description: `You can request another verification code in ${resendCooldown} seconds.`,
+      });
+      return;
+    }
+
     setIsForgotLoading(true);
 
     try {
@@ -100,9 +118,20 @@ export const LoginPage: React.FC = () => {
       });
 
       if (error) {
-        addToast({ type: 'error', title: 'Reset Request Failed', description: error.message });
+        const isRateLimit = error.message?.toLowerCase().includes('rate limit') || (error as any).status === 429;
+        if (isRateLimit) {
+          setResendCooldown(60);
+          addToast({
+            type: 'error',
+            title: 'Security Cooldown Active',
+            description: 'Supabase email rate limit reached. Please wait 60 seconds before trying again.',
+          });
+        } else {
+          addToast({ type: 'error', title: 'Reset Request Failed', description: error.message });
+        }
       } else {
         setIsForgotSubmitted(true);
+        setResendCooldown(60);
         addToast({
           type: 'success',
           title: 'Verification Code Dispatched',
@@ -110,7 +139,17 @@ export const LoginPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      addToast({ type: 'error', title: 'Error', description: err.message || 'Could not send reset instructions.' });
+      const isRateLimit = err.message?.toLowerCase().includes('rate limit') || err.status === 429;
+      if (isRateLimit) {
+        setResendCooldown(60);
+        addToast({
+          type: 'error',
+          title: 'Security Cooldown Active',
+          description: 'Supabase email rate limit reached. Please wait 60 seconds before trying again.',
+        });
+      } else {
+        addToast({ type: 'error', title: 'Error', description: err.message || 'Could not send reset instructions.' });
+      }
     } finally {
       setIsForgotLoading(false);
     }
@@ -278,10 +317,12 @@ export const LoginPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleForgotPassword}
-                    disabled={isForgotLoading}
-                    className="text-[#3F3F8F] hover:underline font-medium"
+                    disabled={isForgotLoading || resendCooldown > 0}
+                    className={`font-medium transition-colors ${
+                      resendCooldown > 0 ? 'text-neutral-400 cursor-not-allowed' : 'text-[#3F3F8F] hover:underline'
+                    }`}
                   >
-                    Resend Code
+                    {resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
                   </button>
                   <button
                     type="button"
