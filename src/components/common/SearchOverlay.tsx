@@ -6,6 +6,7 @@ import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { Product } from '../../types';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
+import { getLenis } from '../../animations/smoothScroll';
 
 const POPULAR_SEARCHES = [
   'Oversized T-Shirts',
@@ -46,14 +47,18 @@ export const SearchOverlay: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const lenis = getLenis();
     if (isSearchOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
       document.body.style.overflow = 'hidden';
+      lenis?.stop();
     } else {
       document.body.style.overflow = '';
+      lenis?.start();
     }
     return () => {
       document.body.style.overflow = '';
+      lenis?.start();
     };
   }, [isSearchOpen]);
 
@@ -92,7 +97,12 @@ export const SearchOverlay: React.FC = () => {
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-start">
+    <div
+      data-lenis-prevent="true"
+      className="fixed inset-0 z-50 flex flex-col justify-start"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity animate-fade-in"
@@ -100,7 +110,12 @@ export const SearchOverlay: React.FC = () => {
       />
 
       {/* Main Search Container */}
-      <div className="relative bg-white w-full shadow-2xl z-10 border-b border-[#E7E7E7] animate-fade-in">
+      <div
+        data-lenis-prevent="true"
+        className="relative bg-white w-full shadow-2xl z-10 border-b border-[#E7E7E7] animate-fade-in"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           {/* Top Search Input Bar */}
           <div className="flex items-center gap-4 pb-4 border-b border-[#E7E7E7]">
@@ -134,7 +149,12 @@ export const SearchOverlay: React.FC = () => {
           </div>
 
           {/* Body Content: Predictive results or Suggested Tags */}
-          <div className="py-6 max-h-[70vh] overflow-y-auto">
+          <div
+            data-lenis-prevent="true"
+            className="py-6 max-h-[70vh] overflow-y-auto overscroll-contain"
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             {query.trim() ? (
               <div>
                 <div className="flex justify-between items-center mb-4 text-xs font-poppins uppercase tracking-wider text-[#666666]">

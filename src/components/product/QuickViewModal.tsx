@@ -90,10 +90,10 @@ export const QuickViewModal: React.FC = () => {
 
   return (
     <Modal isOpen={Boolean(quickViewProduct)} onClose={closeQuickView} maxWidth="4xl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-poppins">
+      <div data-lenis-prevent="true" className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 font-poppins">
         {/* Left: Product Gallery */}
-        <div className="space-y-4">
-          <div className="aspect-[3/4] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7]">
+        <div className="space-y-3">
+          <div className="aspect-[3/4] max-h-[460px] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7]">
             <img
               src={images[activeImageIndex]?.image_url || images[0]?.image_url || fallbackUrl}
               alt={quickViewProduct.title}
@@ -105,7 +105,7 @@ export const QuickViewModal: React.FC = () => {
           </div>
 
           {images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex gap-2 overflow-x-auto pb-1" data-lenis-prevent="true">
               {images.map((img, idx) => (
                 <button
                   key={img.id || idx}
@@ -255,7 +255,7 @@ export const QuickViewModal: React.FC = () => {
           </div>
 
           {/* Bottom Actions */}
-          <div className="pt-6 border-t border-[#E7E7E7] space-y-3">
+          <div className="pt-4 sm:pt-5 border-t border-[#E7E7E7] space-y-2.5">
             <div className="flex gap-3">
               <Button
                 variant="primary"

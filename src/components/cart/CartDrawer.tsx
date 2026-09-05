@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { X, Trash2, Heart, ArrowRight, ShoppingBag, Gift, FileText, Tag } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
@@ -7,6 +7,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { FreeShippingProgressBar } from './FreeShippingProgressBar';
 import { formatPrice } from '../../utils/formatters';
 import { Button } from '../common/Button';
+import { getLenis } from '../../animations/smoothScroll';
 
 import { api } from '../../services/api';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
@@ -39,6 +40,21 @@ export const CartDrawer: React.FC = () => {
   const [couponInput, setCouponInput] = useState('');
   const [showGiftNote, setShowGiftNote] = useState(Boolean(giftNote));
   const [showOrderNote, setShowOrderNote] = useState(Boolean(orderNote));
+
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isDrawerOpen]);
 
   if (!isDrawerOpen) return null;
 
@@ -82,7 +98,12 @@ export const CartDrawer: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div
+      data-lenis-prevent="true"
+      className="fixed inset-0 z-50 flex justify-end"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in"
@@ -90,7 +111,12 @@ export const CartDrawer: React.FC = () => {
       />
 
       {/* Sliding Panel */}
-      <div className="relative bg-white w-full max-w-md h-full shadow-2xl z-10 flex flex-col justify-between overflow-hidden animate-fade-in">
+      <div
+        data-lenis-prevent="true"
+        className="relative bg-white w-full max-w-md h-full shadow-2xl z-10 flex flex-col justify-between overflow-hidden animate-fade-in"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[#E7E7E7]">
           <div className="flex items-center gap-2">
@@ -117,7 +143,12 @@ export const CartDrawer: React.FC = () => {
         )}
 
         {/* Items List */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div
+          data-lenis-prevent="true"
+          className="flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain"
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {items.length === 0 ? (
             <div className="py-16 text-center space-y-4">
               <div className="w-16 h-16 bg-[#EEEEF8] text-[#3F3F8F] rounded-full flex items-center justify-center mx-auto">

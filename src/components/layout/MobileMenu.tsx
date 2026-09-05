@@ -8,6 +8,7 @@ import { useNavigationStore } from '../../store/useNavigationStore';
 import { MegaMenuColumn, MegaMenuSubLink } from '../../types/navigation';
 import { Collection } from '../../types';
 import { api } from '../../services/api';
+import { getLenis } from '../../animations/smoothScroll';
 
 export const MobileMenu: React.FC = () => {
   const { isMobileMenuOpen, closeMobileMenu, openSearch } = useUIStore();
@@ -61,6 +62,21 @@ export const MobileMenu: React.FC = () => {
     return col.links || [];
   };
 
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isMobileMenuOpen]);
+
   if (!isMobileMenuOpen) return null;
 
   const toggleSection = (section: string) => {
@@ -70,7 +86,12 @@ export const MobileMenu: React.FC = () => {
   const activeMenuItems = (config.header_menu || []).filter((item) => item.is_active);
 
   return (
-    <div className="fixed inset-0 z-50 lg:hidden flex">
+    <div
+      data-lenis-prevent="true"
+      className="fixed inset-0 z-50 lg:hidden flex"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
@@ -78,7 +99,12 @@ export const MobileMenu: React.FC = () => {
       />
 
       {/* Slide Drawer */}
-      <div className="relative bg-white w-5/6 max-w-sm h-full shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-fade-in text-left">
+      <div
+        data-lenis-prevent="true"
+        className="relative bg-white w-5/6 max-w-sm h-full shadow-2xl z-10 flex flex-col justify-between overflow-y-auto animate-fade-in text-left overscroll-contain"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {/* Top bar */}
         <div>
           <div className="flex items-center justify-between p-5 border-b border-[#E7E7E7]">

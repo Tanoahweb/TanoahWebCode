@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Printer, Download, X, ShieldCheck } from 'lucide-react';
 import { formatPrice } from '../../utils/formatters';
 import { Button } from '../common/Button';
+import { getLenis } from '../../animations/smoothScroll';
 
 interface TaxInvoiceModalProps {
   isOpen: boolean;
@@ -31,6 +32,21 @@ interface TaxInvoiceModalProps {
 }
 
 export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClose, order }) => {
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
@@ -51,8 +67,18 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
   const sgst = totalGst - cgst;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-[4px] shadow-2xl max-w-2xl w-full my-8 border border-[#E7E7E7] font-poppins text-xs overflow-hidden">
+    <div
+      data-lenis-prevent="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <div
+        data-lenis-prevent="true"
+        className="bg-white rounded-[4px] shadow-2xl max-w-2xl w-full my-8 border border-[#E7E7E7] font-poppins text-xs overflow-hidden"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {/* Modal Top Actions (Hidden in Print) */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-[#E7E7E7] bg-[#F8F8F8] print:hidden">
           <div className="flex items-center gap-2">

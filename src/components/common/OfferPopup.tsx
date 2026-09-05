@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock, ShoppingBag, Mail, Loader2, Check } from 'lucide-react';
 import { useOfferPopupStore } from '../../store/useOfferPopupStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
 import { useLocation } from 'react-router-dom';
+import { getLenis } from '../../animations/smoothScroll';
 
 export const OfferPopup: React.FC = () => {
   const location = useLocation();
@@ -120,6 +121,21 @@ export const OfferPopup: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isOpen]);
+
   const handleDismiss = () => {
     dismissPopup();
   };
@@ -130,7 +146,10 @@ export const OfferPopup: React.FC = () => {
     <div
       role="dialog"
       aria-modal="true"
+      data-lenis-prevent="true"
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in select-none"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleDismiss();
@@ -139,9 +158,12 @@ export const OfferPopup: React.FC = () => {
     >
       {/* Modal Container */}
       <div
+        data-lenis-prevent="true"
         className={`relative w-full bg-white rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transition-all transform animate-scale-up ${
           hasImage ? 'max-w-[760px] md:max-w-[800px]' : 'max-w-[440px]'
         }`}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Floating Close Button */}
