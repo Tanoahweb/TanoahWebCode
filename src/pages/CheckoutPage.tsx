@@ -8,6 +8,9 @@ import { formatPrice } from '../utils/formatters';
 import { Button } from '../components/common/Button';
 import { api } from '../services/api';
 import { openRazorpayPayment } from '../services/razorpay';
+import { openCashfreePayment } from '../services/cashfree';
+import { paymentService } from '../services/paymentService';
+import { PublicPaymentConfig } from '../types/paymentGateway';
 import { emailService } from '../services/emailService';
 import { SavedAddress } from '../types';
 import { safeSetItem, sanitizeOrderForStorage } from '../utils/safeStorage';
@@ -43,11 +46,24 @@ export const CheckoutPage: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [storeSettings, setStoreSettings] = useState<any>(null);
+  const [paymentConfig, setPaymentConfig] = useState<PublicPaymentConfig | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     api.getStoreSettings().then((s) => {
       if (isMounted && s) setStoreSettings(s);
+    });
+    paymentService.getPublicPaymentConfig().then((cfg) => {
+      if (isMounted && cfg) {
+        setPaymentConfig(cfg);
+        if (cfg.active_gateway === 'cashfree' && cfg.cashfree.enabled) {
+          setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
+        } else if (!cfg.razorpay.enabled && cfg.cashfree.enabled) {
+          setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
+        } else if (!cfg.razorpay.enabled && !cfg.cashfree.enabled && cfg.cod.enabled) {
+          setFormData((prev) => ({ ...prev, paymentMethod: 'cod' }));
+        }
+      }
     });
     return () => {
       isMounted = false;
@@ -301,17 +317,84 @@ export const CheckoutPage: React.FC = () => {
         return;
       }
 
-      // Online Razorpay Payment Flow
-      const tempOrderId = `order_sim_${Date.now()}`;
-      await openRazorpayPayment({
-        orderId: tempOrderId,
-        amount: Math.round(grandTotal * 100),
+      // Online Cashfree Payment Flow
+      if (formData.paymentMethod === 'cashfree') {
+        const cfOrderData = await paymentService.createPaymentOrder({
+          grand_total: grandTotal,
+          currency: 'INR',
+          gateway: 'cashfree',
+          customer_name: `${formData.firstName} ${formData.lastName}`.trim(),
+          customer_email: formData.email,
+          customer_phone: formData.phone,
+        });
+
+        await openCashfreePayment({
+          paymentSessionId: cfOrderData.payment_session_id,
+          orderId: cfOrderData.order_id,
+          environment: cfOrderData.environment,
+          amount: grandTotal,
+          customerName: `${formData.firstName} ${formData.lastName}`.trim(),
+          customerEmail: formData.email,
+          customerPhone: formData.phone,
+          onSuccess: async (paymentResult) => {
+            const verifyRes = await paymentService.verifyPayment({
+              gateway: 'cashfree',
+              cashfree_order_id: paymentResult.order_id,
+            });
+            await processOrderCreation(
+              paymentResult.payment_id || paymentResult.order_id,
+              verifyRes.verified ? 'paid' : 'pending'
+            );
+          },
+          onFailure: (err) => {
+            setIsProcessing(false);
+            addToast({
+              type: 'error',
+              title: 'Cashfree Payment Failed',
+              description: err?.message || 'Payment could not be processed. Please try again.',
+            });
+          },
+          onDismiss: () => {
+            setIsProcessing(false);
+            addToast({
+              type: 'info',
+              title: 'Payment Incomplete',
+              description: 'Payment was cancelled or dismissed. You can try again whenever ready.',
+            });
+          },
+        });
+        return;
+      }
+
+      // Online Razorpay Payment Flow (Default)
+      const rzpOrderData = await paymentService.createPaymentOrder({
+        grand_total: grandTotal,
         currency: 'INR',
+        gateway: 'razorpay',
+        customer_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        customer_email: formData.email,
+        customer_phone: formData.phone,
+      });
+
+      await openRazorpayPayment({
+        orderId: rzpOrderData.order_id,
+        amount: rzpOrderData.amount || Math.round(grandTotal * 100),
+        currency: 'INR',
+        keyId: rzpOrderData.key_id,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
         customerEmail: formData.email,
         customerPhone: formData.phone,
         onSuccess: async (paymentResult) => {
-          await processOrderCreation(paymentResult.razorpay_payment_id, 'paid');
+          const verifyRes = await paymentService.verifyPayment({
+            gateway: 'razorpay',
+            razorpay_order_id: paymentResult.razorpay_order_id,
+            razorpay_payment_id: paymentResult.razorpay_payment_id,
+            razorpay_signature: paymentResult.razorpay_signature,
+          });
+          await processOrderCreation(
+            paymentResult.razorpay_payment_id,
+            verifyRes.verified ? 'paid' : 'pending'
+          );
         },
         onDismiss: () => {
           setIsProcessing(false);
@@ -709,53 +792,109 @@ export const CheckoutPage: React.FC = () => {
             <div className="p-6 bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-4">
               <h3 className="font-wondra text-xl text-black">4. PAYMENT GATEWAY</h3>
               <div className="space-y-3">
-                <label className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
-                  formData.paymentMethod === 'razorpay' ? 'border-[#3F3F8F] bg-[#EEEEF8]/40' : 'border-[#E7E7E7]'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="razorpay"
-                      checked={formData.paymentMethod === 'razorpay'}
-                      onChange={handleInputChange}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <div>
-                      <div className="font-semibold text-black flex items-center gap-2">
-                        <span>Online Payment (Razorpay)</span>
-                        <CreditCard className="w-4 h-4 text-[#3F3F8F]" />
+                {/* Razorpay Option */}
+                {(!paymentConfig ||
+                  (paymentConfig.active_gateway !== 'cashfree' && paymentConfig.razorpay?.enabled !== false)) && (
+                  <label
+                    className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
+                      formData.paymentMethod === 'razorpay'
+                        ? 'border-[#3F3F8F] bg-[#EEEEF8]/40'
+                        : 'border-[#E7E7E7]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="razorpay"
+                        checked={formData.paymentMethod === 'razorpay'}
+                        onChange={handleInputChange}
+                        className="accent-[#3F3F8F]"
+                      />
+                      <div>
+                        <div className="font-semibold text-black flex items-center gap-2">
+                          <span>Online Payment (Razorpay)</span>
+                          <CreditCard className="w-4 h-4 text-[#3F3F8F]" />
+                        </div>
+                        <div className="text-[11px] text-[#666666]">
+                          UPI, Google Pay, Cards, Net Banking & Wallets
+                        </div>
                       </div>
-                      <div className="text-[11px] text-[#666666]">UPI, Credit/Debit Cards, Net Banking & Wallets</div>
                     </div>
-                  </div>
-                  <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-[2px]">
-                    Fastest
-                  </span>
-                </label>
+                    <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-[2px]">
+                      Instant
+                    </span>
+                  </label>
+                )}
 
-                <label className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
-                  formData.paymentMethod === 'cod' ? 'border-[#3F3F8F] bg-[#EEEEF8]/40' : 'border-[#E7E7E7]'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="cod"
-                      checked={formData.paymentMethod === 'cod'}
-                      onChange={handleInputChange}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <div>
-                      <div className="font-semibold text-black flex items-center gap-2">
-                        <span>Cash on Delivery (COD)</span>
-                        <Banknote className="w-4 h-4 text-neutral-600" />
+                {/* Cashfree Option */}
+                {paymentConfig?.cashfree?.enabled &&
+                  (paymentConfig.active_gateway === 'both' || paymentConfig.active_gateway === 'cashfree') && (
+                    <label
+                      className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
+                        formData.paymentMethod === 'cashfree'
+                          ? 'border-[#3F3F8F] bg-[#EEEEF8]/40'
+                          : 'border-[#E7E7E7]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="cashfree"
+                          checked={formData.paymentMethod === 'cashfree'}
+                          onChange={handleInputChange}
+                          className="accent-[#3F3F8F]"
+                        />
+                        <div>
+                          <div className="font-semibold text-black flex items-center gap-2">
+                            <span>Cashfree Payments</span>
+                            <CreditCard className="w-4 h-4 text-[#3F3F8F]" />
+                          </div>
+                          <div className="text-[11px] text-[#666666]">
+                            UPI, Debit/Credit Cards, Net Banking & PayLater
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-[#666666]">Pay upon delivery (+₹99 handling fee)</div>
+                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-[2px]">
+                        Fast
+                      </span>
+                    </label>
+                  )}
+
+                {/* Cash on Delivery Option */}
+                {(!paymentConfig || paymentConfig.cod?.enabled !== false) && (
+                  <label
+                    className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
+                      formData.paymentMethod === 'cod'
+                        ? 'border-[#3F3F8F] bg-[#EEEEF8]/40'
+                        : 'border-[#E7E7E7]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="cod"
+                        checked={formData.paymentMethod === 'cod'}
+                        onChange={handleInputChange}
+                        className="accent-[#3F3F8F]"
+                      />
+                      <div>
+                        <div className="font-semibold text-black flex items-center gap-2">
+                          <span>Cash on Delivery (COD)</span>
+                          <Banknote className="w-4 h-4 text-neutral-600" />
+                        </div>
+                        <div className="text-[11px] text-[#666666]">
+                          Pay upon delivery (+₹{paymentConfig?.cod?.extra_fee ?? 99} handling fee)
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <span className="font-semibold text-neutral-700">+₹99</span>
-                </label>
+                    <span className="font-semibold text-neutral-700">
+                      +₹{paymentConfig?.cod?.extra_fee ?? 99}
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
           </div>

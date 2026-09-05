@@ -323,4 +323,5 @@ export interface FeaturedCollectionsConfig {
 
 export * from './navigation';
 export * from './offerPopup';
+export * from './paymentGateway';
 

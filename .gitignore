@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 /.pnp
 .pnp.js
@@ -35,4 +35,5 @@ Thumbs.db
 # Temporary & scratch files
 tmp/
 temp/
+scratch/
 *.tmp

@@ -16,6 +16,7 @@ import {
   ExternalLink,
   CheckCircle2,
   Gift,
+  CreditCard,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
@@ -28,14 +29,15 @@ import { formatBytes } from '../../utils/imageUtils';
 import { IMAGE_PRESETS } from '../../config/imagePresets';
 import { AtelierSettingsTab } from '../../components/admin/AtelierSettingsTab';
 import { OfferPopupSettingsTab } from '../../components/admin/OfferPopupSettingsTab';
+import { PaymentGatewaysSettingsTab } from '../../components/admin/PaymentGatewaysSettingsTab';
 import { r2Service } from '../../services/r2Service';
 
 export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'store' | 'editorial' | 'offer_popup' | 'email' | 'media'>(() => {
+  const [activeTab, setActiveTab] = useState<'store' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media'>(() => {
     const tabParam = new URLSearchParams(window.location.search).get('tab');
-    if (tabParam === 'editorial' || tabParam === 'offer_popup' || tabParam === 'email' || tabParam === 'media') {
+    if (['payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tabParam || '')) {
       return tabParam as any;
     }
     return 'store';
@@ -43,7 +45,7 @@ export const StoreSettingsPage: React.FC = () => {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['store', 'editorial', 'offer_popup', 'email', 'media'].includes(tab)) {
+    if (tab && ['store', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -284,6 +286,20 @@ export const StoreSettingsPage: React.FC = () => {
           </button>
           <button
             onClick={() => {
+              setActiveTab('payments');
+              setSearchParams({ tab: 'payments' });
+            }}
+            className={`pb-3 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'payments'
+                ? 'border-b-2 border-[#3F3F8F] text-[#3F3F8F]'
+                : 'text-neutral-500 hover:text-black'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Payment Gateways</span>
+          </button>
+          <button
+            onClick={() => {
               setActiveTab('editorial');
               setSearchParams({ tab: 'editorial' });
             }}
@@ -339,6 +355,9 @@ export const StoreSettingsPage: React.FC = () => {
             <span>Media & Cloudflare R2 Pipeline</span>
           </button>
         </div>
+
+        {/* Tab: Payment Gateways (Razorpay & Cashfree) */}
+        {activeTab === 'payments' && <PaymentGatewaysSettingsTab />}
 
         {/* Tab 0: Atelier Editorial Section */}
         {activeTab === 'editorial' && <AtelierSettingsTab />}
