@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Eye, Truck, CheckCircle2, X } from 'lucide-react';
+import { ShoppingBag, Eye, Truck, CheckCircle2, X, ExternalLink } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { formatPrice } from '../../utils/formatters';
 import { useUIStore } from '../../store/useUIStore';
@@ -14,7 +14,9 @@ const DEFAULT_ORDERS = [
     email: 'aditya@example.com',
     total: 3998,
     paymentStatus: 'paid',
-    fulfillmentStatus: 'packed',
+    fulfillmentStatus: 'shipped',
+    trackingNumber: 'ED849201948IN',
+    courierName: 'India Post (Speed Post)',
     date: '2026-09-02',
   },
   {
@@ -25,6 +27,8 @@ const DEFAULT_ORDERS = [
     total: 5499,
     paymentStatus: 'paid',
     fulfillmentStatus: 'processing',
+    trackingNumber: '',
+    courierName: 'India Post (Speed Post)',
     date: '2026-09-02',
   },
   {
@@ -34,7 +38,9 @@ const DEFAULT_ORDERS = [
     email: 'karan@example.com',
     total: 11297,
     paymentStatus: 'paid',
-    fulfillmentStatus: 'shipped',
+    fulfillmentStatus: 'delivered',
+    trackingNumber: 'ED748291034IN',
+    courierName: 'India Post (Speed Post)',
     date: '2026-09-01',
   },
 ];
@@ -59,6 +65,8 @@ export const OrderListPage: React.FC = () => {
           total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
           paymentStatus: o.payment_status || 'paid',
           fulfillmentStatus: o.status || 'processing',
+          trackingNumber: o.tracking_number || o.trackingNumber || '',
+          courierName: o.courier_name || 'India Post (Speed Post)',
           date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
         }));
         setOrders(formatted);
@@ -70,14 +78,31 @@ export const OrderListPage: React.FC = () => {
   }, []);
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
+    const existing = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+    const tracking = existing?.trackingNumber || (newStatus === 'shipped' ? `ED${Math.floor(10000000 + Math.random() * 90000000)}IN` : '');
+
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, fulfillmentStatus: newStatus } : o))
+      prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, fulfillmentStatus: newStatus, trackingNumber: tracking } : o))
     );
-    await api.updateOrderStatus(orderId, newStatus, `BD${Math.floor(10000000 + Math.random() * 90000000)}IN`);
+    await api.updateOrderStatus(orderId, newStatus, tracking, 'India Post (Speed Post)');
     addToast({
       type: 'success',
       title: 'Order Status Updated',
       description: `Order ${orderId} marked as ${newStatus.toUpperCase()}.`,
+    });
+  };
+
+  const handleConsignmentChange = async (orderId: string, consignmentNo: string) => {
+    const trimmed = consignmentNo.trim().toUpperCase();
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId || o.orderNumber === orderId ? { ...o, trackingNumber: trimmed } : o))
+    );
+    const match = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+    await api.updateOrderStatus(orderId, match?.fulfillmentStatus || 'shipped', trimmed, 'India Post (Speed Post)');
+    addToast({
+      type: 'success',
+      title: 'Consignment Saved',
+      description: `India Post Consignment ${trimmed || 'cleared'} for order ${orderId}.`,
     });
   };
 
@@ -104,6 +129,7 @@ export const OrderListPage: React.FC = () => {
                   <th className="p-4">Total Amount</th>
                   <th className="p-4">Payment</th>
                   <th className="p-4">Fulfillment Status</th>
+                  <th className="p-4">India Post Consignment</th>
                   <th className="p-4 text-right">Update Status</th>
                 </tr>
               </thead>
@@ -111,7 +137,7 @@ export const OrderListPage: React.FC = () => {
                 {orders.map((ord) => (
                   <tr key={ord.id} className="hover:bg-[#FAFAFA] transition-colors">
                     <td className="p-4 font-mono font-bold">
-                      <Link to={`/admin/orders/${ord.orderNumber}`} className="text-[#3F3F8F] hover:underline">
+                      <Link to={`/admin/orders/${ord.orderNumber}`} className="text-[#3F3F8F] hover:underline" title="Click to open full Order Details & Dispatch Management">
                         {ord.orderNumber}
                       </Link>
                     </td>
@@ -130,6 +156,39 @@ export const OrderListPage: React.FC = () => {
                       <span className="bg-purple-50 text-[#3F3F8F] text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
                         {ord.fulfillmentStatus}
                       </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="e.g. ED123456789IN"
+                          defaultValue={ord.trackingNumber || ''}
+                          key={ord.trackingNumber || ''}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim().toUpperCase();
+                            if (val !== (ord.trackingNumber || '')) {
+                              handleConsignmentChange(ord.id, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-36 p-1.5 border border-[#E7E7E7] rounded-[4px] font-mono text-xs focus:outline-none focus:border-[#3F3F8F] uppercase bg-white placeholder:normal-case placeholder:font-sans"
+                        />
+                        {ord.trackingNumber && (
+                          <a
+                            href="https://www.indiapost.gov.in/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Track live on indiapost.gov.in"
+                            className="text-[#3F3F8F] hover:text-black p-1 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-right">
                       <select
