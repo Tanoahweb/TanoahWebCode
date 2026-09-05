@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { initSmoothScroll, destroySmoothScroll, getLenis } from '../animations/smoothScroll';
 import { ScrollTrigger } from '../animations/gsap';
@@ -6,7 +6,7 @@ import { ScrollTrigger } from '../animations/gsap';
 // In-memory cache for synchronous, instantaneous position lookup
 const scrollPositions = new Map<string, number>();
 
-// Global flag to completely mute scroll listeners during programmatic restore or transition
+// Global flag to mute scroll tracking during restoration
 let isRestoring = false;
 
 // Flag to track whether the current navigation was triggered by browser Back/Forward (POP)
@@ -14,7 +14,7 @@ let isPopNavigation = false;
 let lastPopTimestamp = 0;
 
 if (typeof window !== 'undefined') {
-  // Instruct the browser to let our code manage scroll restoration
+  // Disable native browser auto-scroll jump so our pre-paint layout effect has full control
   if ('scrollRestoration' in window.history) {
     window.history.scrollRestoration = 'manual';
   }
@@ -25,12 +25,11 @@ if (typeof window !== 'undefined') {
     lastPopTimestamp = performance.now();
   });
 
-  // Pre-capture scroll position immediately when user clicks any link/button that navigates
+  // Pre-capture scroll position immediately on any user click (Link, Button, Card, etc.)
   window.addEventListener(
     'click',
-    (e) => {
-      const target = (e.target as HTMLElement)?.closest('a');
-      if (target && !isRestoring) {
+    () => {
+      if (!isRestoring) {
         const y = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
         const path = window.location.pathname + window.location.search;
         scrollPositions.set(`path_${path}`, y);
@@ -43,82 +42,62 @@ if (typeof window !== 'undefined') {
   );
 }
 
-const getLocationKey = (loc: { key?: string; pathname: string; search?: string }) => {
-  if (loc.key && loc.key !== 'default') {
-    return `key_${loc.key}`;
-  }
-  return `path_${loc.pathname}${loc.search || ''}`;
-};
+const getSavedScroll = (loc: { pathname: string; search?: string }): number => {
+  const pathKey = `path_${loc.pathname}${loc.search || ''}`;
 
-const getSavedScroll = (loc: { key?: string; pathname: string; search?: string }): number => {
-  const primaryKey = getLocationKey(loc);
-  const fallbackKey = `path_${loc.pathname}${loc.search || ''}`;
-
-  if (scrollPositions.has(primaryKey) && scrollPositions.get(primaryKey)! > 0) {
-    return scrollPositions.get(primaryKey)!;
-  }
-  if (scrollPositions.has(fallbackKey) && scrollPositions.get(fallbackKey)! > 0) {
-    return scrollPositions.get(fallbackKey)!;
+  if (scrollPositions.has(pathKey) && scrollPositions.get(pathKey)! > 0) {
+    return scrollPositions.get(pathKey)!;
   }
 
   try {
-    const fromSession =
-      sessionStorage.getItem(`tanoah_scroll_${primaryKey}`) ||
-      sessionStorage.getItem(`tanoah_scroll_${fallbackKey}`);
+    const fromSession = sessionStorage.getItem(`tanoah_scroll_${pathKey}`);
     if (fromSession !== null) {
       const parsed = parseInt(fromSession, 10);
-      if (!isNaN(parsed) && parsed >= 0) return parsed;
+      if (!isNaN(parsed) && parsed > 0) return parsed;
     }
   } catch {}
 
   return 0;
 };
 
-const saveCurrentScroll = (loc: { key?: string; pathname: string; search?: string }) => {
-  if (isRestoring) return;
-  const y = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
-  const primaryKey = getLocationKey(loc);
-  const fallbackKey = `path_${loc.pathname}${loc.search || ''}`;
-
-  scrollPositions.set(primaryKey, y);
-  scrollPositions.set(fallbackKey, y);
-
-  try {
-    sessionStorage.setItem(`tanoah_scroll_${primaryKey}`, String(y));
-    sessionStorage.setItem(`tanoah_scroll_${fallbackKey}`, String(y));
-  } catch {}
-};
-
 export const useSmoothScroll = () => {
   const location = useLocation();
   const currentLocationRef = useRef(location);
 
-  // 1. Continuous scroll position tracker
+  // 1. Continuous scroll position tracker during active user scrolling
   useEffect(() => {
     currentLocationRef.current = location;
 
     const handleScroll = () => {
-      // CRITICAL: Ignore scroll events during restoration to avoid overwriting with clamped values!
       if (isRestoring) return;
-
       const y = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
-      const primaryKey = getLocationKey(currentLocationRef.current);
-      const fallbackKey = `path_${currentLocationRef.current.pathname}${currentLocationRef.current.search || ''}`;
-      scrollPositions.set(primaryKey, y);
-      scrollPositions.set(fallbackKey, y);
+      const pathKey = `path_${currentLocationRef.current.pathname}${currentLocationRef.current.search || ''}`;
+      scrollPositions.set(pathKey, y);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('beforeunload', () => saveCurrentScroll(currentLocationRef.current));
+
+    // Save on tab switch / window unload
+    const handleUnload = () => {
+      if (!isRestoring) {
+        const y = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
+        const pathKey = `path_${currentLocationRef.current.pathname}${currentLocationRef.current.search || ''}`;
+        try {
+          sessionStorage.setItem(`tanoah_scroll_${pathKey}`, String(y));
+        } catch {}
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      saveCurrentScroll(currentLocationRef.current);
+      // NOTE: Do NOT read window.scrollY here, because during unmount the DOM is collapsed!
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('beforeunload', handleUnload);
     };
-  }, [location.pathname, location.search, location.key]);
+  }, [location.pathname, location.search]);
 
-  // 2. Navigation handling: Scroll to top on PUSH, restore on POP
-  useEffect(() => {
+  // 2. Pre-paint scroll restoration via useLayoutEffect (ZERO JUMP!)
+  useLayoutEffect(() => {
     // Admin panel uses native browser scrolling for nested layouts
     if (location.pathname.startsWith('/admin')) {
       destroySmoothScroll();
@@ -128,7 +107,7 @@ export const useSmoothScroll = () => {
     const lenis = initSmoothScroll();
 
     // Check if this navigation was caused by back / forward
-    const isPop = isPopNavigation || performance.now() - lastPopTimestamp < 400;
+    const isPop = isPopNavigation || performance.now() - lastPopTimestamp < 500;
     isPopNavigation = false;
 
     // Handle hash links (e.g., #contact)
@@ -147,115 +126,78 @@ export const useSmoothScroll = () => {
       if (targetY > 0) {
         isRestoring = true;
 
-        // Temporarily pause Lenis raf ticker while page layout stabilizes
-        lenis?.stop();
+        // Apply scroll synchronously BEFORE the browser paints the first frame (NO JUMP!)
+        window.scrollTo({ top: targetY, left: 0, behavior: 'instant' });
+        lenis?.resize();
+        lenis?.scrollTo(targetY, { immediate: true, force: true });
 
+        // Maintain position for the next few animation frames as DOM components hydrate
+        let frameCount = 0;
         let isCancelled = false;
-        const startTime = performance.now();
-        const maxDuration = 2500; // ms: give ample time for sections/images to expand
-        let stableFrames = 0;
-        let resizeObserver: ResizeObserver | null = null;
 
         const onUserInteraction = () => {
-          if (isCancelled) return;
           isCancelled = true;
-          cleanup();
-          lenis?.start();
           isRestoring = false;
-        };
-
-        const cleanup = () => {
           window.removeEventListener('wheel', onUserInteraction);
           window.removeEventListener('touchstart', onUserInteraction);
           window.removeEventListener('keydown', onUserInteraction);
-          if (resizeObserver) {
-            resizeObserver.disconnect();
-            resizeObserver = null;
-          }
         };
 
         window.addEventListener('wheel', onUserInteraction, { passive: true, once: true });
         window.addEventListener('touchstart', onUserInteraction, { passive: true, once: true });
         window.addEventListener('keydown', onUserInteraction, { passive: true, once: true });
 
-        const performScroll = () => {
+        const keepPinned = () => {
           if (isCancelled) return;
 
-          lenis?.resize();
           window.scrollTo({ top: targetY, left: 0, behavior: 'instant' });
+          lenis?.resize();
           lenis?.scrollTo(targetY, { immediate: true, force: true });
 
-          const currentY = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
-
-          if (Math.abs(currentY - targetY) <= 6) {
-            stableFrames++;
-            if (stableFrames >= 5) {
-              cleanup();
-              lenis?.resize();
-              lenis?.scrollTo(targetY, { immediate: true, force: true });
-              lenis?.start();
-              ScrollTrigger.refresh();
-              setTimeout(() => {
-                isRestoring = false;
-              }, 100);
-              return;
-            }
+          frameCount++;
+          if (frameCount < 12) {
+            requestAnimationFrame(keepPinned);
           } else {
-            stableFrames = 0;
-          }
-
-          if (performance.now() - startTime < maxDuration) {
-            requestAnimationFrame(performScroll);
-          } else {
-            cleanup();
-            lenis?.resize();
-            lenis?.scrollTo(targetY, { immediate: true, force: true });
-            lenis?.start();
             ScrollTrigger.refresh();
+            window.removeEventListener('wheel', onUserInteraction);
+            window.removeEventListener('touchstart', onUserInteraction);
+            window.removeEventListener('keydown', onUserInteraction);
             setTimeout(() => {
               isRestoring = false;
-            }, 100);
+            }, 50);
           }
         };
 
-        // Observe DOM height changes as async images/sections mount
-        if (typeof ResizeObserver !== 'undefined') {
-          resizeObserver = new ResizeObserver(() => {
-            if (!isCancelled) {
-              performScroll();
-            }
-          });
-          resizeObserver.observe(document.body);
-        }
-
-        requestAnimationFrame(performScroll);
+        requestAnimationFrame(keepPinned);
       } else {
         // Target is top (0)
         isRestoring = true;
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        lenis?.resize();
         lenis?.scrollTo(0, { immediate: true, force: true });
         setTimeout(() => {
           ScrollTrigger.refresh();
           isRestoring = false;
-        }, 100);
+        }, 50);
       }
     } else {
-      // Forward navigation (PUSH) to a new page -> start at top
+      // Forward navigation (PUSH) to a new page -> start at top BEFORE paint
       isRestoring = true;
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      lenis?.resize();
       lenis?.scrollTo(0, { immediate: true, force: true });
 
       const timer = setTimeout(() => {
         ScrollTrigger.refresh();
         isRestoring = false;
-      }, 150);
+      }, 50);
 
       return () => {
         clearTimeout(timer);
         isRestoring = false;
       };
     }
-  }, [location.pathname, location.search, location.key]);
+  }, [location.pathname, location.search]);
 
   return { lenis: getLenis() };
 };
