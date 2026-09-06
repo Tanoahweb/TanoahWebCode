@@ -31,6 +31,8 @@ import { useUIStore } from '../store/useUIStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
+import { SEOHead } from '../components/common/SEOHead';
+import { getProductMeta, generateProductJsonLd, generateBreadcrumbJsonLd } from '../services/seoEngine';
 import { api, ProductReview } from '../services/api';
 import { Product, ProductVariant } from '../types';
 import { ProductImage } from '../components/common/ProductImage';
@@ -625,8 +627,30 @@ export const ProductDetailPage: React.FC = () => {
     .filter((p) => p.id !== product.id)
     .slice(0, 4);
 
+  const productMeta = product ? getProductMeta(product) : null;
+  const productJsonLd = product ? generateProductJsonLd(product, reviews) : undefined;
+  const breadcrumbJsonLd = product
+    ? generateBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: product.category_name || 'Collections', path: '/collections/all' },
+        { name: product.title, path: `/products/${product.slug}` },
+      ])
+    : undefined;
+  const combinedJsonLd = productJsonLd && breadcrumbJsonLd ? [productJsonLd, breadcrumbJsonLd] : productJsonLd;
+
   return (
     <div className="w-full bg-white font-poppins min-h-screen">
+      {productMeta && (
+        <SEOHead
+          title={productMeta.title}
+          description={productMeta.description}
+          canonical={productMeta.canonical}
+          image={productMeta.image}
+          type="product"
+          noindex={productMeta.isNoindex}
+          jsonLd={combinedJsonLd}
+        />
+      )}
       {/* Breadcrumb Navigation */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-[11px] text-[#666666] tracking-widest uppercase border-b border-[#E7E7E7]">
         <div className="flex items-center gap-2">

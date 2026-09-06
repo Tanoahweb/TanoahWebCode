@@ -32,16 +32,18 @@ import { AtelierSettingsTab } from '../../components/admin/AtelierSettingsTab';
 import { OfferPopupSettingsTab } from '../../components/admin/OfferPopupSettingsTab';
 import { PaymentGatewaysSettingsTab } from '../../components/admin/PaymentGatewaysSettingsTab';
 import { DeliverySettingsTab } from '../../components/admin/DeliverySettingsTab';
+import { SeoSettingsTab } from '../../components/admin/SeoSettingsTab';
 import { r2Service } from '../../services/r2Service';
+import { Globe } from 'lucide-react';
 
 export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<
-    'store' | 'delivery' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media'
+    'store' | 'delivery' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media' | 'seo'
   >(() => {
     const tabParam = new URLSearchParams(window.location.search).get('tab');
-    if (['delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tabParam || '')) {
+    if (['delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tabParam || '')) {
       return tabParam as any;
     }
     return 'store';
@@ -49,7 +51,7 @@ export const StoreSettingsPage: React.FC = () => {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['store', 'delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media'].includes(tab)) {
+    if (tab && ['store', 'delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -367,7 +369,24 @@ export const StoreSettingsPage: React.FC = () => {
             <HardDrive className="w-4 h-4" />
             <span>Media & Cloudflare R2 Pipeline</span>
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('seo');
+              setSearchParams({ tab: 'seo' });
+            }}
+            className={`pb-3 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'seo'
+                ? 'border-b-2 border-[#3F3F8F] text-[#3F3F8F]'
+                : 'text-neutral-500 hover:text-black'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>SEO & Analytics</span>
+          </button>
         </div>
+
+        {/* Tab: SEO & Analytics */}
+        {activeTab === 'seo' && <SeoSettingsTab />}
 
         {/* Tab: Delivery Speeds & Rates */}
         {activeTab === 'delivery' && <DeliverySettingsTab />}

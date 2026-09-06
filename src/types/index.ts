@@ -85,6 +85,10 @@ export interface Product {
   weight?: number;
   seo_title?: string;
   seo_description?: string;
+  social_image_url?: string;
+  canonical_url_override?: string;
+  is_noindex?: boolean;
+  structured_attributes?: Record<string, string>;
   tags: string[];
   collections?: string[];
   images: ProductImage[];
@@ -103,6 +107,10 @@ export interface Category {
   description?: string;
   sort_order: number;
   is_active: boolean;
+  seo_title?: string;
+  seo_description?: string;
+  social_image_url?: string;
+  is_noindex?: boolean;
   children?: Category[];
 }
 
@@ -118,6 +126,8 @@ export interface Collection {
   is_active: boolean;
   seo_title?: string;
   seo_description?: string;
+  social_image_url?: string;
+  is_noindex?: boolean;
   product_count?: number;
 }
 
@@ -312,6 +322,7 @@ export interface StoreSettings {
   instagram_url?: string;
   facebook_url?: string;
   twitter_url?: string;
+  seo_config?: import('./seo').StoreSEOConfig;
 }
 
 export interface FeaturedCollectionItem {
@@ -337,4 +348,5 @@ export interface FeaturedCollectionsConfig {
 export * from './navigation';
 export * from './offerPopup';
 export * from './paymentGateway';
+export * from './seo';
 

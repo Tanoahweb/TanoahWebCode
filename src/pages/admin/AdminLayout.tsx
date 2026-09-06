@@ -24,6 +24,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Star,
+  Globe,
+  BookOpen,
+  Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -59,6 +62,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Media Library (R2)', icon: <ImageIcon className="w-4 h-4" />, path: '/admin/media' },
     { label: 'Coupons & Discounts', icon: <Tag className="w-4 h-4" />, path: '/admin/coupons' },
     { label: 'Reviews & Testimonials', icon: <Star className="w-4 h-4" />, path: '/admin/reviews' },
+    { label: 'Technical SEO & Health', icon: <Globe className="w-4 h-4" />, path: '/admin/seo' },
+    { label: '301 Redirects Manager', icon: <Zap className="w-4 h-4" />, path: '/admin/seo/redirects' },
+    { label: 'Fashion Journal (Blog)', icon: <BookOpen className="w-4 h-4" />, path: '/admin/blog' },
     { label: 'Payment Gateways', icon: <CreditCard className="w-4 h-4" />, path: '/admin/settings?tab=payments' },
     { label: 'Featured Editorial Section', icon: <Sparkles className="w-4 h-4" />, path: '/admin/settings?tab=editorial' },
     { label: 'Special Offer Popup', icon: <Gift className="w-4 h-4" />, path: '/admin/settings?tab=offer_popup' },

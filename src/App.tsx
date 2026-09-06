@@ -54,6 +54,11 @@ import { StoreSettingsPage } from './pages/admin/StoreSettingsPage';
 import { CollectionsPage } from './pages/admin/CollectionsPage';
 import { NavigationPage } from './pages/admin/NavigationPage';
 import { ReviewsPage } from './pages/admin/ReviewsPage';
+import { SeoDashboardPage } from './pages/admin/SeoDashboardPage';
+import { SeoRedirectsPage } from './pages/admin/SeoRedirectsPage';
+import { BlogAdminPage } from './pages/admin/BlogAdminPage';
+import { BlogListPage } from './pages/Blog/BlogListPage';
+import { BlogPostPage } from './pages/Blog/BlogPostPage';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -92,6 +97,9 @@ const AppContent: React.FC = () => {
           <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
           <Route path="/tracking" element={<OrderTrackingPage />} />
           <Route path="/lookbook" element={<LookbookPage />} />
+          <Route path="/blog" element={<BlogListPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/categories/:collection" element={<CatalogPage />} />
 
           {/* Auth & Account */}
           <Route path="/login" element={<LoginPage />} />
@@ -120,6 +128,9 @@ const AppContent: React.FC = () => {
           <Route path="/admin/media" element={<MediaLibraryPage />} />
           <Route path="/admin/coupons" element={<CouponsPage />} />
           <Route path="/admin/reviews" element={<ReviewsPage />} />
+          <Route path="/admin/seo" element={<SeoDashboardPage />} />
+          <Route path="/admin/seo/redirects" element={<SeoRedirectsPage />} />
+          <Route path="/admin/blog" element={<BlogAdminPage />} />
           <Route path="/admin/settings" element={<StoreSettingsPage />} />
 
           {/* 404 Catch-All Page for Unmatched URLs */}

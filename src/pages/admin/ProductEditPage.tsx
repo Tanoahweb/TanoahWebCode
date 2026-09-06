@@ -32,6 +32,7 @@ import { api } from '../../services/api';
 import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category } from '../../types';
 import { MediaUploader } from '../../components/admin/MediaUploader';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
+import { ProductSeoSection } from '../../components/admin/ProductSeoSection';
 
 const DEFAULT_PRODUCT_TYPES = [
   'Sarees',
@@ -203,6 +204,14 @@ export const ProductEditPage: React.FC = () => {
   const [singleColorHex, setSingleColorHex] = useState<string>('#1C1C1C');
   const [singleSizeName, setSingleSizeName] = useState<string>('One Size');
   const [isSingleColorPaletteOpen, setIsSingleColorPaletteOpen] = useState(false);
+ 
+  // SEO & Social State
+  const [seoTitle, setSeoTitle] = useState<string>('');
+  const [seoDescription, setSeoDescription] = useState<string>('');
+  const [socialImageUrl, setSocialImageUrl] = useState<string>('');
+  const [canonicalUrlOverride, setCanonicalUrlOverride] = useState<string>('');
+  const [isNoindex, setIsNoindex] = useState<boolean>(false);
+  const [structuredAttributes, setStructuredAttributes] = useState<Record<string, string>>({});
 
   // Options System (Matches user's screenshots 1 & 2)
   const [options, setOptions] = useState<ProductOption[]>([
@@ -416,6 +425,12 @@ export const ProductEditPage: React.FC = () => {
             setIsFeatured(Boolean(match.is_featured));
             setIsBestSeller(Boolean(match.is_best_seller));
             setIsNewArrival(Boolean(match.is_new_arrival));
+            setSeoTitle(match.seo_title || '');
+            setSeoDescription(match.seo_description || '');
+            setSocialImageUrl(match.social_image_url || '');
+            setCanonicalUrlOverride(match.canonical_url_override || '');
+            setIsNoindex(Boolean(match.is_noindex));
+            setStructuredAttributes((match.structured_attributes as Record<string, string>) || {});
 
             // Hydrate collections for existing product
             const initialColSlugs: string[] = [];
@@ -1094,6 +1109,12 @@ export const ProductEditPage: React.FC = () => {
       tags: Array.from(mergedTagsSet),
       images: cleanedImages,
       variants: cleanedVariants,
+      seo_title: seoTitle.trim() || undefined,
+      seo_description: seoDescription.trim() || undefined,
+      social_image_url: socialImageUrl.trim() || undefined,
+      canonical_url_override: canonicalUrlOverride.trim() || undefined,
+      is_noindex: isNoindex,
+      structured_attributes: structuredAttributes,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -1333,6 +1354,29 @@ export const ProductEditPage: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* SEO & Search Engine Preview Engine */}
+            <ProductSeoSection
+              title={title}
+              slug={slug}
+              onSlugChange={setSlug}
+              description={description}
+              shortDescription={shortDescription}
+              seoTitle={seoTitle}
+              onSeoTitleChange={setSeoTitle}
+              seoDescription={seoDescription}
+              onSeoDescriptionChange={setSeoDescription}
+              socialImageUrl={socialImageUrl}
+              onSocialImageUrlChange={setSocialImageUrl}
+              canonicalUrlOverride={canonicalUrlOverride}
+              onCanonicalUrlOverrideChange={setCanonicalUrlOverride}
+              isNoindex={isNoindex}
+              onIsNoindexChange={setIsNoindex}
+              structuredAttributes={structuredAttributes}
+              onStructuredAttributesChange={setStructuredAttributes}
+              primaryImageUrl={images.find((i) => i.is_primary)?.image_url || images[0]?.image_url}
+              isEditing={Boolean(isEditing)}
+            />
 
             {/* 4. Options & Variants / Direct Inventory Section */}
             <div className="bg-white p-6 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-6">

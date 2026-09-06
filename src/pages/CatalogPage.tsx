@@ -7,6 +7,8 @@ import { formatPrice } from '../utils/formatters';
 import { useGsapReveal } from '../hooks/useGsapReveal';
 import { api } from '../services/api';
 import { Product, Collection } from '../types';
+import { SEOHead } from '../components/common/SEOHead';
+import { generateCollectionJsonLd, normalizeCanonicalUrl } from '../services/seoEngine';
 
 export const CatalogPage: React.FC = () => {
   const { collection: routeCollection } = useParams<{ collection: string }>();
@@ -229,6 +231,13 @@ export const CatalogPage: React.FC = () => {
 
   return (
     <div className="w-full bg-white font-poppins min-h-screen">
+      <SEOHead
+        title={`${activeCollection.title} | TANOAH`}
+        description={activeCollection.description}
+        canonical={normalizeCanonicalUrl(`/collections/${currentCollection}`)}
+        type="website"
+        jsonLd={generateCollectionJsonLd(activeCollection.title, filteredProducts, `/collections/${currentCollection}`)}
+      />
       {/* Editorial Collection Header Banner */}
       <div className="relative bg-[#F8F8F8] py-16 sm:py-24 border-b border-[#E7E7E7] overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">

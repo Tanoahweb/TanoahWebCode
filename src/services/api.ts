@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { Product, ProductDetailSection, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
+import { BlogArticle, SEORedirect, SEO404Log, SEOAuditSummary, SEOAuditIssue } from '@/types/seo';
+import { recordRedirectIfSlugChanged } from './seoEngine';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
@@ -510,6 +512,17 @@ export const api = {
     try {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collection.id);
       const targetId = isUUID ? collection.id : crypto.randomUUID();
+
+      // Check if slug changed to record automated 301 redirect
+      try {
+        const { data: existingColl } = await supabase.from('collections').select('slug').eq('id', targetId).maybeSingle();
+        if (existingColl?.slug && existingColl.slug !== collection.slug) {
+          await recordRedirectIfSlugChanged('collections', existingColl.slug, collection.slug, collection.title);
+        }
+      } catch (e) {
+        console.warn('Could not check collection slug for redirect:', e);
+      }
+
       const payload: any = {
         id: targetId,
         title: collection.title,
@@ -519,6 +532,10 @@ export const api = {
         is_smart: !!collection.is_smart,
         sort_order: collection.sort_order || 0,
         is_active: collection.is_active !== false,
+        seo_title: collection.seo_title || null,
+        seo_description: collection.seo_description || null,
+        social_image_url: collection.social_image_url || null,
+        is_noindex: !!collection.is_noindex,
       };
       const { error } = await supabase.from('collections').upsert([payload], { onConflict: 'slug' });
       if (error) {
@@ -575,6 +592,17 @@ export const api = {
     try {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category.id);
       const targetId = isUUID ? category.id : crypto.randomUUID();
+
+      // Check if slug changed to record automated 301 redirect
+      try {
+        const { data: existingCat } = await supabase.from('categories').select('slug').eq('id', targetId).maybeSingle();
+        if (existingCat?.slug && existingCat.slug !== category.slug) {
+          await recordRedirectIfSlugChanged('categories', existingCat.slug, category.slug, category.name);
+        }
+      } catch (e) {
+        console.warn('Could not check category slug for redirect:', e);
+      }
+
       const payload: any = {
         id: targetId,
         name: category.name,
@@ -584,6 +612,10 @@ export const api = {
         parent_id: category.parent_id || null,
         sort_order: category.sort_order || 0,
         is_active: category.is_active !== false,
+        seo_title: category.seo_title || null,
+        seo_description: category.seo_description || null,
+        social_image_url: category.social_image_url || null,
+        is_noindex: !!category.is_noindex,
       };
       const { error } = await supabase.from('categories').upsert([payload], { onConflict: 'slug' });
       if (error) {
@@ -764,6 +796,16 @@ export const api = {
     const targetId = uuidRegex.test(sanitized.id) ? sanitized.id : crypto.randomUUID();
     sanitized.id = targetId;
 
+    // Check if slug changed to record automated 301 redirect
+    try {
+      const { data: existingProd } = await supabase.from('products').select('slug').eq('id', targetId).maybeSingle();
+      if (existingProd?.slug && existingProd.slug !== sanitized.slug) {
+        await recordRedirectIfSlugChanged('products', existingProd.slug, sanitized.slug, sanitized.title);
+      }
+    } catch (e) {
+      console.warn('Could not check product slug for redirect:', e);
+    }
+
     const validCategoryId = sanitized.category_id && uuidRegex.test(sanitized.category_id)
       ? sanitized.category_id
       : null;
@@ -790,6 +832,12 @@ export const api = {
       short_description: sanitized.short_description || '',
       tags: sanitized.tags || [],
       custom_sections: sanitized.custom_sections || [],
+      seo_title: sanitized.seo_title || null,
+      seo_description: sanitized.seo_description || null,
+      social_image_url: sanitized.social_image_url || null,
+      canonical_url_override: sanitized.canonical_url_override || null,
+      is_noindex: !!sanitized.is_noindex,
+      structured_attributes: sanitized.structured_attributes || {},
       updated_at: new Date().toISOString(),
     };
 
@@ -2812,5 +2860,360 @@ export const api = {
     } catch {}
 
     return true;
+  },
+
+  // ==========================================
+  // Blog & Editorial Journal Engine
+  // ==========================================
+  async getBlogArticles(includeDrafts: boolean = false): Promise<BlogArticle[]> {
+    try {
+      let query = supabase
+        .from('blog_articles')
+        .select('*')
+        .order('published_at', { ascending: false });
+
+      if (!includeDrafts) {
+        query = query.eq('is_published', true);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        return data as BlogArticle[];
+      }
+      if (error) console.warn('Supabase getBlogArticles error:', error);
+    } catch (e) {
+      console.warn('Network error fetching blog articles:', e);
+    }
+    return [];
+  },
+
+  async getBlogArticleBySlug(slug: string): Promise<BlogArticle | null> {
+    try {
+      const { data, error } = await supabase
+        .from('blog_articles')
+        .select('*')
+        .eq('slug', slug)
+        .single();
+      if (!error && data) {
+        return data as BlogArticle;
+      }
+    } catch (e) {
+      console.warn('Error fetching blog article by slug:', e);
+    }
+    return null;
+  },
+
+  async saveBlogArticle(article: Partial<BlogArticle>): Promise<{ success: boolean; article: BlogArticle }> {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(article.id || '');
+    const targetId = isUUID ? article.id! : crypto.randomUUID();
+
+    // Check if slug changed to record automated 301 redirect
+    try {
+      const { data: existingArt } = await supabase.from('blog_articles').select('slug').eq('id', targetId).maybeSingle();
+      if (existingArt?.slug && article.slug && existingArt.slug !== article.slug) {
+        await recordRedirectIfSlugChanged('blog', existingArt.slug, article.slug, article.title || 'Blog article');
+      }
+    } catch (e) {
+      console.warn('Could not check blog slug for redirect:', e);
+    }
+
+    const payload = {
+      id: targetId,
+      title: article.title || 'Untitled Journal Entry',
+      slug: article.slug || `journal-${Date.now()}`,
+      excerpt: article.excerpt || null,
+      content: article.content || '',
+      featured_image: article.featured_image || null,
+      featured_image_alt: article.featured_image_alt || null,
+      author_name: article.author_name || 'TANOAH Editorial Team',
+      category: article.category || 'Fashion & Styling',
+      tags: article.tags || [],
+      seo_title: article.seo_title || null,
+      seo_description: article.seo_description || null,
+      is_published: article.is_published !== false,
+      published_at: article.published_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from('blog_articles').upsert(payload).select().single();
+    if (error) {
+      console.error('Failed to save blog article:', error);
+      throw new Error(`Failed to save blog article: ${error.message}`);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tanoah_blog_updated', { detail: data }));
+    }
+
+    return { success: true, article: data as BlogArticle };
+  },
+
+  async deleteBlogArticle(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('blog_articles').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete blog article:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting blog article:', err);
+      return false;
+    }
+  },
+
+  // ==========================================
+  // SEO 301/302 Redirects Management
+  // ==========================================
+  async getSeoRedirects(): Promise<SEORedirect[]> {
+    try {
+      const { data, error } = await supabase
+        .from('seo_redirects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        return data as SEORedirect[];
+      }
+    } catch (e) {
+      console.warn('Error fetching SEO redirects:', e);
+    }
+    return [];
+  },
+
+  async saveSeoRedirect(redirect: Partial<SEORedirect>): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(redirect.id || '');
+      const targetId = isUUID ? redirect.id : crypto.randomUUID();
+
+      let fromUrl = (redirect.from_url || '').trim();
+      let toUrl = (redirect.to_url || '').trim();
+
+      if (!fromUrl.startsWith('/')) fromUrl = `/${fromUrl}`;
+      if (!toUrl.startsWith('/') && !toUrl.startsWith('http://') && !toUrl.startsWith('https://')) {
+        toUrl = `/${toUrl}`;
+      }
+
+      const payload = {
+        id: targetId,
+        from_url: fromUrl.toLowerCase(),
+        to_url: toUrl,
+        status_code: redirect.status_code || 301,
+        hits: redirect.hits ?? 0,
+        reason: redirect.reason || 'Admin created redirect',
+        created_by: redirect.created_by || 'admin',
+        is_active: redirect.is_active !== false,
+      };
+
+      const { error } = await supabase.from('seo_redirects').upsert(payload, { onConflict: 'from_url' });
+      if (error) {
+        console.error('Failed to save SEO redirect:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving SEO redirect:', err);
+      return false;
+    }
+  },
+
+  async deleteSeoRedirect(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('seo_redirects').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete SEO redirect:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting SEO redirect:', err);
+      return false;
+    }
+  },
+
+  // ==========================================
+  // SEO 404 Logs & Monitoring
+  // ==========================================
+  async getSeo404Logs(): Promise<SEO404Log[]> {
+    try {
+      const { data, error } = await supabase
+        .from('seo_404_logs')
+        .select('*')
+        .order('hits', { ascending: false })
+        .limit(100);
+      if (!error && data) {
+        return data as SEO404Log[];
+      }
+    } catch (e) {
+      console.warn('Error fetching 404 logs:', e);
+    }
+    return [];
+  },
+
+  async record404Log(url: string, referrer?: string, userAgent?: string): Promise<void> {
+    try {
+      const cleanUrl = url.trim().toLowerCase();
+      const { data: existing } = await supabase
+        .from('seo_404_logs')
+        .select('id, hits')
+        .eq('url', cleanUrl)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase
+          .from('seo_404_logs')
+          .update({
+            hits: (existing.hits || 1) + 1,
+            referrer: referrer || null,
+            user_agent: userAgent || null,
+            last_occurred_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase.from('seo_404_logs').insert({
+          url: cleanUrl,
+          referrer: referrer || null,
+          user_agent: userAgent || null,
+          hits: 1,
+        });
+      }
+    } catch (err) {
+      console.warn('Error recording 404 log:', err);
+    }
+  },
+
+  async resolve404Log(logId: string, redirectId?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('seo_404_logs')
+        .update({ resolved_to_redirect_id: redirectId || null })
+        .eq('id', logId);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  async delete404Log(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('seo_404_logs').delete().eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // ==========================================
+  // Automated SEO Health Audit & Diagnostics
+  // ==========================================
+  async getSeoAuditReport(): Promise<SEOAuditSummary> {
+    const issues: SEOAuditIssue[] = [];
+    let products: Product[] = [];
+    let categories: Category[] = [];
+    let collections: Collection[] = [];
+    let redirects: SEORedirect[] = [];
+    let logs404: SEO404Log[] = [];
+
+    try {
+      [products, categories, collections, redirects, logs404] = await Promise.all([
+        this.getProducts('all'),
+        this.getCategories(),
+        this.getCollections(),
+        this.getSeoRedirects(),
+        this.getSeo404Logs(),
+      ]);
+    } catch (e) {
+      console.warn('Error fetching entities for SEO audit:', e);
+    }
+
+    let missingMetaDescriptions = 0;
+    let missingSeoTitles = 0;
+    let missingImageAlts = 0;
+
+    // 1. Audit Products
+    products.forEach((p) => {
+      // SEO Meta description check
+      if (!p.seo_description && (!p.description || p.description.length < 50)) {
+        missingMetaDescriptions++;
+        issues.push({
+          id: `prod_meta_${p.id}`,
+          type: 'product',
+          severity: 'warning',
+          title: `Short or missing meta description: "${p.title}"`,
+          description: 'Search engines prefer rich descriptive meta snippets (140-160 characters).',
+          target_url: `/products/${p.slug}`,
+          entity_id: p.id,
+          fix_label: 'Edit Product SEO',
+          fix_url: `/admin/products/${p.id}`,
+        });
+      }
+
+      // SEO Title override check (info only)
+      if (!p.seo_title) {
+        missingSeoTitles++;
+      }
+
+      // Check primary image alt tags
+      const primaryImg = p.images?.find((img) => img.is_primary) || p.images?.[0];
+      if (!primaryImg || !primaryImg.alt_text || primaryImg.alt_text.trim() === '') {
+        missingImageAlts++;
+        issues.push({
+          id: `prod_img_alt_${p.id}`,
+          type: 'image',
+          severity: 'info',
+          title: `Image missing alt text: "${p.title}"`,
+          description: 'Descriptive alt text helps Google Image search index your luxury catalog.',
+          target_url: `/products/${p.slug}`,
+          entity_id: p.id,
+          fix_label: 'Add Alt Text',
+          fix_url: `/admin/products/${p.id}`,
+        });
+      }
+
+      // Check zero images
+      if (!p.images || p.images.length === 0) {
+        issues.push({
+          id: `prod_no_img_${p.id}`,
+          type: 'product',
+          severity: 'error',
+          title: `Product has no images: "${p.title}"`,
+          description: 'Products without images are penalized by Google Shopping and search crawlers.',
+          entity_id: p.id,
+          fix_label: 'Upload Product Media',
+          fix_url: `/admin/products/${p.id}`,
+        });
+      }
+    });
+
+    // 2. Audit Unresolved 404s
+    const unresolved = logs404.filter((l) => !l.resolved_to_redirect_id);
+    unresolved.slice(0, 10).forEach((l) => {
+      issues.push({
+        id: `404_${l.id}`,
+        type: 'system',
+        severity: l.hits > 5 ? 'error' : 'warning',
+        title: `Broken Link 404: "${l.url}" (${l.hits} hits)`,
+        description: `Visitors or bots attempted to reach this non-existent path. Create a 301 redirect to salvage traffic.`,
+        target_url: l.url,
+        fix_label: 'Create 301 Redirect',
+        fix_url: `/admin/seo/redirects?from=${encodeURIComponent(l.url)}`,
+      });
+    });
+
+    // Calculate SEO Health Score (0-100)
+    const totalProdCount = Math.max(products.length, 1);
+    const prodScore = Math.max(0, 100 - (missingMetaDescriptions / totalProdCount) * 40 - (missingImageAlts / totalProdCount) * 20);
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const finalScore = Math.max(10, Math.min(100, Math.round(prodScore - errorCount * 5)));
+
+    return {
+      score: finalScore,
+      totalProducts: products.length,
+      missingMetaDescriptions,
+      missingSeoTitles,
+      missingImageAlts,
+      activeRedirects: redirects.filter((r) => r.is_active).length,
+      unresolved404s: unresolved.length,
+      issues,
+    };
   },
 };

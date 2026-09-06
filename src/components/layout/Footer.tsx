@@ -138,6 +138,7 @@ export const Footer: React.FC = () => {
             <li><Link to="/collections/best-sellers" className="hover:text-white underline-offset-4 hover:underline">Best Sellers</Link></li>
             <li><Link to="/collections/sale" className="hover:text-white underline-offset-4 hover:underline">Sale & Archives</Link></li>
             <li><Link to="/lookbook" className="hover:text-white underline-offset-4 hover:underline">Editorial Lookbook</Link></li>
+            <li><Link to="/blog" className="hover:text-white underline-offset-4 hover:underline">Editorial Journal</Link></li>
           </ul>
         </div>
 
