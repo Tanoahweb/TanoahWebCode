@@ -11,6 +11,7 @@ import { SearchOverlay } from './components/common/SearchOverlay';
 import { OfferPopup } from './components/common/OfferPopup';
 import { ToastContainer } from './components/common/ToastContainer';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { Preloader } from './components/common/Preloader';
 import { useSmoothScroll } from './hooks/useSmoothScroll';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -148,6 +149,7 @@ const AppContent: React.FC = () => {
 export function App() {
   return (
     <ErrorBoundary>
+      <Preloader />
       <BrowserRouter>
         <AppContent />
       </BrowserRouter>

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/assets/brand/logo-blue.png" />
+    <link rel="icon" type="image/png" href="/Assets/brand/logo-blue.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     <title>TANOAH | Premium Luxury Fashion & Apparel</title>
     <meta name="description" content="Discover curated modern fashion, luxury apparel, and timeless collections crafted for elevated contemporary style." />
@@ -11,8 +11,100 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+
+    <!-- Pure CSS Preloader (Zero Flash / Instant Display) -->
+    <style>
+      #app-preloader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #ffffff;
+        z-index: 999999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s ease;
+      }
+      #app-preloader.preloader-hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(1.02);
+      }
+      .preloader-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .preloader-logo {
+        height: 42px;
+        width: auto;
+        object-fit: contain;
+        margin-bottom: 20px;
+        animation: tanoahPreloaderPulse 2s ease-in-out infinite;
+      }
+      .preloader-bar-track {
+        width: 120px;
+        height: 2px;
+        background-color: #EEEEF8;
+        border-radius: 9999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .preloader-bar-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 45%;
+        background-color: #3F3F8F;
+        border-radius: 9999px;
+        animation: tanoahPreloaderSlide 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      }
+      .preloader-tagline {
+        margin-top: 14px;
+        font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 9px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: #888888;
+        font-weight: 500;
+      }
+      @keyframes tanoahPreloaderPulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(0.98);
+        }
+      }
+      @keyframes tanoahPreloaderSlide {
+        0% {
+          left: -45%;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+    </style>
   </head>
   <body class="bg-[#FFFFFF] text-[#000000] font-poppins antialiased selection:bg-[#3F3F8F] selection:text-white">
+    <!-- Initial Luxury Brand Preloader -->
+    <div id="app-preloader" aria-hidden="true">
+      <div class="preloader-inner">
+        <img src="/Assets/brand/logo-blue.png" alt="TANOAH" class="preloader-logo" />
+        <div class="preloader-bar-track">
+          <div class="preloader-bar-line"></div>
+        </div>
+        <span class="preloader-tagline">TANOAH</span>
+      </div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
