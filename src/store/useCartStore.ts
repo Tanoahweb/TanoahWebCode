@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem, Product, ProductVariant, Coupon } from '../types';
+import { isProductInCollection } from '../services/api';
 
 interface CartState {
   items: CartItem[];
@@ -107,24 +108,41 @@ export const useCartStore = create<CartState>()(
       },
 
       getDiscountAmount: () => {
-        const { coupon } = get();
+        const { coupon, items } = get();
         const subtotal = get().getSubtotal();
         if (!coupon || subtotal <= 0) return 0;
 
-        if (coupon.min_spend && subtotal < coupon.min_spend) return 0;
+        let applicableSubtotal = subtotal;
+
+        // If coupon is restricted to specific collections, calculate discount ONLY on items in those collections
+        if (coupon.eligible_collections && coupon.eligible_collections.length > 0) {
+          const eligibleItems = items.filter((item) =>
+            coupon.eligible_collections!.some((colSlug) => isProductInCollection(item.product, colSlug))
+          );
+          if (eligibleItems.length === 0) return 0;
+
+          applicableSubtotal = eligibleItems.reduce((acc, item) => {
+            const price = item.variant?.sale_price ?? item.variant?.price ?? 0;
+            return acc + price * item.quantity;
+          }, 0);
+
+          if (coupon.min_spend && applicableSubtotal < coupon.min_spend) return 0;
+        } else {
+          if (coupon.min_spend && subtotal < coupon.min_spend) return 0;
+        }
 
         let discount = 0;
         if (coupon.discount_type === 'percentage') {
-          discount = (subtotal * coupon.discount_value) / 100;
+          discount = (applicableSubtotal * coupon.discount_value) / 100;
         } else if (coupon.discount_type === 'fixed') {
-          discount = coupon.discount_value;
+          discount = Math.min(coupon.discount_value, applicableSubtotal);
         }
 
         if (coupon.max_discount && discount > coupon.max_discount) {
           discount = coupon.max_discount;
         }
 
-        return Math.min(discount, subtotal);
+        return Math.round(Math.min(discount, applicableSubtotal));
       },
 
       getShippingFee: () => {
@@ -136,7 +154,9 @@ export const useCartStore = create<CartState>()(
 
       isFreeShipping: () => {
         const { coupon, freeShippingThreshold } = get();
-        if (coupon?.discount_type === 'free_shipping') return true;
+        if (coupon?.discount_type === 'free_shipping') {
+          if (!coupon.min_spend || get().getSubtotal() >= coupon.min_spend) return true;
+        }
         return get().getSubtotal() >= freeShippingThreshold;
       },
 

@@ -297,6 +297,31 @@ const SAMPLE_ORDERS_DETAILED: any[] = [
   },
 ];
 
+export function isProductInCollection(product: Product, collectionSlugOrId: string): boolean {
+  if (!product || !collectionSlugOrId) return false;
+  const target = collectionSlugOrId.toLowerCase().trim();
+
+  // 1. Direct collections array
+  if (Array.isArray(product.collections)) {
+    if (product.collections.some((c) => c && c.toLowerCase().trim() === target)) return true;
+  }
+
+  // 2. Tags matching collection slug
+  if (Array.isArray(product.tags)) {
+    if (product.tags.some((t) => t && t.toLowerCase().trim() === target)) return true;
+  }
+
+  // 3. Category matching
+  if (product.category_name && product.category_name.toLowerCase().trim() === target) {
+    return true;
+  }
+  if (product.category_id && product.category_id.toLowerCase().trim() === target) {
+    return true;
+  }
+
+  return false;
+}
+
 export const api = {
   // Store Settings (Direct Supabase)
   async getStoreSettings(): Promise<StoreSettings> {
@@ -989,20 +1014,24 @@ export const api = {
 
   async createCoupon(coupon: {
     code: string;
+    description?: string;
     discount_type: 'percentage' | 'fixed' | 'free_shipping' | 'bogo';
     discount_value: number;
     min_spend?: number;
     max_discount?: number;
+    eligible_collections?: string[];
     is_active?: boolean;
   }): Promise<{ success: boolean; coupon: Coupon }> {
     const cleanCode = coupon.code.trim().toUpperCase();
     const newCoupon: Coupon = {
       id: `cpn_${Date.now()}`,
       code: cleanCode,
+      description: coupon.description?.trim() || undefined,
       discount_type: coupon.discount_type,
       discount_value: coupon.discount_value,
       min_spend: coupon.min_spend || 0,
       max_discount: coupon.max_discount,
+      eligible_collections: coupon.eligible_collections && coupon.eligible_collections.length > 0 ? coupon.eligible_collections : undefined,
       is_automatic: false,
       is_active: coupon.is_active !== undefined ? coupon.is_active : true,
     };
@@ -1020,15 +1049,42 @@ export const api = {
     try {
       await supabase.from('coupons').insert([{
         code: newCoupon.code,
+        description: newCoupon.description || null,
         discount_type: newCoupon.discount_type,
         discount_value: newCoupon.discount_value,
         min_spend: newCoupon.min_spend,
         max_discount: newCoupon.max_discount || null,
+        eligible_collections: newCoupon.eligible_collections || [],
         is_active: newCoupon.is_active,
       }]);
-    } catch {}
+    } catch (dbErr) {
+      console.warn('Remote coupon insert notice:', dbErr);
+    }
 
     return { success: true, coupon: newCoupon };
+  },
+
+  async updateCoupon(couponId: string, updates: Partial<Coupon>): Promise<boolean> {
+    try {
+      const raw = localStorage.getItem('tanoah_custom_coupons');
+      if (raw) {
+        const list: Coupon[] = JSON.parse(raw);
+        const updated = list.map((c) => (c.id === couponId || c.code === couponId ? { ...c, ...updates } : c));
+        localStorage.setItem('tanoah_custom_coupons', JSON.stringify(updated));
+      }
+
+      const payload: any = { ...updates };
+      delete payload.id;
+      delete payload.created_at;
+      if (payload.eligible_collections && !Array.isArray(payload.eligible_collections)) {
+        payload.eligible_collections = [];
+      }
+      await supabase.from('coupons').update(payload).or(`id.eq.${couponId},code.eq.${couponId}`);
+      return true;
+    } catch (e) {
+      console.error('Error updating coupon:', e);
+      return false;
+    }
   },
 
   async deleteCoupon(couponId: string): Promise<boolean> {
@@ -1045,21 +1101,65 @@ export const api = {
   },
 
   // Coupon Validation
-  async validateCoupon(code: string, subtotal: number): Promise<{ valid: boolean; coupon?: Coupon; message: string }> {
+  async validateCoupon(
+    code: string,
+    subtotal: number,
+    items?: CartItem[]
+  ): Promise<{ valid: boolean; coupon?: Coupon; message: string }> {
     try {
       const cleanCode = code.trim().toLowerCase();
       const allCoupons = await this.getCoupons();
-      const match = allCoupons.find((c) => c.code.toLowerCase() === cleanCode && c.is_active);
+      const match = allCoupons.find((c) => c.code.toLowerCase() === cleanCode && c.is_active !== false);
 
       if (!match) {
-        return { valid: false, message: 'Invalid or expired coupon code.' };
+        return { valid: false, message: 'Invalid or expired promo code.' };
       }
 
-      if (match.min_spend && subtotal < match.min_spend) {
-        return {
-          valid: false,
-          message: `Minimum spend of ₹${match.min_spend.toLocaleString('en-IN')} required.`,
-        };
+      // Collection-specific validation
+      if (match.eligible_collections && match.eligible_collections.length > 0) {
+        if (items && items.length > 0) {
+          const matchingItems = items.filter((item) =>
+            match.eligible_collections!.some((colSlug) => isProductInCollection(item.product, colSlug))
+          );
+
+          if (matchingItems.length === 0) {
+            const allCols = await this.getCollections();
+            const colNames = match.eligible_collections
+              .map((slug) => allCols.find((c) => c.slug === slug || c.id === slug)?.title || slug)
+              .join(', ');
+            return {
+              valid: false,
+              message: `This code is only valid for items in "${colNames}". Please add eligible items to your cart.`,
+            };
+          }
+
+          const matchingSubtotal = matchingItems.reduce((acc, item) => {
+            const price =
+              item.variant?.sale_price ??
+              item.variant?.price ??
+              item.product?.sale_price ??
+              item.product?.base_price ??
+              0;
+            return acc + price * item.quantity;
+          }, 0);
+
+          if (match.min_spend && matchingSubtotal < match.min_spend) {
+            const diff = Math.round(match.min_spend - matchingSubtotal);
+            return {
+              valid: false,
+              message: `Minimum spend of ₹${match.min_spend.toLocaleString('en-IN')} required on eligible collection items (Add ₹${diff.toLocaleString('en-IN')} more).`,
+            };
+          }
+        }
+      } else {
+        // Store-wide minimum spend check
+        if (match.min_spend && subtotal < match.min_spend) {
+          const diff = Math.round(match.min_spend - subtotal);
+          return {
+            valid: false,
+            message: `Minimum spend of ₹${match.min_spend.toLocaleString('en-IN')} required (Add ₹${diff.toLocaleString('en-IN')} more).`,
+          };
+        }
       }
 
       return { valid: true, coupon: match, message: 'Coupon applied successfully!' };

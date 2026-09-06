@@ -43,7 +43,7 @@ export const CartPage: React.FC = () => {
 
     setIsApplying(true);
     try {
-      const res = await api.validateCoupon(code, subtotal);
+      const res = await api.validateCoupon(code, subtotal, items);
       if (res.valid && res.coupon) {
         applyCoupon(res.coupon);
         addToast({ type: 'success', title: 'Coupon Applied', description: res.message });
