@@ -54,7 +54,7 @@ export const OrderConfirmationPage: React.FC = () => {
             </div>
 
             <p className="text-[#666666] leading-relaxed">
-              Your garments have been assigned to our packaging atelier. You will receive an SMS and email notification with courier tracking as soon as your parcel is dispatched.
+              Your garments have been assigned to our packaging hub. You will receive an SMS and email notification with courier tracking as soon as your parcel is dispatched.
             </p>
 
             {orderData?.formData && (

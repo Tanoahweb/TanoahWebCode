@@ -745,7 +745,7 @@ export const CollectionsPage: React.FC = () => {
                       )}
                     </div>
                     <p className="text-[11px] text-neutral-600 leading-relaxed">
-                      Classic luxury atelier portrait format (aspect ratio 4:5). Ideal for full-length models, high-fashion campaign photography, and lookbooks.
+                      Classic luxury editorial portrait format (aspect ratio 4:5). Ideal for full-length models, high-fashion campaign photography, and lookbooks.
                     </p>
                   </div>
                 </button>

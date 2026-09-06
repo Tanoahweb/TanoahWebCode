@@ -294,7 +294,7 @@ export const CartPage: React.FC = () => {
                   <ShieldCheck className="w-4 h-4 text-[#3F3F8F]" />
                   <span>256-Bit SSL Encrypted Checkout</span>
                 </div>
-                <p>Tax calculated. Complimentary 7-day domestic returns.</p>
+                <p>Inclusive of 5% GST. Returns accepted for transit damage with unboxing video.</p>
               </div>
             </div>
           </div>

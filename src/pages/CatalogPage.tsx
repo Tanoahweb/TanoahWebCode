@@ -63,11 +63,11 @@ export const CatalogPage: React.FC = () => {
     (c) => c.slug.toLowerCase() === currentCollection
   ) || (
     currentCollection === 'men' ? {
-      title: "MEN'S ATELIER",
+      title: "MEN'S COLLECTION",
       description: 'Handcrafted luxury tailoring, structured tees, relaxed linen shirts and trousers.',
       banner_image: '/Assets/hero/hero-landscape.jpg',
     } : currentCollection === 'women' ? {
-      title: "WOMEN'S ATELIER",
+      title: "WOMEN'S COLLECTION",
       description: 'Fluid drape dresses, artisanal sarees, silk tops and sculptural tailored silhouettes.',
       banner_image: '/Assets/hero/hero-mobile.jpg',
     } : currentCollection === 'sale' ? {
@@ -79,7 +79,7 @@ export const CatalogPage: React.FC = () => {
       description: 'The latest silhouettes, handwoven textiles, and modern minimalist essentials.',
       banner_image: '/Assets/hero/hero-mobile.jpg',
     } : currentCollection === 'best-sellers' ? {
-      title: 'ATELIER BEST SELLERS',
+      title: 'TANOAH BEST SELLERS',
       description: 'Our most sought-after signature pieces, worn and cherished by patrons worldwide.',
       banner_image: '/Assets/hero/hero-landscape.jpg',
     } : currentCollection === 'monochrome' ? {

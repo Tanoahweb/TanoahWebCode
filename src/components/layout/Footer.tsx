@@ -170,8 +170,8 @@ export const Footer: React.FC = () => {
             <span className="text-[11px] font-poppins uppercase tracking-wider font-semibold text-white/90 block mb-2">
               CONCIERGE DESK
             </span>
-            <p className="text-xs text-white/80 font-poppins">concierge@tanoah.com</p>
-            <p className="text-xs text-white/80 font-poppins mt-0.5">+91 98765 43210 (Mon–Sat 10am–7pm)</p>
+            <p className="text-xs text-white/80 font-poppins">connectus.tanoah@gmail.com</p>
+            <p className="text-xs text-white/80 font-poppins mt-0.5">+91 8714141849 (Mon–Sat 10am–7pm)</p>
           </div>
         </div>
       </div>

@@ -125,14 +125,14 @@ export const AtelierSettingsTab: React.FC = () => {
     if (success) {
       addToast({
         type: 'success',
-        title: 'Atelier Section Updated',
+        title: 'Editorial Section Updated',
         description: 'Editorial copy, image settings, and button visibility saved successfully.',
       });
     } else {
       addToast({
         type: 'error',
         title: 'Save Failed',
-        description: 'Could not update Atelier section configuration.',
+        description: 'Could not update editorial section configuration.',
       });
     }
   };
@@ -146,7 +146,7 @@ export const AtelierSettingsTab: React.FC = () => {
       addToast({
         type: 'info',
         title: 'Reset to Defaults',
-        description: 'Atelier editorial copy, image, and buttons restored to original values.',
+        description: 'Editorial copy, image, and buttons restored to original values.',
       });
     }
   };
@@ -159,7 +159,7 @@ export const AtelierSettingsTab: React.FC = () => {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#3F3F8F]" />
             <h2 className="font-semibold text-sm sm:text-base text-black uppercase tracking-wide">
-              Homepage Atelier Editorial Section
+              Homepage Featured Editorial Section
             </h2>
           </div>
           <p className="text-[#666666] text-xs mt-1 max-w-xl">
@@ -243,7 +243,7 @@ export const AtelierSettingsTab: React.FC = () => {
                   type="text"
                   value={form.imageUrl}
                   onChange={(e) => handleFieldChange('imageUrl', e.target.value)}
-                  placeholder="/Assets/editorial/tanoah-women-atelier.jpg"
+                  placeholder="/Assets/editorial/tanoah-women-collection.jpg"
                   className="flex-1 p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs font-mono"
                 />
                 <input
@@ -319,7 +319,7 @@ export const AtelierSettingsTab: React.FC = () => {
                   alt={form.imageAlt}
                   className="w-full h-full object-cover"
                   style={{ objectPosition: form.objectPosition }}
-                  onError={() => setImagePreviewUrl('/Assets/editorial/tanoah-women-atelier.jpg')}
+                  onError={() => setImagePreviewUrl('/Assets/editorial/tanoah-women-collection.jpg')}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-neutral-400">
@@ -382,7 +382,7 @@ export const AtelierSettingsTab: React.FC = () => {
               type="text"
               value={form.previewTitle}
               onChange={(e) => handleFieldChange('previewTitle', e.target.value)}
-              placeholder="THE WOMEN'S ATELIER"
+              placeholder="THE WOMEN'S COLLECTION"
               className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs bg-white font-wondra uppercase tracking-wider"
             />
           )}
@@ -606,7 +606,7 @@ export const AtelierSettingsTab: React.FC = () => {
                 Secondary Action Button (Glass / Outline Pill)
               </label>
               <span className="text-[10px] text-[#666666]">
-                Secondary link for lookbooks, stories, or artisan atelier details.
+                Secondary link for lookbooks, stories, or artisan collection details.
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -640,7 +640,7 @@ export const AtelierSettingsTab: React.FC = () => {
                   type="text"
                   value={form.secondaryButtonText}
                   onChange={(e) => handleFieldChange('secondaryButtonText', e.target.value)}
-                  placeholder="VIEW ATELIER LOOKBOOK"
+                  placeholder="VIEW LOOKBOOK"
                   className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs bg-white font-semibold uppercase"
                 />
               </div>
@@ -739,7 +739,7 @@ export const AtelierSettingsTab: React.FC = () => {
             icon={<Save className="w-4 h-4" />}
             className="bg-[#3F3F8F] hover:bg-[#343476] text-white px-8"
           >
-            {isLoading ? 'SAVING CHANGES...' : 'SAVE ATELIER SECTION'}
+            {isLoading ? 'SAVING CHANGES...' : 'SAVE EDITORIAL SECTION'}
           </Button>
 
           <Button
@@ -769,12 +769,12 @@ export const AtelierSettingsTab: React.FC = () => {
       <Modal
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
-        title="Reset Atelier Section to Defaults"
+        title="Reset Editorial Section to Defaults"
       >
         <div className="space-y-4 text-xs">
           <p className="text-[#555555] leading-relaxed">
             Are you sure you want to reset all copy, background imagery, and button settings for the
-            Women&apos;s Atelier section to their original factory defaults? Any custom copy or links will
+            Women&apos;s Collection section to their original factory defaults? Any custom copy or links will
             be replaced.
           </p>
           <div className="flex justify-end gap-3 pt-3 border-t border-[#E7E7E7]">

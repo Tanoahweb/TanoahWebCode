@@ -46,7 +46,7 @@ const EDITORIAL_LOOKS: EditorialLook[] = [
   },
   {
     id: 'look-02',
-    volume: 'VOLUME 02 • RESORT ATELIER',
+    volume: 'VOLUME 02 • RESORT COLLECTION',
     title: 'FLUID GRACE THROUGH SCULPTURAL DRAPES',
     subtitle: 'THE RESORT INDIGO SILHOUETTE',
     description:

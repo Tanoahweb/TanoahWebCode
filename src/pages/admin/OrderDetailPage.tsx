@@ -192,11 +192,11 @@ export const OrderDetailPage: React.FC = () => {
     firstName: order.shipping_address?.first_name || 'Valued',
     lastName: order.shipping_address?.last_name || 'Client',
     email: order.guest_email || 'client@example.com',
-    phone: order.guest_phone || '+91 98765 43210',
-    address: order.shipping_address?.address || 'Bespoke Atelier Address',
-    city: order.shipping_address?.city || 'Mumbai',
-    state: order.shipping_address?.state || 'Maharashtra',
-    postalCode: order.shipping_address?.postal_code || '400001',
+    phone: order.guest_phone || '+91 8714141849',
+    address: order.shipping_address?.address || 'Rappal, Pudukkad P O',
+    city: order.shipping_address?.city || 'Thrissur',
+    state: order.shipping_address?.state || 'Kerala',
+    postalCode: order.shipping_address?.postal_code || '680301',
     paymentMethod: order.payment_method || 'online',
   };
 
@@ -277,7 +277,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer uppercase"
                   >
                     <option value="confirmed">Confirmed (Ready to Pack)</option>
-                    <option value="processing">Processing (In Atelier)</option>
+                    <option value="processing">Processing (In Production)</option>
                     <option value="shipped">Shipped (In Transit)</option>
                     <option value="delivered">Delivered</option>
                     <option value="cancelled">Cancelled</option>
@@ -364,7 +364,7 @@ export const OrderDetailPage: React.FC = () => {
               <div className="divide-y divide-[#E7E7E7]">
                 {lineItems.map((item: any, idx: number) => {
                   const price = Number(item.variant?.sale_price ?? item.variant?.price ?? item.unit_price ?? item.line_total ?? 0);
-                  const itemTitle = item.product?.title || item.product_title || 'Atelier Garment';
+                  const itemTitle = item.product?.title || item.product_title || 'Tanoah Garment';
                   const itemColor =
                     item.variant?.color_name ||
                     item.color_name ||
@@ -439,7 +439,7 @@ export const OrderDetailPage: React.FC = () => {
                             {variantInfo} • SKU:{' '}
                             <span className="font-mono text-[#3F3F8F]">{skuCode}</span>
                           </div>
-                          <div className="text-[#888888] text-[10px] mt-0.5">HSN Code: 61091000 (12% GST)</div>
+                          <div className="text-[#888888] text-[10px] mt-0.5">HSN Code: 61091000 (5% GST Included)</div>
                         </div>
                       </div>
 

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Home, ArrowRight, Sparkles, Compass, Package, Phone } from 'lucide-react';
 import { Button } from '../components/common/Button';
@@ -15,20 +15,20 @@ export const NotFoundPage: React.FC = () => {
   };
 
   const curatedCollections = [
-    { title: 'All Silhouettes', link: '/collections/all', desc: 'Browse the complete atelier catalog' },
+    { title: 'All Silhouettes', link: '/collections/all', desc: 'Browse the complete Tanoah catalog' },
     { title: 'Signature Linen', link: '/collections/linen', desc: 'Breathable, pure European linen cuts' },
-    { title: 'Atelier Lookbook', link: '/lookbook', desc: 'Editorial campaign and styling gallery' },
+    { title: 'Lookbook Gallery', link: '/lookbook', desc: 'Editorial campaign and styling gallery' },
     { title: 'Track Your Order', link: '/tracking', desc: 'Real-time order status and dispatch updates' },
   ];
 
   return (
     <div className="w-full bg-[#FAFAFA] font-poppins min-h-[80vh] flex flex-col justify-center py-20 px-4 sm:px-6 lg:px-8 text-black">
       <div className="max-w-2xl mx-auto w-full text-center space-y-8">
-        {/* Atelier Monogram / Tag */}
+        {/* Brand Tag */}
         <div className="flex items-center justify-center gap-2">
           <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>TANOAH ATELIER • STATUS 404</span>
+            <span>TANOAH • STATUS 404</span>
           </span>
         </div>
 
@@ -84,7 +84,7 @@ export const NotFoundPage: React.FC = () => {
         {/* Curated Pathways */}
         <div className="pt-10 border-t border-[#E7E7E7] text-left">
           <div className="text-[11px] uppercase tracking-widest font-semibold text-neutral-400 mb-4 text-center">
-            Suggested Atelier Pathways
+            Suggested Collections
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {curatedCollections.map((col, idx) => (

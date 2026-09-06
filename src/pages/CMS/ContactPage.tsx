@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Send } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
@@ -47,7 +47,7 @@ export const ContactPage: React.FC = () => {
                 </div>
                 <div>
                   <h5 className="font-semibold text-black uppercase text-[11px]">Email Concierge</h5>
-                  <p className="text-[#666666]">concierge@tanoah.com</p>
+                  <p className="text-[#666666]">connectus.tanoah@gmail.com</p>
                 </div>
               </div>
 
@@ -57,7 +57,7 @@ export const ContactPage: React.FC = () => {
                 </div>
                 <div>
                   <h5 className="font-semibold text-black uppercase text-[11px]">Telephone Support</h5>
-                  <p className="text-[#666666]">+91 98765 43210</p>
+                  <p className="text-[#666666]">+91 8714141849</p>
                   <span className="text-[10px] text-[#888888]">10:00 AM – 7:00 PM IST</span>
                 </div>
               </div>
@@ -67,14 +67,14 @@ export const ContactPage: React.FC = () => {
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div>
-                  <h5 className="font-semibold text-black uppercase text-[11px]">Flagship Studio</h5>
-                  <p className="text-[#666666]">Worli Sea Face, Mumbai 400018, Maharashtra, India</p>
+                  <h5 className="font-semibold text-black uppercase text-[11px]">Tanoah Studio & Office</h5>
+                  <p className="text-[#666666]">Tanoah, Rappal, Pudukkad P O, Thrissur, Kerala 680301</p>
                 </div>
               </div>
             </div>
 
             <a
-              href="https://wa.me/919876543210"
+              href="https://wa.me/918714141849"
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold rounded-[4px] uppercase tracking-wider transition-colors"

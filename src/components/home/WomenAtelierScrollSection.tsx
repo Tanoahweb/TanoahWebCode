@@ -27,9 +27,9 @@ export const WomenAtelierScrollSection: React.FC = () => {
   return (
     <section className="relative w-full bg-[#3b3a86]">
       <ScrollExpand
-        src={config.imageUrl || '/Assets/editorial/tanoah-women-atelier.jpg'}
-        alt={config.imageAlt || 'Tanoah Women Atelier Collection'}
-        title={config.showPreviewTitle ? config.previewTitle || "THE WOMEN'S ATELIER" : ''}
+        src={config.imageUrl || '/Assets/editorial/tanoah-women-collection.jpg'}
+        alt={config.imageAlt || 'Tanoah Women Collection'}
+        title={config.showPreviewTitle ? config.previewTitle || "THE WOMEN'S COLLECTION" : ''}
         useWindowScroll={true}
         headerOffset={80}
         startWidth={46}

@@ -52,7 +52,7 @@ export function sanitizeOrderForStorage(order: any): any {
         return {
           id: item.id || `item_${Date.now()}`,
           product_id: item.product_id || item.product?.id || '',
-          product_title: item.product_title || item.product?.title || 'Atelier Product',
+          product_title: item.product_title || item.product?.title || 'Tanoah Product',
           variant_id: item.variant_id || item.variant?.id || '',
           variant_title: item.variant_title || `${item.variant?.color_name || 'Standard'} / ${item.variant?.size || 'Free'}`,
           sku: item.sku || item.variant?.sku || 'TAN-SKU',

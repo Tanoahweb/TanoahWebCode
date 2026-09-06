@@ -33,8 +33,8 @@ const SAMPLE_CUSTOMERS: CustomerRecord[] = [
     id: 'c1',
     name: 'Aditya Sharma',
     email: 'aditya.sharma@example.com',
-    phone: '+91 98765 43210',
-    city: 'Mumbai, Maharashtra',
+    phone: '+91 8714141849',
+    city: 'Thrissur, Kerala',
     totalOrders: 4,
     lifetimeValue: 18992,
     isVip: true,
@@ -178,7 +178,7 @@ export const CustomersPage: React.FC = () => {
 
           <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm">
             <span className="text-[10px] text-[#888888] uppercase tracking-wider block mb-1">
-              VIP ATELIER PATRONS
+              VIP PATRONS
             </span>
             <div className="text-2xl font-bold text-black font-mono">
               {customers.filter((c) => c.isVip).length}

@@ -26,8 +26,8 @@ export const AboutPage: React.FC = () => {
         <div className="mt-10 sm:mt-14 relative rounded-xl overflow-hidden border border-[#EBEBE8] shadow-sm group">
           <div className="aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden bg-[#F0EFEA]">
             <img
-              src="/Assets/about/atelier-story.jpg"
-              alt="TANOAH Atelier - Sketches, Natural Fibres & Creative Studio"
+              src="/Assets/about/tanoah-story.jpg"
+              alt="TANOAH Design Studio - Sketches, Natural Fibres & Creative Space"
               className="w-full h-full object-cover object-center transform group-hover:scale-102 transition-transform duration-700 ease-out"
               loading="eager"
             />
@@ -36,7 +36,7 @@ export const AboutPage: React.FC = () => {
           <div className="absolute bottom-4 sm:bottom-8 left-4 sm:left-8 right-4 sm:right-8 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 text-white">
             <div>
               <span className="text-[10px] sm:text-xs uppercase tracking-[0.25em] text-white/80 font-medium">
-                Atelier TANOAH
+                THE HOUSE OF TANOAH
               </span>
               <p className="text-base sm:text-xl font-light tracking-wide mt-0.5">
                 Translating logic, geometry, and passion into timeless silhouettes.
@@ -161,7 +161,7 @@ export const AboutPage: React.FC = () => {
                       </p>
                     </div>
                     <span className="text-xs px-2.5 py-1 bg-[#EBF0FF] text-[#3F3F8F] rounded font-medium">
-                      Atelier Cut
+                      Signature Cut
                     </span>
                   </div>
                 </div>

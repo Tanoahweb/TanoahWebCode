@@ -345,7 +345,7 @@ export const CheckoutPage: React.FC = () => {
       subtotal,
       discount_total: discount,
       shipping_total: shipping,
-      tax_total: Math.round(subtotal * 0.12),
+      tax_total: Math.round(subtotal - (subtotal / 1.05)), // 5% GST included in price
       grand_total: grandTotal,
       items,
     });
@@ -597,7 +597,7 @@ export const CheckoutPage: React.FC = () => {
                     required
                     type="tel"
                     name="phone"
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 8714141849"
                     value={formData.phone}
                     onChange={handleInputChange}
                     className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { MessageCircle } from 'lucide-react';
 
 interface FloatingWhatsAppProps {
@@ -7,7 +7,7 @@ interface FloatingWhatsAppProps {
 }
 
 export const FloatingWhatsApp: React.FC<FloatingWhatsAppProps> = ({
-  phoneNumber = '919876543210',
+  phoneNumber = '918714141849',
   defaultMessage = 'Hello Tanoah Concierge, I would like assistance with an order/product.',
 }) => {
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(defaultMessage)}`;

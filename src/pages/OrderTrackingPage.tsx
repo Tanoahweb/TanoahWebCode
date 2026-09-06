@@ -5,7 +5,7 @@ import { Button } from '../components/common/Button';
 import { api } from '../services/api';
 
 const STEPS = [
-  { key: 'placed', label: 'Order Placed', desc: 'Order received & confirmed by atelier' },
+  { key: 'placed', label: 'Order Placed', desc: 'Order received & confirmed by team' },
   { key: 'processing', label: 'Handcrafted / Prepared', desc: 'Garments inspected & packaged in luxury box' },
   { key: 'shipped', label: 'Dispatched via India Post', desc: 'Handed over to India Post (Speed Post / Parcel)' },
   { key: 'out', label: 'Out for Delivery', desc: 'India Post postman out for delivery to address' },
@@ -124,7 +124,7 @@ export const OrderTrackingPage: React.FC = () => {
               </label>
               <input
                 type="text"
-                placeholder="E.g., 9876543210"
+                placeholder="E.g., 8714141849"
                 value={contactQuery}
                 onChange={(e) => setContactQuery(e.target.value)}
                 className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"

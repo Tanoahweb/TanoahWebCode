@@ -159,7 +159,7 @@ export const NavigationPage: React.FC = () => {
                   banner: {
                     id: `bnr_${Date.now()}`,
                     badge: 'FEATURED EDIT',
-                    title: `${item.label} ATELIER`,
+                    title: `${item.label} COLLECTION`,
                     image_url: '/Assets/hero/hero-mobile.jpg',
                     cta_label: 'EXPLORE COLLECTION',
                     cta_url: item.url,
@@ -633,7 +633,7 @@ export const NavigationPage: React.FC = () => {
     }
   };
 
-  // Reset to Atelier Defaults
+  // Reset to Tanoah Defaults
   const handleConfirmReset = async () => {
     setIsSaving(true);
     const success = await resetToDefaults();

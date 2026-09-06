@@ -70,7 +70,7 @@ export const openRazorpayPayment = async (options: RazorpayOptions): Promise<voi
     amount: options.amount,
     currency: options.currency || 'INR',
     name: 'TANOAH',
-    description: 'Atelier Apparel Purchase',
+    description: 'Tanoah Order Payment',
     image: '/Assets/brand/logo-blue.png',
     order_id: options.orderId,
     prefill: {

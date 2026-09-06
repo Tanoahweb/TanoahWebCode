@@ -9,7 +9,7 @@ export const LookbookPage: React.FC = () => {
       {/* Hero */}
       <div className="relative h-[60vh] sm:h-[70vh] bg-black overflow-hidden flex items-center justify-center text-center px-4">
         <img
-          src="/Assets/editorial/tanoah-women-atelier.jpg"
+          src="/Assets/editorial/tanoah-women-collection.jpg"
           alt="TANOAH SS26 Editorial Lookbook"
           className="absolute inset-0 w-full h-full object-cover opacity-65"
         />

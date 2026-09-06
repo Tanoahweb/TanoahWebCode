@@ -28,7 +28,7 @@ export const PolicyPage: React.FC = () => {
           <div className="border-b border-[#E7E7E7] pb-6">
             <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-widest uppercase flex items-center gap-1.5">
               <Ruler className="w-3.5 h-3.5" />
-              <span>ATELIER MEASUREMENTS & SIZING</span>
+              <span>TANOAH MEASUREMENTS & SIZING</span>
             </span>
             <h1 className="font-wondra text-3xl sm:text-4xl text-black mt-1">
               FIT & SIZE SPECIFICATION GUIDE
@@ -74,11 +74,11 @@ export const PolicyPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E7E7E7]">
-                  <tr><td className="p-3.5 font-bold text-black">XS</td><td className="p-3.5">32 – 33</td><td className="p-3.5">25 – 26</td><td className="p-3.5">35 – 36</td><td className="p-3.5">Standard Atelier</td></tr>
-                  <tr><td className="p-3.5 font-bold text-black">S</td><td className="p-3.5">34 – 35</td><td className="p-3.5">27 – 28</td><td className="p-3.5">37 – 38</td><td className="p-3.5">Standard Atelier</td></tr>
-                  <tr><td className="p-3.5 font-bold text-black">M</td><td className="p-3.5">36 – 37</td><td className="p-3.5">29 – 30</td><td className="p-3.5">39 – 40</td><td className="p-3.5">Standard Atelier</td></tr>
-                  <tr><td className="p-3.5 font-bold text-black">L</td><td className="p-3.5">38 – 40</td><td className="p-3.5">31 – 33</td><td className="p-3.5">41 – 43</td><td className="p-3.5">Standard Atelier</td></tr>
-                  <tr><td className="p-3.5 font-bold text-black">XL</td><td className="p-3.5">41 – 43</td><td className="p-3.5">34 – 36</td><td className="p-3.5">44 – 46</td><td className="p-3.5">Standard Atelier</td></tr>
+                  <tr><td className="p-3.5 font-bold text-black">XS</td><td className="p-3.5">32 – 33</td><td className="p-3.5">25 – 26</td><td className="p-3.5">35 – 36</td><td className="p-3.5">Standard Length</td></tr>
+                  <tr><td className="p-3.5 font-bold text-black">S</td><td className="p-3.5">34 – 35</td><td className="p-3.5">27 – 28</td><td className="p-3.5">37 – 38</td><td className="p-3.5">Standard Length</td></tr>
+                  <tr><td className="p-3.5 font-bold text-black">M</td><td className="p-3.5">36 – 37</td><td className="p-3.5">29 – 30</td><td className="p-3.5">39 – 40</td><td className="p-3.5">Standard Length</td></tr>
+                  <tr><td className="p-3.5 font-bold text-black">L</td><td className="p-3.5">38 – 40</td><td className="p-3.5">31 – 33</td><td className="p-3.5">41 – 43</td><td className="p-3.5">Standard Length</td></tr>
+                  <tr><td className="p-3.5 font-bold text-black">XL</td><td className="p-3.5">41 – 43</td><td className="p-3.5">34 – 36</td><td className="p-3.5">44 – 46</td><td className="p-3.5">Standard Length</td></tr>
                 </tbody>
               </table>
             </div>
@@ -86,7 +86,7 @@ export const PolicyPage: React.FC = () => {
             <div className="p-4 bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] mt-4 space-y-1">
               <strong className="text-black block text-xs">NEED TAILORING ADVICE?</strong>
               <p className="text-[11px] text-[#666666]">
-                Our styling advisors are on hand to guide you to the perfect cut. Contact us on WhatsApp at +91 98765 43210 or email concierge@tanoah.com.
+                Our styling advisors are on hand to guide you to the perfect cut. Contact us on WhatsApp at +91 8714141849 or email connectus.tanoah@gmail.com.
               </p>
             </div>
           </div>
@@ -130,14 +130,14 @@ export const PolicyPage: React.FC = () => {
             <div className="space-y-2 border-b border-[#E7E7E7] pb-4">
               <h4 className="font-semibold text-black text-sm">What payment options do you accept?</h4>
               <p className="leading-relaxed">
-                We accept 100% secure online prepaid payments via UPI (Google Pay, PhonePe, Paytm), Credit &amp; Debit Cards (Visa, Mastercard, RuPay, Amex), Net Banking, and digital wallets. To safeguard boutique atelier craftsmanship and guarantee swift insured transit, Cash on Delivery (COD) is not offered.
+                We accept 100% secure online prepaid payments via UPI (Google Pay, PhonePe, Paytm), Credit &amp; Debit Cards (Visa, Mastercard, RuPay, Amex), Net Banking, and digital wallets. To safeguard boutique craftsmanship and guarantee swift insured transit, Cash on Delivery (COD) is not offered.
               </p>
             </div>
 
             <div className="space-y-2 border-b border-[#E7E7E7] pb-4">
               <h4 className="font-semibold text-black text-sm">Are taxes included in the product price?</h4>
               <p className="leading-relaxed">
-                Yes, all displayed prices are fully inclusive of Goods & Services Tax (GST 12%). A GST tax invoice is automatically generated with your order reference.
+                Yes, all displayed prices are fully inclusive of Goods & Services Tax (GST 5%). A GST tax invoice is automatically generated with your order reference.
               </p>
             </div>
           </div>
@@ -156,41 +156,28 @@ export const PolicyPage: React.FC = () => {
           <div className="border-b border-[#E7E7E7] pb-6">
             <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-widest uppercase flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5" />
-              <span>BOUTIQUE & ATELIER PRESENCE</span>
+              <span>BRAND STUDIO &amp; LOCATION</span>
             </span>
             <h1 className="font-wondra text-3xl sm:text-4xl text-black mt-1">
-              FLAGSHIP ATELIER STUDIOS
+              TANOAH MAIN STUDIO
             </h1>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          <div className="max-w-xl text-xs">
             <div className="p-6 border border-[#E7E7E7] rounded-[4px] bg-[#FAFAFA] space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-wondra text-xl text-black">MUMBAI FLAGSHIP</h3>
-                <span className="bg-[#3F3F8F] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase">MAIN ATELIER</span>
+                <h3 className="font-wondra text-xl text-black">TANOAH STUDIO</h3>
+                <span className="bg-[#3F3F8F] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase">MAIN OFFICE</span>
               </div>
-              <p className="text-[#666666]">
-                Worli Sea Face, Worli, Mumbai 400018, Maharashtra, India
+              <p className="text-[#666666] leading-relaxed">
+                Tanoah<br />
+                Rappal, Pudukkad P O<br />
+                Thrissur, Kerala 680301
               </p>
               <div className="space-y-1 text-[#555555] pt-2 border-t border-[#E7E7E7]">
-                <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-[#3F3F8F]" /> Mon – Sat: 11:00 AM – 8:00 PM</p>
-                <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-[#3F3F8F]" /> +91 98765 43210</p>
-                <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-[#3F3F8F]" /> concierge@tanoah.com</p>
-              </div>
-            </div>
-
-            <div className="p-6 border border-[#E7E7E7] rounded-[4px] bg-[#FAFAFA] space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-wondra text-xl text-black">NEW DELHI SUITE</h3>
-                <span className="bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase">BY APPOINTMENT</span>
-              </div>
-              <p className="text-[#666666]">
-                The Chanakya, Chanakyapuri, New Delhi 110021, India
-              </p>
-              <div className="space-y-1 text-[#555555] pt-2 border-t border-[#E7E7E7]">
-                <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-[#3F3F8F]" /> Tue – Sun: 11:30 AM – 7:30 PM</p>
-                <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-[#3F3F8F]" /> +91 98765 43211</p>
-                <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-[#3F3F8F]" /> delhi@tanoah.com</p>
+                <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-[#3F3F8F]" /> Mon – Sat: 10:00 AM – 7:00 PM IST</p>
+                <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-[#3F3F8F]" /> +91 8714141849</p>
+                <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-[#3F3F8F]" /> connectus.tanoah@gmail.com</p>
               </div>
             </div>
           </div>

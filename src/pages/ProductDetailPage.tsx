@@ -297,7 +297,7 @@ export const ProductDetailPage: React.FC = () => {
   if (!product) {
     return (
       <div className="w-full bg-white font-poppins min-h-[65vh] flex flex-col items-center justify-center text-center px-4 py-20">
-        <span className="text-xs uppercase tracking-widest text-[#3F3F8F] font-semibold mb-2">Tanoah Atelier</span>
+        <span className="text-xs uppercase tracking-widest text-[#3F3F8F] font-semibold mb-2">Tanoah Collection</span>
         <h1 className="text-2xl sm:text-4xl font-wondra text-black mb-4">Product Not Found</h1>
         <p className="text-sm text-neutral-500 max-w-md mb-8">
           The creation you are seeking may have been archived or is temporarily unavailable.
@@ -632,7 +632,7 @@ export const ProductDetailPage: React.FC = () => {
                 wrapperClassName="w-full h-full"
               />
 
-              {/* Delayed On-Demand High-Definition Atelier Zoom (Only loaded when hovered) */}
+              {/* Delayed On-Demand High-Definition Zoom (Only loaded when hovered) */}
               {isZoomed && (
                 <div
                   className="absolute inset-0 pointer-events-none overflow-hidden"
@@ -664,7 +664,7 @@ export const ProductDetailPage: React.FC = () => {
               </button>
               {isZoomed && (
                 <div className="absolute bottom-3 left-3 bg-black/75 text-white text-[9px] px-2 py-1 rounded backdrop-blur-sm pointer-events-none uppercase tracking-wider font-semibold z-10">
-                  2.2x High-Definition Atelier Zoom (2400px Master)
+                  2.2x High-Definition Zoom (2400px Master)
                 </div>
               )}
             </div>
@@ -739,7 +739,7 @@ export const ProductDetailPage: React.FC = () => {
                 )}
               </div>
               <p className="text-[11px] text-[#888888] mt-1">
-                Inclusive of all taxes (GST 12%). SKU: <strong className="font-mono text-black">{activeVariant?.sku || 'TAN-ATELIER'}</strong>
+                Inclusive of all taxes (GST 5%). SKU: <strong className="font-mono text-black">{activeVariant?.sku || 'TAN-TANOAH'}</strong>
               </p>
             </div>
 
@@ -941,7 +941,7 @@ export const ProductDetailPage: React.FC = () => {
                       title: 'PRODUCT SPECIFICATIONS & FIT',
                       content:
                         (product.description || 'Artisanal silhouette with tailored drape.') +
-                        '\n\n• Artisanal tailoring with reinforced double-needle seams\n• Pre-shrunk to maintain exact dimensions\n• Made in atelier workshop with zero-waste cutting',
+                        '\n\n• Artisanal tailoring with reinforced double-needle seams\n• Pre-shrunk to maintain exact dimensions\n• Crafted in precision workshop with zero-waste cutting',
                     },
                     {
                       id: 'shipping',
@@ -974,7 +974,7 @@ export const ProductDetailPage: React.FC = () => {
                   className="w-full flex justify-between items-center text-black font-semibold uppercase tracking-wider"
                 >
                   <span className="flex items-center gap-2">
-                    <span>CLIENT ATELIER REVIEWS ({reviews.length})</span>
+                    <span>CLIENT REVIEWS ({reviews.length})</span>
                     <span className="flex text-amber-500 text-xs">
                       {'★'.repeat(Math.min(5, Math.max(1, Math.round(Number(avgRating)))))}
                     </span>
@@ -1031,7 +1031,7 @@ export const ProductDetailPage: React.FC = () => {
                   VERIFIED CLIENT FEEDBACK
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                  <ShieldCheck className="w-3 h-3" /> 100% Genuine Atelier Reviews
+                  <ShieldCheck className="w-3 h-3" /> 100% Genuine Verified Reviews
                 </span>
               </div>
               <h2 className="font-wondra text-2xl sm:text-3xl text-black">
@@ -1379,7 +1379,7 @@ export const ProductDetailPage: React.FC = () => {
           <div>
             <h3 className="font-semibold text-base text-black">Sign In to Rate & Review</h3>
             <p className="text-[#666666] mt-1 leading-relaxed">
-              To protect the authenticity of our atelier and preserve verified buyer integrity, product reviews and customer photos can only be submitted by registered TANOAH clients.
+              To protect authenticity and preserve verified buyer integrity, product reviews and customer photos can only be submitted by registered TANOAH clients.
             </p>
           </div>
           <div className="pt-2 flex flex-col gap-2">
@@ -1448,7 +1448,7 @@ export const ProductDetailPage: React.FC = () => {
       <Modal
         isOpen={isReviewModalOpen}
         onClose={() => setIsReviewModalOpen(false)}
-        title="WRITE AN ATELIER REVIEW"
+        title="WRITE A REVIEW"
         maxWidth="md"
       >
         <form onSubmit={handleSubmitReview} className="space-y-4 text-xs font-poppins">
@@ -1599,7 +1599,7 @@ export const ProductDetailPage: React.FC = () => {
               onClick={() => setIsPurchaseRequiredModalOpen(false)}
               className="w-full py-2.5 bg-black text-white font-semibold rounded text-xs uppercase tracking-wider hover:bg-[#3F3F8F] transition-colors inline-block"
             >
-              Explore Atelier Collection
+              Explore Tanoah Collection
             </Link>
             <Button
               variant="secondary"
@@ -1621,7 +1621,7 @@ export const ProductDetailPage: React.FC = () => {
       >
         <form onSubmit={handleSubscribeWaitlist} className="space-y-4 text-xs font-poppins">
           <p className="text-[#666666]">
-            Enter your email or mobile number below. Our atelier system will immediately notify you the moment <strong>{product.title} ({activeColorName} / {activeSizeName})</strong> is back in production.
+            Enter your email or mobile number below. Our team will immediately notify you the moment <strong>{product.title} ({activeColorName} / {activeSizeName})</strong> is back in production.
           </p>
 
           <div>
@@ -1644,7 +1644,7 @@ export const ProductDetailPage: React.FC = () => {
             </label>
             <input
               type="tel"
-              placeholder="+91 98765 43210"
+              placeholder="+91 8714141849"
               value={waitlistPhone}
               onChange={(e) => setWaitlistPhone(e.target.value)}
               className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"

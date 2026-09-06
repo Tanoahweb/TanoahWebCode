@@ -143,7 +143,7 @@ export const ProductListPage: React.FC = () => {
                               {product.title}
                             </div>
                             <div className="text-[10px] text-[#888888] font-mono">
-                              SKU: {variants[0]?.sku || 'TAN-ATELIER'}
+                              SKU: {variants[0]?.sku || 'TAN-TANOAH'}
                             </div>
                           </div>
                         </Link>

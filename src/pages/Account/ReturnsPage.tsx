@@ -46,7 +46,7 @@ export const ReturnsPage: React.FC = () => {
   const [isSavingConsignment, setIsSavingConsignment] = useState(false);
   const [consignmentSaved, setConsignmentSaved] = useState(false);
 
-  // Store settings (for WhatsApp and Atelier address)
+  // Store settings (for WhatsApp and return address)
   const [storeSettings, setStoreSettings] = useState<any>(null);
 
   const { addToast } = useUIStore();
@@ -131,7 +131,7 @@ export const ReturnsPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const selectedItem = verifiedOrder.items?.[selectedItemIndex] || {
-        product_title: 'Atelier Garment',
+        product_title: 'Tanoah Garment',
         variant_title: 'Standard',
       };
 
@@ -142,7 +142,7 @@ export const ReturnsPage: React.FC = () => {
         customer_name: `${verifiedOrder.shipping_address?.first_name || ''} ${verifiedOrder.shipping_address?.last_name || ''}`.trim() || 'Customer',
         customer_email: verifiedOrder.guest_email || '',
         customer_phone: customerContact || verifiedOrder.shipping_address?.phone || '',
-        product_title: selectedItem.product_title || selectedItem.product?.title || 'Atelier Garment',
+        product_title: selectedItem.product_title || selectedItem.product?.title || 'Tanoah Garment',
         variant_info: selectedItem.variant_title || selectedItem.variant?.size || 'Standard',
         delivered_at: verifiedOrder.delivered_at || verifiedOrder.updated_at,
         hours_since_delivery: hoursSinceDelivery ?? 0,
@@ -198,7 +198,7 @@ export const ReturnsPage: React.FC = () => {
   };
 
   const whatsappNumber =
-    storeSettings?.whatsapp_number || storeSettings?.support_phone?.replace(/\D/g, '') || '919876543210';
+    storeSettings?.whatsapp_number || storeSettings?.support_phone?.replace(/\D/g, '') || '918714141849';
 
   const generateWhatsAppUrl = () => {
     if (!submittedTicket) return `https://wa.me/${whatsappNumber}`;
@@ -277,13 +277,14 @@ export const ReturnsPage: React.FC = () => {
                 <span>Customer Self-Shipment Return Address</span>
               </div>
               <p className="text-[11px] text-[#666666]">
-                As per policy, Tanoah does not provide reverse pickup. Once your video is approved on WhatsApp, please dispatch the parcel to our atelier:
+                As per policy, Tanoah does not provide reverse pickup. Once your video is approved on WhatsApp, please dispatch the parcel to our return address:
               </p>
               <div className="p-3.5 bg-white border border-[#E7E7E7] rounded text-xs space-y-1 font-mono text-neutral-800">
-                <p className="font-bold text-black font-poppins">TANOAH ATELIER RETURNS HUB</p>
-                <p>Door No. 12/480, Fashion Craft Arcade</p>
-                <p>Near Civil Station, Kozhikode, Kerala - 673020</p>
-                <p className="pt-1 text-[#3F3F8F] font-semibold">Contact: +91 98765 43210</p>
+                <p className="font-bold text-black font-poppins">TANOAH RETURNS HUB</p>
+                <p>Tanoah</p>
+                <p>Rappal, Pudukkad P O</p>
+                <p>Thrissur, Kerala 680301</p>
+                <p className="pt-1 text-[#3F3F8F] font-semibold">Contact: +91 8714141849</p>
               </div>
               <p className="text-[10px] text-red-600 font-medium">
                 ⚠️ Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.
@@ -476,7 +477,7 @@ export const ReturnsPage: React.FC = () => {
                             />
                             <div className="flex-1 text-xs">
                               <div className="font-semibold text-black">
-                                {item.product_title || item.product?.title || 'Atelier Item'}
+                                {item.product_title || item.product?.title || 'Tanoah Item'}
                               </div>
                               <div className="text-[10px] text-[#666666]">
                                 {item.variant_title || item.variant?.size} • Qty {item.quantity}
@@ -514,7 +515,7 @@ export const ReturnsPage: React.FC = () => {
                     <input
                       required
                       type="tel"
-                      placeholder="e.g. +91 98765 43210"
+                      placeholder="e.g. +91 8714141849"
                       value={customerContact}
                       onChange={(e) => setCustomerContact(e.target.value)}
                       className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F] text-xs"
@@ -579,7 +580,7 @@ export const ReturnsPage: React.FC = () => {
                       className="accent-[#3F3F8F] w-4 h-4 mt-0.5 rounded cursor-pointer shrink-0"
                     />
                     <span className="text-[#333333] leading-relaxed">
-                      I understand that <strong>Tanoah does not provide reverse pickup</strong>, and I will self-ship the package to the atelier address at my own expense.
+                      I understand that <strong>Tanoah does not provide reverse pickup</strong>, and I will self-ship the package to the returns address at my own expense.
                     </span>
                   </label>
                 </div>

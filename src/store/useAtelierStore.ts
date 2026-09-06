@@ -40,11 +40,11 @@ export interface AtelierSectionConfig {
 export const DEFAULT_ATELIER_CONFIG: AtelierSectionConfig = {
   isEnabled: true,
 
-  imageUrl: '/Assets/editorial/tanoah-women-atelier.jpg',
-  imageAlt: 'Tanoah Women Atelier Collection',
+  imageUrl: '/Assets/editorial/tanoah-women-collection.jpg',
+  imageAlt: 'Tanoah Women Collection',
   objectPosition: 'center 30%',
 
-  previewTitle: "THE WOMEN'S ATELIER",
+  previewTitle: "THE WOMEN'S COLLECTION",
   showPreviewTitle: true,
 
   showBadge: true,
@@ -63,7 +63,7 @@ export const DEFAULT_ATELIER_CONFIG: AtelierSectionConfig = {
   primaryButtonLink: '/collections/women',
 
   showSecondaryButton: true,
-  secondaryButtonText: 'VIEW ATELIER LOOKBOOK',
+  secondaryButtonText: 'VIEW LOOKBOOK',
   secondaryButtonLink: '/lookbook',
 };
 

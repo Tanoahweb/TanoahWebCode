@@ -1,4 +1,4 @@
-﻿import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home, MessageCircle, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { Button } from './Button';
 
@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Atelier ErrorBoundary caught an unhandled exception:', error, errorInfo);
+    console.error('Tanoah ErrorBoundary caught an unhandled exception:', error, errorInfo);
     this.setState({ errorInfo });
   }
 
@@ -77,7 +77,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             {/* Error Status Badge */}
             <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200/60 px-3.5 py-1.5 rounded-full text-[11px] font-semibold tracking-widest uppercase text-amber-900">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span>ATELIER SERVICE NOTICE</span>
+              <span>TANOAH SERVICE NOTICE</span>
             </div>
 
             {/* Main Headline */}
@@ -87,7 +87,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
             {/* Subtitle */}
             <p className="text-xs sm:text-sm text-[#666666] leading-relaxed max-w-md mx-auto">
-              We sincerely apologize for this interruption. Our atelier concierges have been alerted. You may reload this creation or return to the main salon.
+              We sincerely apologize for this interruption. Our customer concierge team has been alerted. You may reload this page or return to the main store.
             </p>
 
             {/* Action Buttons */}
@@ -116,7 +116,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             {/* Direct Concierge Contact */}
             <div className="pt-2">
               <a
-                href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                href={`https://wa.me/918714141849?text=${encodeURIComponent(
                   `Hello Tanoah Concierge, I encountered a technical issue on: ${window.location.href}`
                 )}`}
                 target="_blank"
@@ -175,7 +175,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           </div>
 
           <div className="text-center text-[11px] text-neutral-400 pt-8">
-            &copy; {new Date().getFullYear()} TANOAH ATELIER. ALL RIGHTS RESERVED.
+            &copy; {new Date().getFullYear()} TANOAH. ALL RIGHTS RESERVED.
           </div>
         </div>
       );

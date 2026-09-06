@@ -60,7 +60,7 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
     year: 'numeric',
   });
 
-  const taxRate = 0.12; // 12% GST
+  const taxRate = 0.05; // 5% GST
   const taxableValue = Math.round(order.subtotal / (1 + taxRate));
   const totalGst = order.subtotal - taxableValue;
   const cgst = Math.round(totalGst / 2);
@@ -104,12 +104,13 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
             <div>
               <img src="/Assets/brand/logo-blue.png" alt="TANOAH" className="h-8 w-auto mb-2" />
               <div className="text-[11px] font-semibold text-black uppercase tracking-wider">
-                TANOAH PRIVATE LIMITED
+                TANOAH
               </div>
               <div className="text-[10px] text-[#666666] leading-relaxed mt-0.5">
-                Suite 401, Heritage Tower, Ballard Estate, Fort<br />
-                Mumbai 400001, Maharashtra, India<br />
-                <strong>GSTIN:</strong> 27AAAAA0000A1Z5 | <strong>State Code:</strong> 27
+                Rappal, Pudukkad P O<br />
+                Thrissur, Kerala 680301<br />
+                <strong>Email:</strong> connectus.tanoah@gmail.com | <strong>Mobile:</strong> 8714141849<br />
+                <strong>GSTIN:</strong> 32AAAAA0000A1Z5 | <strong>State Code:</strong> 32 (Kerala)
               </div>
             </div>
             <div className="text-right">
@@ -188,9 +189,9 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
           {/* Calculation Breakdown */}
           <div className="border-t border-[#E7E7E7] pt-4 flex justify-between items-start">
             <div className="w-1/2 space-y-1.5 text-[10px] text-[#666666]">
-              <p><strong>Tax Summary (12% Included):</strong></p>
+              <p><strong>Tax Summary (5% GST Included):</strong></p>
               <p>Taxable Value: {formatPrice(taxableValue)}</p>
-              <p>CGST (6%): {formatPrice(cgst)} | SGST (6%): {formatPrice(sgst)}</p>
+              <p>CGST (2.5%): {formatPrice(cgst)} | SGST (2.5%): {formatPrice(sgst)}</p>
               <p className="mt-2 italic">This is an authorized computer-generated tax invoice and requires no physical signature.</p>
             </div>
 

@@ -30,7 +30,7 @@ const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
     author_name: 'Aarav Mehta (Mumbai)',
     rating: 5,
     title: 'Unmatched Fabric Quality & Drape',
-    review_text: 'The Heavyweight Oversized Tee exceeded all my expectations. The neckline holds its shape perfectly after dozens of washes, and the cut has that high-end atelier feel.',
+    review_text: 'The Heavyweight Oversized Tee exceeded all my expectations. The neckline holds its shape perfectly after dozens of washes, and the cut has that high-end designer feel.',
     image_urls: ['/Assets/editorial/lookbook-hero-ivory.jpg'],
     is_verified_buyer: true,
     status: 'approved',
@@ -262,7 +262,7 @@ export const CustomerReviewsSection: React.FC = () => {
       const authorFormatted = city.trim() ? `${author.trim()} (${city.trim()})` : author.trim();
       const res = await api.submitReview({
         product_id: selectedProductId || (purchasedProducts[0]?.id ?? products[0]?.id ?? 'general'),
-        product_title: prod?.title || 'Atelier Collection',
+        product_title: prod?.title || 'Tanoah Collection',
         user_id: user.id,
         author_name: authorFormatted,
         rating,
@@ -321,7 +321,7 @@ export const CustomerReviewsSection: React.FC = () => {
                 ))}
               </div>
               <span className="font-bold text-black text-sm">4.9 / 5.0</span>
-              <span className="text-[#888888] text-xs">• Verified Atelier Connoisseurs</span>
+              <span className="text-[#888888] text-xs">• Verified Customer Reviews</span>
             </div>
             <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
               CLIENT TESTIMONIALS
@@ -494,7 +494,7 @@ export const CustomerReviewsSection: React.FC = () => {
           <div>
             <h3 className="font-semibold text-base text-black">Sign In to Post a Testimonial</h3>
             <p className="text-[#666666] mt-1 leading-relaxed">
-              To protect the authenticity of our atelier and preserve verified client feedback, reviews can only be submitted by registered TANOAH clients.
+              To protect authenticity and preserve verified client feedback, reviews can only be submitted by registered TANOAH clients.
             </p>
           </div>
           <div className="pt-2 flex flex-col gap-2">
@@ -568,7 +568,7 @@ export const CustomerReviewsSection: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="WRITE AN ATELIER TESTIMONIAL"
+        title="WRITE A REVIEW"
         maxWidth="md"
       >
         <form onSubmit={handleSubmitTestimonial} className="space-y-4 text-xs font-poppins text-left">
@@ -749,7 +749,7 @@ export const CustomerReviewsSection: React.FC = () => {
               onClick={() => setIsPurchaseRequiredModalOpen(false)}
               className="w-full py-2.5 bg-black text-white font-semibold rounded text-xs uppercase tracking-wider hover:bg-[#3F3F8F] transition-colors inline-block"
             >
-              Explore Atelier Collection
+              Explore Tanoah Collection
             </Link>
             <Button
               variant="secondary"

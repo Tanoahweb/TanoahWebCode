@@ -307,7 +307,7 @@ export const AccountPage: React.FC = () => {
                   <div className="p-8 text-center bg-[#FAFAFA] border border-[#E7E7E7] rounded-[4px] space-y-3">
                     <Package className="w-8 h-8 text-[#888888] mx-auto" />
                     <h4 className="font-semibold text-black">No purchases yet</h4>
-                    <p className="text-xs text-[#666666]">Explore our atelier collections and discover refined essentials.</p>
+                    <p className="text-xs text-[#666666]">Explore our collections and discover refined essentials.</p>
                     <Link to="/collections/all">
                       <Button variant="primary" size="sm">Explore Collections</Button>
                     </Link>
@@ -392,7 +392,7 @@ export const AccountPage: React.FC = () => {
                             {ord.items?.map((it: any, idx: number) => (
                               <div key={idx} className="flex justify-between items-center text-xs">
                                 <span className="font-medium text-black">
-                                  {it.product?.title || it.product_title || 'Garment Piece'} ({it.variant?.color_name || it.variant_title || 'Atelier'} / {it.variant?.size || ''})
+                                  {it.product?.title || it.product_title || 'Garment Piece'} ({it.variant?.color_name || it.variant_title || 'Standard'} / {it.variant?.size || ''})
                                 </span>
                                 <span className="text-[#666666]">Qty: {it.quantity}</span>
                               </div>
@@ -417,11 +417,11 @@ export const AccountPage: React.FC = () => {
                                   firstName: ord.shipping_address?.first_name || profile?.full_name?.split(' ')[0] || 'Client',
                                   lastName: ord.shipping_address?.last_name || profile?.full_name?.split(' ')[1] || '',
                                   email: ord.guest_email || user?.email || 'client@example.com',
-                                  phone: ord.guest_phone || ord.shipping_address?.phone || '+91 98765 43210',
-                                  address: ord.shipping_address?.address || 'Bespoke Atelier Delivery Address',
-                                  city: ord.shipping_address?.city || 'Mumbai',
-                                  state: ord.shipping_address?.state || 'Maharashtra',
-                                  postalCode: ord.shipping_address?.postal_code || '400001',
+                                  phone: ord.guest_phone || ord.shipping_address?.phone || '+91 8714141849',
+                                  address: ord.shipping_address?.address || 'Delivery Address',
+                                  city: ord.shipping_address?.city || 'Thrissur',
+                                  state: ord.shipping_address?.state || 'Kerala',
+                                  postalCode: ord.shipping_address?.postal_code || '680301',
                                   paymentMethod: ord.payment_method || 'online',
                                 }
                               })}
@@ -501,7 +501,7 @@ export const AccountPage: React.FC = () => {
                         <input
                           required
                           type="tel"
-                          placeholder="+91 98765 43210"
+                          placeholder="+91 8714141849"
                           value={newAddressForm.phone}
                           onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
                           className="w-full p-2 border border-[#E7E7E7] rounded-[4px] bg-white text-xs"
@@ -714,7 +714,7 @@ export const AccountPage: React.FC = () => {
                         type="tel"
                         value={profilePhone}
                         onChange={(e) => setProfilePhone(e.target.value)}
-                        placeholder="+91 98765 43210"
+                        placeholder="+91 8714141849"
                         className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
                       />
                     </div>

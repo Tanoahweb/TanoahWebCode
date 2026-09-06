@@ -60,7 +60,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Coupons & Discounts', icon: <Tag className="w-4 h-4" />, path: '/admin/coupons' },
     { label: 'Reviews & Testimonials', icon: <Star className="w-4 h-4" />, path: '/admin/reviews' },
     { label: 'Payment Gateways', icon: <CreditCard className="w-4 h-4" />, path: '/admin/settings?tab=payments' },
-    { label: 'Atelier Editorial Section', icon: <Sparkles className="w-4 h-4" />, path: '/admin/settings?tab=editorial' },
+    { label: 'Featured Editorial Section', icon: <Sparkles className="w-4 h-4" />, path: '/admin/settings?tab=editorial' },
     { label: 'Special Offer Popup', icon: <Gift className="w-4 h-4" />, path: '/admin/settings?tab=offer_popup' },
     { label: 'Store & Tax Settings', icon: <Settings className="w-4 h-4" />, path: '/admin/settings' },
   ];

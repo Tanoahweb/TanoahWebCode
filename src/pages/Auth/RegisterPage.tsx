@@ -131,7 +131,7 @@ export const RegisterPage: React.FC = () => {
             <div className="relative">
               <input
                 type="tel"
-                placeholder="+91 98765 43210"
+                placeholder="+91 8714141849"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"

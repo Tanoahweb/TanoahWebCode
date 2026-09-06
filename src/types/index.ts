@@ -74,7 +74,7 @@ export interface Product {
   sale_price?: number | null;
   compare_at_price?: number | null;
   cost_price?: number;
-  tax_rate?: number; // percentage, e.g., 12 for 12% GST
+  tax_rate?: number; // percentage, e.g., 5 for 5% GST
   hsn_code?: string;
   status: ProductStatus;
   is_featured: boolean;

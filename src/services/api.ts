@@ -759,7 +759,7 @@ export const api = {
       sale_price: sanitized.sale_price ?? null,
       compare_at_price: sanitized.compare_at_price ?? null,
       cost_price: sanitized.cost_price ?? null,
-      tax_rate: sanitized.tax_rate || 12,
+      tax_rate: sanitized.tax_rate ?? 5,
       hsn_code: sanitized.hsn_code ?? null,
       status: sanitized.status || 'active',
       is_featured: !!sanitized.is_featured,
@@ -921,7 +921,7 @@ export const api = {
         author_name: 'Meera R.',
         rating: 5,
         title: 'Effortless Luxury Aesthetic',
-        review_text: 'Subtle, understated elegance. The stitching details and tactile feel match international atelier standards.',
+        review_text: 'Subtle, understated elegance. The stitching details and tactile feel match international designer standards.',
         is_verified_buyer: true,
         status: 'approved',
         is_featured: false,
@@ -993,7 +993,7 @@ export const api = {
 
     return {
       success: true,
-      message: 'Review submitted for atelier verification! It will appear publicly once approved by our moderation team.',
+      message: 'Review submitted for verification! It will appear publicly once approved by our moderation team.',
       review: newReview,
     };
   },
@@ -1013,7 +1013,7 @@ export const api = {
       if (!error && data && data.length > 0) {
         remoteReviews = data.map((item: any) => ({
           ...item,
-          product_title: item.products?.title || item.product_title || 'Atelier Signature Piece',
+          product_title: item.products?.title || item.product_title || 'Tanoah Signature Piece',
         }));
       }
     } catch {
@@ -1033,7 +1033,7 @@ export const api = {
         if (data) {
           const addl = data.map((item: any) => ({
             ...item,
-            product_title: item.products?.title || item.product_title || 'Atelier Signature Piece',
+            product_title: item.products?.title || item.product_title || 'Tanoah Signature Piece',
           }));
           remoteReviews = [...remoteReviews, ...addl];
         }
@@ -1070,7 +1070,7 @@ export const api = {
       if (!error && data) {
         dbReviews = data.map((item: any) => ({
           ...item,
-          product_title: item.products?.title || item.product_title || 'Atelier Product',
+          product_title: item.products?.title || item.product_title || 'Tanoah Product',
         }));
       }
     } catch (err) {
@@ -1255,7 +1255,7 @@ export const api = {
           );
 
           const id = catalogMatch?.id || rawId || `purchased_${Date.now()}`;
-          const title = catalogMatch?.title || rawTitle || 'Atelier Garment';
+          const title = catalogMatch?.title || rawTitle || 'Tanoah Garment';
           const image =
             catalogMatch?.images?.find((img) => img.is_primary)?.image_url ||
             catalogMatch?.images?.[0]?.image_url ||
@@ -1615,7 +1615,7 @@ export const api = {
             order_id: orderData.id,
             product_id: isUuid(item.product?.id) ? item.product.id : null,
             variant_id: isUuid(item.variant?.id) ? item.variant.id : null,
-            product_title: item.product?.title || 'Atelier Product',
+            product_title: item.product?.title || 'Tanoah Product',
             variant_title: `${item.variant?.color_name || 'Standard'} / ${item.variant?.size || 'Free'}`,
             sku: item.variant?.sku || 'TAN-SKU',
             image_url: itemImg,
@@ -1775,7 +1775,7 @@ export const api = {
         return_type: 'return',
         reason: params.reason || 'Damaged in Transit',
         customer_description: params.customer_description || '',
-        product_title: params.product_title || 'Atelier Garment',
+        product_title: params.product_title || 'Tanoah Garment',
         variant_info: params.variant_info || 'Standard',
         delivered_at: params.delivered_at || order?.delivered_at || order?.updated_at || null,
         hours_since_delivery: params.hours_since_delivery ?? 0,
@@ -2039,7 +2039,7 @@ export const api = {
           return_type: rr.return_type || 'return',
           reason: rr.reason || 'General Return',
           customer_description: rr.customer_description || '',
-          product_title: 'Atelier Apparel',
+          product_title: 'Tanoah Apparel',
           variant_info: 'Standard',
           status: rr.status || 'requested',
           created_at: rr.created_at || new Date().toISOString(),
@@ -2053,18 +2053,6 @@ export const api = {
         order_number: 'TAN-849201',
         customer_name: 'Aditya Sharma',
         customer_email: 'aditya.sharma@example.com',
-        customer_phone: '+91 98450 12345',
-        return_type: 'return',
-        reason: 'Damaged in Transit (Stitching Defect)',
-        customer_description: 'Parcel arrived with sleeve seam torn. 360° unboxing video shared on WhatsApp.',
-        product_title: 'Signature Heavyweight Oversized Tee',
-        variant_info: 'Noir Black / M',
-        status: 'awaiting_video',
-        hours_since_delivery: 4.5,
-        tag_intact_confirmed: true,
-        unboxing_video_confirmed: true,
-        self_ship_confirmed: true,
-        customer_courier_name: '',
         customer_consignment_no: '',
         created_at: new Date(Date.now() - 3600000 * 4.5).toISOString(),
       },
@@ -2126,7 +2114,7 @@ export const api = {
         id: 'c-vip-1',
         name: 'Aditya Sharma',
         email: 'aditya.sharma@example.com',
-        phone: '+91 98765 43210',
+        phone: '+91 8714141849',
         city: 'Mumbai, Maharashtra',
         totalOrders: 4,
         lifetimeValue: 18992,

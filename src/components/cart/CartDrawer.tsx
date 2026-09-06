@@ -462,7 +462,7 @@ export const CartDrawer: React.FC = () => {
               {/* Curated Capsule Upsell */}
               <div className="pt-3 border-t border-[#E7E7E7] space-y-2">
                 <span className="text-[10px] font-semibold text-[#3F3F8F] uppercase tracking-wider block text-left">
-                  PAIR WITH ATELIER ESSENTIALS
+                  PAIR WITH TANOAH ESSENTIALS
                 </span>
                 <div className="space-y-2">
                   {SAMPLE_PRODUCTS.filter((p) => !items.some((i) => i.product.id === p.id)).slice(0, 2).map((upsell) => (

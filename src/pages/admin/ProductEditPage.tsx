@@ -161,11 +161,11 @@ export const ProductEditPage: React.FC = () => {
   const [basePrice, setBasePrice] = useState<number>(2499);
   const [compareAtPrice, setCompareAtPrice] = useState<number>(2999);
   const [costPrice, setCostPrice] = useState<number>(850);
-  const [taxRate, setTaxRate] = useState<number>(12);
+  const [taxRate, setTaxRate] = useState<number>(5);
   const [hsnCode, setHsnCode] = useState('61091000');
   const [shortDescription, setShortDescription] = useState('');
   const [description, setDescription] = useState('');
-  const [tags, setTags] = useState('Luxury, Handcrafted, Atelier, Bespoke');
+  const [tags, setTags] = useState('Luxury, Handcrafted, Tanoah, Bespoke');
   const [isFeatured, setIsFeatured] = useState(false);
   const [isBestSeller, setIsBestSeller] = useState(false);
   const [isNewArrival, setIsNewArrival] = useState(true);
@@ -176,7 +176,7 @@ export const ProductEditPage: React.FC = () => {
       id: 'sec_spec',
       title: 'PRODUCT SPECIFICATIONS & FIT',
       content:
-        '• Fabric: 100% Pure Mulberry Silk Crepe\n• Weave: Dense French Atelier Weave\n• Silhouette: Tailored fluid drape with reinforced seams\n• Fit: True to size. Select your standard size for bespoke fit.',
+        '• Fabric: 100% Pure Mulberry Silk Crepe\n• Weave: Fine Dense Weave\n• Silhouette: Tailored fluid drape with reinforced seams\n• Fit: True to size. Select your standard size for bespoke fit.',
     },
     {
       id: 'sec_ship',
@@ -388,7 +388,7 @@ export const ProductEditPage: React.FC = () => {
             setBasePrice(Number(match.base_price) || 0);
             setCompareAtPrice(Number(match.compare_at_price) || Number(match.base_price) || 0);
             setCostPrice(Number(match.cost_price) || 850);
-            setTaxRate(Number(match.tax_rate) || 12);
+            setTaxRate(Number(match.tax_rate) || 5);
             setHsnCode(match.hsn_code || '61091000');
             setStatus(match.status || 'active');
             setDescription(match.description || '');
@@ -1029,7 +1029,7 @@ export const ProductEditPage: React.FC = () => {
             </Link>
             <div>
               <h1 className="font-wondra text-2xl sm:text-3xl text-black">
-                {isEditing ? 'EDIT PRODUCT' : 'CREATE ATELIER PRODUCT'}
+                {isEditing ? 'EDIT PRODUCT' : 'CREATE PRODUCT'}
               </h1>
               <p className="text-[#666666] mt-0.5">
                 Drag-and-drop media, color-specific image assignment, custom accordion headings, and variants.
@@ -1371,7 +1371,7 @@ export const ProductEditPage: React.FC = () => {
                               type="button"
                               onClick={() => setIsColorPaletteOpen(!isColorPaletteOpen)}
                               className="flex items-center justify-center p-0.5 rounded-full border border-neutral-400 bg-white hover:border-[#3F3F8F] shadow-xs hover:scale-105 transition-transform"
-                              title="Click to open Atelier Colour Palette"
+                              title="Click to open Colour Palette"
                             >
                               <span
                                 className="w-5 h-5 rounded-full block shadow-inner"
@@ -1390,7 +1390,7 @@ export const ProductEditPage: React.FC = () => {
                                   <div className="flex justify-between items-center pb-1.5 border-b border-[#E7E7E7]">
                                     <span className="text-[11px] font-bold text-black uppercase tracking-wider flex items-center gap-1.5">
                                       <Palette className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                                      <span>ATELIER COLOUR PALETTE</span>
+                                      <span>COLOUR PALETTE</span>
                                     </span>
                                     <button
                                       type="button"

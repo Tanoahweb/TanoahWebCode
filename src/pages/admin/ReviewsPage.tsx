@@ -342,7 +342,7 @@ export const ReviewsPage: React.FC = () => {
         {isLoading ? (
           <div className="bg-white p-12 rounded border border-[#E7E7E7] text-center text-[#888888]">
             <div className="w-8 h-8 border-2 border-neutral-300 border-t-[#3F3F8F] rounded-full animate-spin mx-auto mb-3" />
-            <p>Loading atelier reviews and testimonials...</p>
+            <p>Loading client reviews and testimonials...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white p-12 rounded border border-[#E7E7E7] text-center">

@@ -61,7 +61,7 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
           id: 'bnr_shop',
           badge: 'LIMITED EDITION',
           title: 'THE TIMELESS CAPSULE',
-          subtitle: 'Handcrafted in limited runs using pure Mulberry silk and French atelier weaves.',
+          subtitle: 'Handcrafted in limited runs using pure Mulberry silk and artisanal weaves.',
           image_url: '/Assets/editorial/lookbook-drape-indigo.jpg',
           cta_label: 'DISCOVER NOW',
           cta_url: '/collections/new-arrivals',
@@ -92,7 +92,7 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
           },
           {
             id: 'col_men_casual',
-            title: 'CASUAL ATELIER',
+            title: 'CASUAL LUXURY',
             view_all_label: 'VIEW ALL',
             view_all_url: '/collections/men',
             links: [
@@ -117,7 +117,7 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
         ],
         banner: {
           id: 'bnr_men',
-          badge: 'ATELIER TAILORING',
+          badge: 'MASTER TAILORING',
           title: 'BESPOKE MENSWEAR',
           subtitle: 'Precision architectural silhouettes cut from structured organic cottons and pure linen.',
           image_url: '/Assets/editorial/lookbook-hero-ivory.jpg',
@@ -175,10 +175,10 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
         ],
         banner: {
           id: 'bnr_women',
-          badge: 'SPRING ATELIER',
+          badge: 'SPRING COLLECTION',
           title: 'FLUID DRAPES & SILK',
           subtitle: 'Multi-ply mulberry silk georgettes and tailored linen blends designed for timeless grace.',
-          image_url: '/Assets/editorial/tanoah-women-atelier.jpg',
+          image_url: '/Assets/editorial/tanoah-women-collection.jpg',
           cta_label: 'EXPLORE WOMEN',
           cta_url: '/collections/women',
           is_active: true,

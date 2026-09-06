@@ -64,13 +64,13 @@ export const StoreSettingsPage: React.FC = () => {
     storeName: 'TANOAH',
     currency: 'INR',
     currencySymbol: '₹',
-    contactEmail: 'concierge@tanoah.com',
-    phone: '+91 98765 43210',
+    contactEmail: 'connectus.tanoah@gmail.com',
+    phone: '+91 8714141849',
     freeShippingThreshold: 1999,
     standardShippingFee: 99,
     expressShippingFee: 199,
-    gstNumber: '27AAAAA0000A1Z5',
-    defaultTaxRate: 12,
+    gstNumber: '32AAAAA0000A1Z5',
+    defaultTaxRate: 5,
   });
 
   // Storage analytics state
@@ -123,13 +123,13 @@ export const StoreSettingsPage: React.FC = () => {
           storeName: s.store_name || s.storeName || 'TANOAH',
           currency: s.currency || 'INR',
           currencySymbol: s.currency_symbol || s.currencySymbol || '₹',
-          contactEmail: s.contact_email || s.contactEmail || 'concierge@tanoah.com',
-          phone: s.contact_phone || s.phone || '+91 98765 43210',
+          contactEmail: s.contact_email || s.contactEmail || 'connectus.tanoah@gmail.com',
+          phone: s.contact_phone || s.phone || '+91 8714141849',
           freeShippingThreshold: s.free_shipping_threshold || s.freeShippingThreshold || 1999,
           standardShippingFee: s.standard_shipping_rate || s.standardShippingFee || 99,
           expressShippingFee: s.express_shipping_rate || s.expressShippingFee || 199,
-          gstNumber: s.gst_number || s.gstNumber || '27AAAAA0000A1Z5',
-          defaultTaxRate: s.default_tax_rate || s.defaultTaxRate || 12,
+          gstNumber: s.gst_number || s.gstNumber || '32AAAAA0000A1Z5',
+          defaultTaxRate: s.default_tax_rate || s.defaultTaxRate || 5,
         });
       }
     });
@@ -323,7 +323,7 @@ export const StoreSettingsPage: React.FC = () => {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>Atelier Editorial Section</span>
+            <span>Featured Editorial Section</span>
           </button>
           <button
             onClick={() => {
@@ -375,7 +375,7 @@ export const StoreSettingsPage: React.FC = () => {
         {/* Tab: Payment Gateways (Razorpay & Cashfree) */}
         {activeTab === 'payments' && <PaymentGatewaysSettingsTab />}
 
-        {/* Tab 0: Atelier Editorial Section */}
+        {/* Tab 0: Featured Editorial Section */}
         {activeTab === 'editorial' && <AtelierSettingsTab />}
 
         {/* Tab 0.5: Special Offer Popup */}
@@ -528,7 +528,7 @@ export const StoreSettingsPage: React.FC = () => {
                   <span>Luxury Editorial Template</span>
                 </div>
                 <div className="text-[11px] text-[#666666] pt-1">
-                  Automated dispatch with order details, tracking link & atelier concierge
+                  Automated dispatch with order details, tracking link & customer concierge
                 </div>
               </div>
             </div>
