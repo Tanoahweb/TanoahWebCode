@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { X, Trash2, Heart, ArrowRight, ShoppingBag, Tag } from 'lucide-react';
+import { X, Trash2, Heart, ArrowRight, ShoppingBag, Tag, Sparkles, Check } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -9,8 +9,9 @@ import { formatPrice } from '../../utils/formatters';
 import { Button } from '../common/Button';
 import { getLenis } from '../../animations/smoothScroll';
 
-import { api } from '../../services/api';
+import { api, isProductInCollection } from '../../services/api';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
+import { Coupon, Collection } from '../../types';
 
 export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
@@ -28,12 +29,37 @@ export const CartDrawer: React.FC = () => {
     freeShippingThreshold,
     coupon,
     applyCoupon,
+    validateCurrentCoupon,
   } = useCartStore();
 
   const { addItem: addToWishlist } = useWishlistStore();
   const { addToast } = useUIStore();
 
   const [couponInput, setCouponInput] = useState('');
+  const [isOffersOpen, setIsOffersOpen] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [isApplying, setIsApplying] = useState(false);
+  const [popupCouponInput, setPopupCouponInput] = useState('');
+
+  // Validate coupon whenever items change so invalid coupon is not falsely shown
+  useEffect(() => {
+    validateCurrentCoupon();
+  }, [items, validateCurrentCoupon]);
+
+  // Load available coupons and collections
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([api.getCoupons(), api.getCollections()]).then(([cpns, cols]) => {
+      if (isMounted) {
+        setAvailableCoupons(cpns || []);
+        setCollections(cols || []);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const lenis = getLenis();
@@ -57,23 +83,103 @@ export const CartDrawer: React.FC = () => {
   const shipping = getShippingFee();
   const grandTotal = getGrandTotal();
 
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = couponInput.trim().toUpperCase();
-    if (!code) return;
+  const handleApplyCode = async (codeToApply: string) => {
+    const clean = codeToApply.trim().toUpperCase();
+    if (!clean) return;
 
+    setIsApplying(true);
     try {
-      const res = await api.validateCoupon(code, subtotal, items);
+      const res = await api.validateCoupon(clean, subtotal, items);
       if (res.valid && res.coupon) {
         applyCoupon(res.coupon);
-        addToast({ type: 'success', title: 'Coupon Applied', description: res.message });
+        addToast({ type: 'success', title: 'Offer Applied!', description: res.message });
         setCouponInput('');
+        setPopupCouponInput('');
+        setIsOffersOpen(false);
       } else {
         addToast({ type: 'error', title: 'Invalid Coupon', description: res.message });
       }
     } catch {
       addToast({ type: 'error', title: 'Coupon Error', description: 'Could not validate coupon.' });
+    } finally {
+      setIsApplying(false);
     }
+  };
+
+  const getCouponEvaluation = (c: Coupon) => {
+    const isApplied = coupon?.code.toUpperCase() === c.code.toUpperCase();
+    const hasCollections = Boolean(c.eligible_collections && c.eligible_collections.length > 0);
+
+    let isEligible = true;
+    let difference = 0;
+    let eligibleSubtotal = subtotal;
+    let descriptionText = '';
+    let savingsText = '';
+
+    const colNames = hasCollections
+      ? c.eligible_collections!
+          .map((slug) => collections.find((col) => col.slug === slug || col.id === slug)?.title || slug)
+          .join(', ')
+      : '';
+
+    if (hasCollections) {
+      const matchingItems = items.filter((item) =>
+        c.eligible_collections!.some((colSlug) => isProductInCollection(item.product, colSlug))
+      );
+
+      if (matchingItems.length === 0) {
+        isEligible = false;
+        descriptionText = `Add items from "${colNames}" to unlock this offer`;
+      } else {
+        eligibleSubtotal = matchingItems.reduce((acc, item) => {
+          const price =
+            item.variant?.sale_price ??
+            item.variant?.price ??
+            item.product?.sale_price ??
+            item.product?.base_price ??
+            0;
+          return acc + price * item.quantity;
+        }, 0);
+
+        if (c.min_spend && eligibleSubtotal < c.min_spend) {
+          isEligible = false;
+          difference = Math.round(c.min_spend - eligibleSubtotal);
+          descriptionText = `Add ₹${difference.toLocaleString('en-IN')} more of "${colNames}" to get this offer`;
+        }
+      }
+    } else {
+      if (c.min_spend && subtotal < c.min_spend) {
+        isEligible = false;
+        difference = Math.round(c.min_spend - subtotal);
+        descriptionText = `Add ₹${difference.toLocaleString('en-IN')} more to get this offer`;
+      }
+    }
+
+    if (isEligible) {
+      if (c.discount_type === 'percentage') {
+        let estSave = (eligibleSubtotal * c.discount_value) / 100;
+        if (c.max_discount && estSave > c.max_discount) estSave = c.max_discount;
+        savingsText = `Save ₹${Math.round(estSave).toLocaleString('en-IN')}`;
+      } else if (c.discount_type === 'fixed') {
+        const estSave = Math.min(c.discount_value, eligibleSubtotal);
+        savingsText = `Save ₹${Math.round(estSave).toLocaleString('en-IN')}`;
+      } else if (c.discount_type === 'free_shipping') {
+        savingsText = 'Free Express Delivery';
+      }
+      if (!descriptionText) {
+        descriptionText = c.description || (c.min_spend ? `Valid on orders above ₹${c.min_spend.toLocaleString('en-IN')}` : 'Storewide instant offer');
+      }
+    }
+
+    return {
+      isApplied,
+      isEligible,
+      difference,
+      descriptionText,
+      savingsText,
+      hasCollections,
+      colNames,
+    };
   };
 
   const handleMoveToWishlist = (item: any) => {
@@ -281,32 +387,75 @@ export const CartDrawer: React.FC = () => {
                   <div className="flex items-center justify-between bg-[#EEEEF8] p-2.5 rounded-[4px] border border-[#3F3F8F]/20">
                     <div className="flex items-center gap-2">
                       <Tag className="w-4 h-4 text-[#3F3F8F]" />
-                      <span className="font-semibold text-[#3F3F8F]">{coupon.code}</span>
-                      <span className="text-[#666666]">({coupon.description})</span>
+                      <div>
+                        <span className="font-semibold text-[#3F3F8F] font-mono text-xs">{coupon.code}</span>
+                        <span className="text-[10px] text-[#666666] ml-1.5">
+                          ({coupon.discount_type === 'percentage' ? `${coupon.discount_value}% OFF` : coupon.discount_type === 'free_shipping' ? 'Free Shipping' : `₹${coupon.discount_value} OFF`})
+                        </span>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => applyCoupon(null)}
-                      className="text-xs text-red-500 hover:underline"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsOffersOpen(true)}
+                        className="text-xs text-[#3F3F8F] font-medium hover:underline flex items-center gap-1"
+                      >
+                        <Sparkles className="w-3 h-3" /> Offers
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyCoupon(null)}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Promo / Gift Code (e.g. TANOAH10)"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] uppercase placeholder-normal"
-                    />
+                  <div className="space-y-1.5">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Promo / Gift Code (e.g. TANOAH10)"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (couponInput.trim()) {
+                              handleApplyCode(couponInput);
+                            } else {
+                              setIsOffersOpen(true);
+                            }
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] uppercase placeholder-normal"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (couponInput.trim()) {
+                            handleApplyCode(couponInput);
+                          } else {
+                            setIsOffersOpen(true);
+                          }
+                        }}
+                        disabled={isApplying}
+                        className="px-4 py-2 bg-black text-white rounded-[4px] text-xs font-semibold hover:bg-[#3F3F8F] transition-colors flex items-center gap-1.5 shrink-0"
+                      >
+                        <Tag className="w-3.5 h-3.5 text-white/80" />
+                        {couponInput.trim() ? 'APPLY' : 'OFFERS'}
+                      </button>
+                    </div>
                     <button
-                      type="submit"
-                      className="px-4 py-2 bg-black text-white rounded-[4px] text-xs font-semibold hover:bg-[#3F3F8F] transition-colors"
+                      type="button"
+                      onClick={() => setIsOffersOpen(true)}
+                      className="text-[11px] text-[#3F3F8F] hover:underline font-medium flex items-center gap-1 text-left pt-0.5"
                     >
-                      APPLY
+                      <Sparkles className="w-3 h-3 text-[#3F3F8F]" />
+                      <span>View available offers & coupons</span>
                     </button>
-                  </form>
+                  </div>
                 )}
               </div>
 
@@ -397,6 +546,159 @@ export const CartDrawer: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Available Offers Pop-up Modal */}
+      {isOffersOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[8px] shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col border border-[#E7E7E7] overflow-hidden animate-fadeIn text-left font-poppins">
+            {/* Header */}
+            <div className="p-4 border-b border-[#EAEAEA] bg-[#FAFAFA] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-[#3F3F8F]/10 flex items-center justify-center text-[#3F3F8F]">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-xs uppercase tracking-wider text-black">
+                    Available Offers & Promotions
+                  </h3>
+                  <p className="text-[10px] text-neutral-500">
+                    Apply directly or enter your exclusive voucher code
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOffersOpen(false)}
+                className="p-1 rounded text-neutral-400 hover:text-black hover:bg-neutral-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Manual Promo Code input inside Modal */}
+            <div className="p-3.5 border-b border-[#F0F0F0] bg-white">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleApplyCode(popupCouponInput);
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  type="text"
+                  placeholder="Enter promo code"
+                  value={popupCouponInput}
+                  onChange={(e) => setPopupCouponInput(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-[#E0E0E0] rounded-[4px] text-xs uppercase font-mono focus:outline-none focus:border-[#3F3F8F]"
+                />
+                <button
+                  type="submit"
+                  disabled={isApplying || !popupCouponInput.trim()}
+                  className="px-4 py-2 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
+                >
+                  {isApplying ? '...' : 'APPLY'}
+                </button>
+              </form>
+            </div>
+
+            {/* Active Offers List */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1">
+              {availableCoupons.filter((c) => c.is_active !== false).length === 0 ? (
+                <div className="text-center py-8 text-neutral-400 text-xs">
+                  No active coupon codes at the moment.
+                </div>
+              ) : (
+                availableCoupons
+                  .filter((c) => c.is_active !== false)
+                  .map((c) => {
+                    const evalInfo = getCouponEvaluation(c);
+                    return (
+                      <div
+                        key={c.id || c.code}
+                        className={`p-3 rounded-[6px] border transition-all text-left ${
+                          evalInfo.isApplied
+                            ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300'
+                            : evalInfo.isEligible
+                            ? 'bg-[#FAF9FE] border-[#3F3F8F]/30 hover:border-[#3F3F8F]'
+                            : 'bg-[#FAFAFA] border-[#EEEEEE]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-white border border-[#3F3F8F]/30 text-[#3F3F8F] tracking-wide shadow-2xs">
+                                {c.code}
+                              </span>
+                              <span className="text-xs font-semibold text-neutral-900">
+                                {c.discount_type === 'percentage'
+                                  ? `${c.discount_value}% OFF`
+                                  : c.discount_type === 'free_shipping'
+                                  ? 'FREE SHIPPING'
+                                  : `₹${c.discount_value} OFF`}
+                              </span>
+                              {c.max_discount && (
+                                <span className="text-[10px] text-neutral-500">
+                                  (Max ₹{c.max_discount.toLocaleString('en-IN')})
+                                </span>
+                              )}
+                            </div>
+
+                            {c.description && (
+                              <p className="text-[11px] text-neutral-600 line-clamp-2 pt-0.5">
+                                {c.description}
+                              </p>
+                            )}
+                          </div>
+
+                          {evalInfo.isApplied ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded shrink-0">
+                              <Check className="w-3 h-3" /> APPLIED
+                            </span>
+                          ) : evalInfo.isEligible ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApplyCode(c.code)}
+                              disabled={isApplying}
+                              className="px-3.5 py-1.5 bg-[#3F3F8F] hover:bg-black text-white text-[11px] font-bold rounded uppercase tracking-wider transition-colors shrink-0 shadow-xs"
+                            >
+                              APPLY
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-neutral-400 font-medium px-2 py-1 bg-neutral-100 rounded shrink-0">
+                              LOCKED
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Upsell / Eligibility Notice */}
+                        <div className="mt-2 pt-2 border-t border-black/5 flex items-center justify-between text-[11px]">
+                          {!evalInfo.isEligible ? (
+                            <span className="text-amber-800 font-medium flex items-center gap-1.5">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                              {evalInfo.descriptionText}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                              {evalInfo.savingsText && (
+                                <span className="font-semibold">{evalInfo.savingsText}</span>
+                              )}
+                              <span>• Ready to apply</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-[#FAFAFA] border-t border-[#EAEAEA] text-center text-[10px] text-neutral-400">
+              Terms & conditions apply. Only one promotional coupon can be applied per order.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

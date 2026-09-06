@@ -3,6 +3,47 @@ import { persist } from 'zustand/middleware';
 import { CartItem, Product, ProductVariant, Coupon } from '../types';
 import { isProductInCollection } from '../services/api';
 
+export function isCouponEligible(coupon: Coupon | null, items: CartItem[]): boolean {
+  if (!coupon || !items || items.length === 0) return false;
+
+  const subtotal = items.reduce((total, item) => {
+    const effectivePrice =
+      item.variant?.sale_price ??
+      item.variant?.price ??
+      item.product?.sale_price ??
+      item.product?.base_price ??
+      0;
+    return total + effectivePrice * item.quantity;
+  }, 0);
+
+  if (subtotal <= 0) return false;
+
+  // Collection-specific restriction check
+  if (coupon.eligible_collections && coupon.eligible_collections.length > 0) {
+    const eligibleItems = items.filter((item) =>
+      coupon.eligible_collections!.some((colSlug) => isProductInCollection(item.product, colSlug))
+    );
+    if (eligibleItems.length === 0) return false;
+
+    const applicableSubtotal = eligibleItems.reduce((acc, item) => {
+      const price =
+        item.variant?.sale_price ??
+        item.variant?.price ??
+        item.product?.sale_price ??
+        item.product?.base_price ??
+        0;
+      return acc + price * item.quantity;
+    }, 0);
+
+    if (coupon.min_spend && applicableSubtotal < coupon.min_spend) return false;
+  } else {
+    // Storewide min_spend check
+    if (coupon.min_spend && subtotal < coupon.min_spend) return false;
+  }
+
+  return true;
+}
+
 interface CartState {
   items: CartItem[];
   isDrawerOpen: boolean;
@@ -17,6 +58,7 @@ interface CartState {
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   applyCoupon: (coupon: Coupon | null) => void;
+  validateCurrentCoupon: () => void;
   setGiftNote: (note: string) => void;
   setOrderNote: (note: string) => void;
   clearCart: () => void;
@@ -70,9 +112,14 @@ export const useCartStore = create<CartState>()(
       },
 
       removeItem: (itemId) => {
-        set((state) => ({
-          items: state.items.filter((item) => item.id !== itemId),
-        }));
+        set((state) => {
+          const newItems = state.items.filter((item) => item.id !== itemId);
+          const validCoupon = isCouponEligible(state.coupon, newItems) ? state.coupon : null;
+          return {
+            items: newItems,
+            coupon: validCoupon,
+          };
+        });
       },
 
       updateQuantity: (itemId, quantity) => {
@@ -80,18 +127,42 @@ export const useCartStore = create<CartState>()(
           get().removeItem(itemId);
           return;
         }
-        set((state) => ({
-          items: state.items.map((item) => {
+        set((state) => {
+          const newItems = state.items.map((item) => {
             if (item.id === itemId) {
               const safeQty = Math.min(quantity, item.variant.stock_quantity);
               return { ...item, quantity: safeQty };
             }
             return item;
-          }),
-        }));
+          });
+          const validCoupon = isCouponEligible(state.coupon, newItems) ? state.coupon : null;
+          return {
+            items: newItems,
+            coupon: validCoupon,
+          };
+        });
       },
 
-      applyCoupon: (coupon) => set({ coupon }),
+      applyCoupon: (coupon) => {
+        if (!coupon) {
+          set({ coupon: null });
+          return;
+        }
+        const { items } = get();
+        if (isCouponEligible(coupon, items)) {
+          set({ coupon });
+        } else {
+          set({ coupon: null });
+        }
+      },
+
+      validateCurrentCoupon: () => {
+        const { coupon, items } = get();
+        if (coupon && !isCouponEligible(coupon, items)) {
+          set({ coupon: null });
+        }
+      },
+
       setGiftNote: (giftNote) => set({ giftNote }),
       setOrderNote: (orderNote) => set({ orderNote }),
       clearCart: () => set({ items: [], coupon: null, giftNote: '', orderNote: '' }),
@@ -175,6 +246,11 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'tanoah_cart_store',
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.validateCurrentCoupon();
+        }
+      },
       partialize: (state) => ({
         items: state.items.map((item) => ({
           ...item,

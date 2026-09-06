@@ -22,12 +22,17 @@ export const CartPage: React.FC = () => {
     freeShippingThreshold,
     coupon,
     applyCoupon,
+    validateCurrentCoupon,
   } = useCartStore();
 
   const { addItem: addToWishlist } = useWishlistStore();
   const { addToast } = useUIStore();
   const [couponInput, setCouponInput] = useState('');
   const [isApplying, setIsApplying] = useState(false);
+
+  React.useEffect(() => {
+    validateCurrentCoupon();
+  }, [items, validateCurrentCoupon]);
 
   const subtotal = getSubtotal();
   const discount = getDiscountAmount();

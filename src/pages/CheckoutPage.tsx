@@ -18,12 +18,16 @@ import { safeSetItem, sanitizeOrderForStorage } from '../utils/safeStorage';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { items, getSubtotal, getDiscountAmount, getShippingFee, coupon, applyCoupon, clearCart } = useCartStore();
+  const { items, getSubtotal, getDiscountAmount, getShippingFee, coupon, applyCoupon, clearCart, validateCurrentCoupon } = useCartStore();
   const { addToast } = useUIStore();
   const { user, profile, signOut } = useAuthStore();
 
   const [voucherInput, setVoucherInput] = useState('');
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+
+  useEffect(() => {
+    validateCurrentCoupon();
+  }, [items, validateCurrentCoupon]);
 
   const [formData, setFormData] = useState({
     email: '',
