@@ -14,6 +14,8 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Preloader } from './components/common/Preloader';
 import { useSmoothScroll } from './hooks/useSmoothScroll';
 import { useAuthStore } from './store/useAuthStore';
+import { api } from './services/api';
+import { applyFavicon } from './utils/faviconUtils';
 
 // Customer Pages
 import { HomePage } from './pages/HomePage';
@@ -70,6 +72,15 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     initialize();
+    // Synchronize Store Favicon on app mount
+    api
+      .getStoreSettings()
+      .then((settings) => {
+        if (settings?.favicon_url) {
+          applyFavicon(settings.favicon_url);
+        }
+      })
+      .catch(() => {});
   }, [initialize]);
 
   return (

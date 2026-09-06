@@ -154,6 +154,26 @@ export const SeoSettingsTab: React.FC = () => {
         </div>
       </div>
 
+      {/* Google SERP Favicon Quick Access */}
+      <div className="bg-white p-6 rounded-[4px] border border-[#E7E7E7] shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold text-black uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#3F3F8F]" />
+            <span>GOOGLE SEARCH & BROWSER FAVICON</span>
+          </h3>
+          <p className="text-[11px] text-[#666666]">
+            Google Search results display your store favicon beside the search snippet. Web standards recommend a 1:1 square image (512×512 px master).
+          </p>
+        </div>
+        <a
+          href="/admin/settings"
+          className="px-3.5 py-2 bg-[#EEEEF8] hover:bg-[#3F3F8F] text-[#3F3F8F] hover:text-white rounded-[4px] font-semibold text-[11px] uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>MANAGE FAVICON IN BRAND SETTINGS</span>
+        </a>
+      </div>
+
       {/* 2. Webmaster Verification Tags */}
       <div className="bg-white p-6 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-4">
         <div className="pb-3 border-b border-[#E7E7E7]">

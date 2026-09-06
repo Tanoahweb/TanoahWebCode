@@ -33,6 +33,7 @@ import { OfferPopupSettingsTab } from '../../components/admin/OfferPopupSettings
 import { PaymentGatewaysSettingsTab } from '../../components/admin/PaymentGatewaysSettingsTab';
 import { DeliverySettingsTab } from '../../components/admin/DeliverySettingsTab';
 import { SeoSettingsTab } from '../../components/admin/SeoSettingsTab';
+import { FaviconUploader } from '../../components/admin/FaviconUploader';
 import { r2Service } from '../../services/r2Service';
 import { Globe } from 'lucide-react';
 
@@ -64,6 +65,7 @@ export const StoreSettingsPage: React.FC = () => {
   // Store settings form state
   const [settings, setSettings] = useState({
     storeName: 'TANOAH',
+    faviconUrl: '/Assets/brand/logo-badge-white.png',
     currency: 'INR',
     currencySymbol: '₹',
     contactEmail: 'connectus.tanoah@gmail.com',
@@ -123,6 +125,7 @@ export const StoreSettingsPage: React.FC = () => {
       if (isMounted && s) {
         setSettings({
           storeName: s.store_name || s.storeName || 'TANOAH',
+          faviconUrl: s.favicon_url || s.faviconUrl || '/Assets/brand/logo-badge-white.png',
           currency: s.currency || 'INR',
           currencySymbol: s.currency_symbol || s.currencySymbol || '₹',
           contactEmail: s.contact_email || s.contactEmail || 'connectus.tanoah@gmail.com',
@@ -202,6 +205,7 @@ export const StoreSettingsPage: React.FC = () => {
     e.preventDefault();
     await api.saveStoreSettings({
       store_name: settings.storeName,
+      favicon_url: settings.faviconUrl,
       contact_email: settings.contactEmail,
       contact_phone: settings.phone,
       free_shipping_threshold: Number(settings.freeShippingThreshold),
@@ -283,7 +287,7 @@ export const StoreSettingsPage: React.FC = () => {
             }`}
           >
             <SettingsIcon className="w-4 h-4" />
-            <span>Store Parameters & GST</span>
+            <span>Store Parameters & Favicon</span>
           </button>
           <button
             onClick={() => {
@@ -400,12 +404,27 @@ export const StoreSettingsPage: React.FC = () => {
         {/* Tab 0.5: Special Offer Popup */}
         {activeTab === 'offer_popup' && <OfferPopupSettingsTab />}
 
-        {/* Tab 1: Store Parameters & GST */}
+        {/* Tab 1: Store Parameters & Favicon */}
         {activeTab === 'store' && (
-          <form
-            onSubmit={handleSaveStore}
-            className="bg-white p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-6 text-xs"
-          >
+          <div className="space-y-6">
+            {/* Standard Favicon Uploader & Studio */}
+            <FaviconUploader
+              currentFaviconUrl={settings.faviconUrl}
+              onFaviconUpdated={(newUrl) => setSettings((prev) => ({ ...prev, faviconUrl: newUrl }))}
+            />
+
+            <form
+              onSubmit={handleSaveStore}
+              className="bg-white p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-6 text-xs"
+            >
+              <div className="border-b border-[#E7E7E7] pb-3">
+                <h3 className="font-semibold text-sm text-black uppercase tracking-wider">
+                  Store Parameters & GST Configuration
+                </h3>
+                <p className="text-[11px] text-[#666666] mt-0.5">
+                  General store metadata, contact coordinates, shipping fee rules, and tax parameters.
+                </p>
+              </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-black uppercase mb-1">
@@ -504,7 +523,8 @@ export const StoreSettingsPage: React.FC = () => {
               </Button>
             </div>
           </form>
-        )}
+        </div>
+      )}
 
         {/* Tab 2: Email Alerts & Resend Integration */}
         {activeTab === 'email' && (
