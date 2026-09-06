@@ -13,7 +13,7 @@ import {
   Sparkles, 
   ExternalLink 
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { useUIStore } from '../../store/useUIStore';
@@ -91,8 +91,12 @@ export const CustomerReviewsSection: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Mandatory Login & Form modals
+  // Mandatory Login, Verified Purchase & Form modals
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
+  const [isPurchaseRequiredModalOpen, setIsPurchaseRequiredModalOpen] = useState(false);
+  const [isCheckingPurchases, setIsCheckingPurchases] = useState(false);
+  const [purchasedProducts, setPurchasedProducts] = useState<{ id: string; title: string; image?: string }[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form state
@@ -166,16 +170,52 @@ export const CustomerReviewsSection: React.FC = () => {
     setCurrentIndex((prev) => (prev + 1) % reviews.length);
   };
 
-  // Open review modal with mandatory authentication
-  const handleOpenReviewModal = () => {
+  // Open review modal with mandatory authentication & verified purchase check
+  const handleOpenReviewModal = async () => {
     if (!user) {
       setIsAuthPromptOpen(true);
       return;
     }
-    const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
-    setAuthor(name);
-    setIsModalOpen(true);
+
+    setIsCheckingPurchases(true);
+    try {
+      const purchased = await api.getUserPurchasedProducts(user.id, user.email || undefined);
+      setPurchasedProducts(purchased);
+
+      if (!purchased || purchased.length === 0) {
+        setIsPurchaseRequiredModalOpen(true);
+        return;
+      }
+
+      const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      setAuthor(name);
+      setSelectedProductId(purchased[0].id);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.warn('Failed to load purchased products for review:', err);
+      if (products.length > 0) {
+        setSelectedProductId(products[0].id);
+      }
+      setIsModalOpen(true);
+    } finally {
+      setIsCheckingPurchases(false);
+    }
   };
+
+  // Trigger review modal if user returned from login with action=write_review
+  useEffect(() => {
+    if (searchParams.get('action') === 'write_review') {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+
+      if (user) {
+        handleOpenReviewModal();
+      } else {
+        setIsAuthPromptOpen(true);
+      }
+    }
+  }, [searchParams, user]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -216,12 +256,12 @@ export const CustomerReviewsSection: React.FC = () => {
         }
       }
 
-      const prod = products.find((p) => p.id === selectedProductId);
+      const prod = purchasedProducts.find((p) => p.id === selectedProductId) || products.find((p) => p.id === selectedProductId);
 
       // 2. Submit review with pending status
       const authorFormatted = city.trim() ? `${author.trim()} (${city.trim()})` : author.trim();
       const res = await api.submitReview({
-        product_id: selectedProductId || (products[0]?.id ?? 'general'),
+        product_id: selectedProductId || (purchasedProducts[0]?.id ?? products[0]?.id ?? 'general'),
         product_title: prod?.title || 'Atelier Collection',
         user_id: user.id,
         author_name: authorFormatted,
@@ -296,6 +336,7 @@ export const CustomerReviewsSection: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={handleOpenReviewModal}
+              isLoading={isCheckingPurchases}
               icon={<MessageSquarePlus className="w-3.5 h-3.5" />}
               className="text-xs uppercase tracking-wider py-2.5 px-4 bg-white hover:bg-neutral-50"
             >
@@ -458,15 +499,15 @@ export const CustomerReviewsSection: React.FC = () => {
           </div>
           <div className="pt-2 flex flex-col gap-2">
             <Link
-              to="/login"
-              state={{ from: window.location.pathname }}
+              to={`/login?from=${encodeURIComponent(window.location.pathname)}&action=write_review`}
+              state={{ from: window.location.pathname, openReview: true }}
               className="w-full py-2.5 bg-black text-white font-semibold rounded text-xs uppercase tracking-wider hover:bg-[#3F3F8F] transition-colors inline-block"
             >
               Sign In to Your Account
             </Link>
             <Link
-              to="/register"
-              state={{ from: window.location.pathname }}
+              to={`/register?from=${encodeURIComponent(window.location.pathname)}&action=write_review`}
+              state={{ from: window.location.pathname, openReview: true }}
               className="w-full py-2.5 border border-[#E7E7E7] text-black font-semibold rounded text-xs uppercase tracking-wider hover:border-black transition-colors inline-block"
             >
               Create New Account
@@ -531,14 +572,6 @@ export const CustomerReviewsSection: React.FC = () => {
         maxWidth="md"
       >
         <form onSubmit={handleSubmitTestimonial} className="space-y-4 text-xs font-poppins text-left">
-          {/* Atelier Moderation Disclaimer */}
-          <div className="bg-[#EEEEF8] border border-[#3F3F8F]/20 rounded p-3 text-[11px] text-[#3F3F8F] flex items-start gap-2">
-            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>
-              <strong>Atelier Verification Note:</strong> All client reviews and uploaded garment photos undergo administrative verification before appearing on the public storefront.
-            </span>
-          </div>
-
           <div>
             <label className="block text-[11px] font-semibold text-black uppercase mb-1">
               Your Name *
@@ -594,7 +627,7 @@ export const CustomerReviewsSection: React.FC = () => {
               onChange={(e) => setSelectedProductId(e.target.value)}
               className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] bg-white"
             >
-              {products.map((p) => (
+              {(purchasedProducts.length > 0 ? purchasedProducts : products).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}
                 </option>
@@ -684,10 +717,49 @@ export const CustomerReviewsSection: React.FC = () => {
               type="submit"
               isLoading={isSubmitting}
             >
-              SUBMIT FOR VERIFICATION
+              SUBMIT
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Verified Purchase Required Modal */}
+      <Modal
+        isOpen={isPurchaseRequiredModalOpen}
+        onClose={() => setIsPurchaseRequiredModalOpen(false)}
+        title="VERIFIED PURCHASE REQUIRED"
+        maxWidth="sm"
+      >
+        <div className="space-y-4 text-xs font-poppins text-center py-2">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base text-black">Only Verified Buyers Can Review</h3>
+            <p className="text-[#666666] mt-1 leading-relaxed">
+              To guarantee 100% authentic feedback, client reviews can only be submitted for garments you have purchased.
+            </p>
+            <p className="text-[#666666] text-[11px] mt-2 bg-neutral-50 p-2.5 rounded border border-neutral-200">
+              No completed garment orders were found under your account (<strong>{user?.email}</strong>).
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              to="/shop"
+              onClick={() => setIsPurchaseRequiredModalOpen(false)}
+              className="w-full py-2.5 bg-black text-white font-semibold rounded text-xs uppercase tracking-wider hover:bg-[#3F3F8F] transition-colors inline-block"
+            >
+              Explore Atelier Collection
+            </Link>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsPurchaseRequiredModalOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
       </Modal>
     </section>
   );

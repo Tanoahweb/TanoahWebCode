@@ -72,6 +72,8 @@ export const ReviewsPage: React.FC = () => {
           title: 'Review Approved',
           description: 'The review is now live on the storefront.'
         });
+      } else {
+        addToast({ type: 'error', title: 'Action Failed', description: 'Could not approve review in database.' });
       }
     } catch {
       addToast({ type: 'error', title: 'Action Failed', description: 'Could not approve review.' });
@@ -88,6 +90,8 @@ export const ReviewsPage: React.FC = () => {
           title: 'Review Rejected',
           description: 'The review has been rejected and hidden from clients.'
         });
+      } else {
+        addToast({ type: 'error', title: 'Action Failed', description: 'Could not reject review in database.' });
       }
     } catch {
       addToast({ type: 'error', title: 'Action Failed', description: 'Could not reject review.' });
@@ -107,6 +111,8 @@ export const ReviewsPage: React.FC = () => {
             ? 'This review is now prominently showcased in Client Testimonials.' 
             : 'Review removed from homepage featured list.'
         });
+      } else {
+        addToast({ type: 'error', title: 'Action Failed', description: 'Could not update featured state in database.' });
       }
     } catch {
       addToast({ type: 'error', title: 'Action Failed', description: 'Could not update featured state.' });

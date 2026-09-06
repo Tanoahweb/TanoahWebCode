@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -8,6 +8,9 @@ import { Button } from '../../components/common/Button';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +29,33 @@ export const LoginPage: React.FC = () => {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  const { addToast } = useUIStore();
+  const { user, isLoading: authLoading, initialize } = useAuthStore();
+
+  const getDestination = () => {
+    const rawFrom = (location.state as any)?.from || searchParams.get('from') || '';
+    const openReview = (location.state as any)?.openReview || searchParams.get('action') === 'write_review';
+
+    if (!rawFrom) {
+      return openReview ? '/?action=write_review' : '/account';
+    }
+
+    if (openReview && !rawFrom.includes('action=write_review')) {
+      const separator = rawFrom.includes('?') ? '&' : '?';
+      return `${rawFrom}${separator}action=write_review`;
+    }
+
+    return rawFrom;
+  };
+
+  // Prevent back-button trap: If already authenticated, redirect away immediately
+  useEffect(() => {
+    if (!authLoading && user) {
+      const destination = getDestination();
+      navigate(destination, { replace: true });
+    }
+  }, [user, authLoading]);
+
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
@@ -33,9 +63,6 @@ export const LoginPage: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [resendCooldown]);
-
-  const { addToast } = useUIStore();
-  const { initialize } = useAuthStore();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +79,15 @@ export const LoginPage: React.FC = () => {
         if (email.toLowerCase().includes('admin')) {
           await initialize();
           addToast({ type: 'success', title: 'Admin Access Granted', description: 'Welcome to Tanoah Store Management.' });
-          navigate('/admin');
+          navigate('/admin', { replace: true });
           return;
         }
         addToast({ type: 'error', title: 'Login Failed', description: error.message });
       } else {
         await initialize();
         addToast({ type: 'success', title: 'Welcome Back', description: 'Logged into your Tanoah account.' });
-        navigate('/account');
+        const destination = getDestination();
+        navigate(destination, { replace: true });
       }
     } catch (err: any) {
       addToast({ type: 'error', title: 'Authentication Error', description: err.message });
@@ -456,7 +484,11 @@ export const LoginPage: React.FC = () => {
 
         <div className="pt-4 border-t border-[#E7E7E7] text-center text-xs text-[#666666]">
           Don't have an account yet?{' '}
-          <Link to="/register" className="text-[#3F3F8F] font-semibold hover:underline">
+          <Link
+            to={`/register${location.search}`}
+            state={location.state}
+            className="text-[#3F3F8F] font-semibold hover:underline"
+          >
             Create an Account
           </Link>
         </div>

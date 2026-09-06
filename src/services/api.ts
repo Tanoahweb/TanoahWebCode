@@ -1103,9 +1103,23 @@ export const api = {
         .from('product_reviews')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id);
-      if (!error) success = true;
+
+      if (!error) {
+        success = true;
+      } else {
+        console.warn('Supabase status update with updated_at failed, retrying without updated_at:', error.message);
+        const { error: retryError } = await supabase
+          .from('product_reviews')
+          .update({ status })
+          .eq('id', id);
+        if (!retryError) {
+          success = true;
+        } else {
+          console.warn('Supabase status update retry failed:', retryError.message);
+        }
+      }
     } catch (e) {
-      console.warn('Supabase status update error:', e);
+      console.warn('Supabase status update exception:', e);
     }
 
     try {
@@ -1129,9 +1143,23 @@ export const api = {
         .from('product_reviews')
         .update({ is_featured: isFeatured, updated_at: new Date().toISOString() })
         .eq('id', id);
-      if (!error) success = true;
+
+      if (!error) {
+        success = true;
+      } else {
+        console.warn('Supabase toggle featured with updated_at failed, retrying without updated_at:', error.message);
+        const { error: retryError } = await supabase
+          .from('product_reviews')
+          .update({ is_featured: isFeatured })
+          .eq('id', id);
+        if (!retryError) {
+          success = true;
+        } else {
+          console.warn('Supabase toggle featured retry failed:', retryError.message);
+        }
+      }
     } catch (e) {
-      console.warn('Supabase toggle featured error:', e);
+      console.warn('Supabase toggle featured exception:', e);
     }
 
     try {
@@ -1145,6 +1173,106 @@ export const api = {
     } catch {}
 
     return success;
+  },
+
+  // Check if a user has purchased a specific product (verified buyer check)
+  async checkUserPurchasedProduct(params: {
+    productId?: string;
+    productTitle?: string;
+    productSlug?: string;
+    userId?: string;
+    userEmail?: string;
+  }): Promise<boolean> {
+    if (!params.userId && !params.userEmail) return false;
+
+    try {
+      const orders = await this.getUserOrders(params.userId, params.userEmail);
+      if (!orders || orders.length === 0) return false;
+
+      const normTitle = params.productTitle ? params.productTitle.trim().toLowerCase() : '';
+      const normSlug = params.productSlug ? params.productSlug.trim().toLowerCase().replace(/-/g, ' ') : '';
+      const targetId = params.productId ? String(params.productId).trim().toLowerCase() : '';
+
+      for (const order of orders) {
+        const orderStatus = (order.status || '').toLowerCase();
+        if (orderStatus === 'cancelled') continue;
+
+        const items = order.items || [];
+        for (const item of items) {
+          const itemProdId = item.product_id || item.productId || item.id || '';
+          const itemTitle = (item.product_title || item.productTitle || item.title || item.name || '').trim().toLowerCase();
+
+          // 1. Direct ID match
+          if (targetId && itemProdId && String(itemProdId).toLowerCase() === targetId) {
+            return true;
+          }
+
+          // 2. Title match (case-insensitive & trimmed)
+          if (normTitle && itemTitle && (itemTitle === normTitle || itemTitle.includes(normTitle) || normTitle.includes(itemTitle))) {
+            return true;
+          }
+
+          // 3. Slug match against title
+          if (normSlug && itemTitle && (itemTitle.includes(normSlug) || normSlug.includes(itemTitle))) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (err) {
+      console.warn('checkUserPurchasedProduct error:', err);
+      return false;
+    }
+  },
+
+  // Get distinct list of products purchased by a customer
+  async getUserPurchasedProducts(userId?: string, userEmail?: string): Promise<{ id: string; title: string; image?: string }[]> {
+    if (!userId && !userEmail) return [];
+
+    try {
+      const orders = await this.getUserOrders(userId, userEmail);
+      if (!orders || orders.length === 0) return [];
+
+      const purchasedMap = new Map<string, { id: string; title: string; image?: string }>();
+      const allProducts = await this.getProducts();
+
+      for (const order of orders) {
+        const orderStatus = (order.status || '').toLowerCase();
+        if (orderStatus === 'cancelled') continue;
+
+        const items = order.items || [];
+        for (const item of items) {
+          const rawId = item.product_id || item.productId || item.id || '';
+          const rawTitle = (item.product_title || item.productTitle || item.title || item.name || '').trim();
+          if (!rawTitle && !rawId) continue;
+
+          // Match with catalog product to get proper ID and image
+          const catalogMatch = allProducts.find(
+            (p) =>
+              (rawId && p.id === rawId) ||
+              (rawTitle && p.title.toLowerCase().trim() === rawTitle.toLowerCase())
+          );
+
+          const id = catalogMatch?.id || rawId || `purchased_${Date.now()}`;
+          const title = catalogMatch?.title || rawTitle || 'Atelier Garment';
+          const image =
+            catalogMatch?.images?.find((img) => img.is_primary)?.image_url ||
+            catalogMatch?.images?.[0]?.image_url ||
+            item.image ||
+            item.image_url;
+
+          if (!purchasedMap.has(title.toLowerCase())) {
+            purchasedMap.set(title.toLowerCase(), { id, title, image });
+          }
+        }
+      }
+
+      return Array.from(purchasedMap.values());
+    } catch (err) {
+      console.warn('getUserPurchasedProducts error:', err);
+      return [];
+    }
   },
 
   // Admin: Delete Review
