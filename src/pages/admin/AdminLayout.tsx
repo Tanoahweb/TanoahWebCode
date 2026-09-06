@@ -29,6 +29,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { AdminOmniSearch } from '../../components/admin/AdminOmniSearch';
+import { AdminOrderNotificationBell } from '../../components/admin/AdminOrderNotificationBell';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -186,21 +188,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             >
               {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </button>
-            <div className="relative w-64 sm:w-80 md:w-96">
-              <input
-                type="text"
-                placeholder="Search orders, SKU, customers, products..."
-                className="w-full bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] py-2 pl-8 pr-3 text-xs focus:outline-none focus:border-[#3F3F8F]"
-              />
-              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            </div>
+            <AdminOmniSearch />
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full font-semibold flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:flex text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full font-semibold items-center gap-1.5 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Supabase DB Connected
             </span>
+
+            {/* Notification Bell for New Orders */}
+            <AdminOrderNotificationBell />
           </div>
         </header>
 

@@ -28,80 +28,33 @@ interface CustomerRecord {
   lastOrderDate: string;
 }
 
-const SAMPLE_CUSTOMERS: CustomerRecord[] = [
-  {
-    id: 'c1',
-    name: 'Aditya Sharma',
-    email: 'aditya.sharma@example.com',
-    phone: '+91 8714141849',
-    city: 'Thrissur, Kerala',
-    totalOrders: 4,
-    lifetimeValue: 18992,
-    isVip: true,
-    lastOrderDate: '2026-09-02',
-  },
-  {
-    id: 'c2',
-    name: 'Ananya Singhania',
-    email: 'ananya.s@example.com',
-    phone: '+91 98111 22334',
-    city: 'New Delhi',
-    totalOrders: 3,
-    lifetimeValue: 13497,
-    isVip: true,
-    lastOrderDate: '2026-08-28',
-  },
-  {
-    id: 'c3',
-    name: 'Rohan Varma',
-    email: 'rohan.v@example.com',
-    phone: '+91 99887 76655',
-    city: 'Bengaluru, Karnataka',
-    totalOrders: 2,
-    lifetimeValue: 7998,
-    isVip: false,
-    lastOrderDate: '2026-08-20',
-  },
-  {
-    id: 'c4',
-    name: 'Mira Nair',
-    email: 'mira.nair@example.com',
-    phone: '+91 97654 32109',
-    city: 'Kochi, Kerala',
-    totalOrders: 1,
-    lifetimeValue: 3999,
-    isVip: false,
-    lastOrderDate: '2026-08-15',
-  },
-  {
-    id: 'c5',
-    name: 'Kabir Oberoi',
-    email: 'kabir.oberoi@example.com',
-    phone: '+91 98223 44556',
-    city: 'Pune, Maharashtra',
-    totalOrders: 2,
-    lifetimeValue: 9498,
-    isVip: false,
-    lastOrderDate: '2026-08-10',
-  },
-];
-
 import { api } from '../../services/api';
 
 export const CustomersPage: React.FC = () => {
-  const [customers, setCustomers] = useState<CustomerRecord[]>(SAMPLE_CUSTOMERS);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'vip'>('all');
 
+  const loadCustomers = async () => {
+    try {
+      const live = await api.getCustomers();
+      setCustomers(live || []);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    api.getCustomers().then((live) => {
-      if (isMounted && live && live.length > 0) {
-        setCustomers(live);
-      }
-    });
+    loadCustomers();
+
+    const handleUpdate = () => {
+      loadCustomers();
+    };
+
+    window.addEventListener('tanoah_orders_updated', handleUpdate);
     return () => {
-      isMounted = false;
+      window.removeEventListener('tanoah_orders_updated', handleUpdate);
     };
   }, []);
 
@@ -235,7 +188,25 @@ export const CustomersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
-                {filtered.map((c) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-neutral-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-[#3F3F8F] border-t-transparent rounded-full animate-spin" />
+                        <span>Loading customer profiles...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-12 text-center text-neutral-500">
+                      <Users className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                      <div className="font-semibold text-black text-sm">No customers found</div>
+                      <p className="text-neutral-400 text-xs mt-1">Verified customer profiles will appear here as orders are placed.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-[#FAFAFA]">
                     <td className="p-4">
                       <div className="flex items-center gap-2">
@@ -282,7 +253,8 @@ export const CustomersPage: React.FC = () => {
                       })}
                     </td>
                   </tr>
-                ))}
+                ))
+              )}
               </tbody>
             </table>
           </div>

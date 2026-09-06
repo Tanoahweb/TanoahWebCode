@@ -6,87 +6,59 @@ import { formatPrice } from '../../utils/formatters';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
 
-const DEFAULT_ORDERS = [
-  {
-    id: 'ord-1',
-    orderNumber: 'TAN-849201',
-    customer: 'Aditya Sharma',
-    email: 'aditya@example.com',
-    total: 3998,
-    paymentStatus: 'paid',
-    fulfillmentStatus: 'confirmed',
-    trackingNumber: '',
-    courierName: 'India Post (Speed Post)',
-    date: '2026-09-02',
-  },
-  {
-    id: 'ord-2',
-    orderNumber: 'TAN-849198',
-    customer: 'Meera Iyer',
-    email: 'meera@example.com',
-    total: 5499,
-    paymentStatus: 'paid',
-    fulfillmentStatus: 'processing',
-    trackingNumber: '',
-    courierName: 'India Post (Speed Post)',
-    date: '2026-09-02',
-  },
-  {
-    id: 'ord-3',
-    orderNumber: 'TAN-849194',
-    customer: 'Karan Mehta',
-    email: 'karan@example.com',
-    total: 11297,
-    paymentStatus: 'paid',
-    fulfillmentStatus: 'confirmed',
-    trackingNumber: '',
-    courierName: 'India Post (Speed Post)',
-    date: '2026-09-01',
-  },
-];
-
 export const OrderListPage: React.FC = () => {
   const { addToast } = useUIStore();
-  const [orders, setOrders] = useState(DEFAULT_ORDERS);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadOrders = async () => {
+    try {
+      const liveOrders = await api.getAdminOrders();
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const formatted = (liveOrders || [])
+        .filter((o: any) => {
+          const num = o.order_number || o.orderNumber || o.id;
+          // Drop rows where order number is a UUID without customer info
+          if (isUUID(num) && !o.shipping_address && !o.guest_email && (!o.items || o.items.length === 0)) {
+            return false;
+          }
+          return true;
+        })
+        .map((o: any) => {
+          const realOrderNum = o.order_number || o.orderNumber || o.id;
+          return {
+            id: o.id || realOrderNum,
+            orderNumber: realOrderNum,
+            customer:
+              (o.shipping_address?.first_name ? `${o.shipping_address.first_name} ${o.shipping_address.last_name || ''}`.trim() : null) ||
+              (o.formData?.firstName ? `${o.formData.firstName} ${o.formData.lastName || ''}`.trim() : null) ||
+              o.guest_email ||
+              'Customer',
+            email: o.guest_email || o.formData?.email || '',
+            total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
+            paymentStatus: o.payment_status || 'paid',
+            fulfillmentStatus: o.status || 'processing',
+            trackingNumber: o.tracking_number || o.trackingNumber || '',
+            courierName: o.courier_name || 'India Post (Speed Post)',
+            date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
+          };
+        });
+      setOrders(formatted);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-    api.getAdminOrders().then((liveOrders) => {
-      if (isMounted && liveOrders && liveOrders.length > 0) {
-        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        const formatted = liveOrders
-          .filter((o: any) => {
-            const num = o.order_number || o.orderNumber || o.id;
-            // Drop rows where order number is a UUID without customer info
-            if (isUUID(num) && !o.shipping_address && !o.guest_email && (!o.items || o.items.length === 0)) {
-              return false;
-            }
-            return true;
-          })
-          .map((o: any) => {
-            const realOrderNum = o.order_number || o.orderNumber || o.id;
-            return {
-              id: o.id || realOrderNum,
-              orderNumber: realOrderNum,
-              customer:
-                (o.shipping_address?.first_name ? `${o.shipping_address.first_name} ${o.shipping_address.last_name || ''}`.trim() : null) ||
-                (o.formData?.firstName ? `${o.formData.firstName} ${o.formData.lastName || ''}`.trim() : null) ||
-                o.guest_email ||
-                'Customer',
-              email: o.guest_email || o.formData?.email || '',
-              total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
-              paymentStatus: o.payment_status || 'paid',
-              fulfillmentStatus: o.status || 'processing',
-              trackingNumber: o.tracking_number || o.trackingNumber || '',
-              courierName: o.courier_name || 'India Post (Speed Post)',
-              date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
-            };
-          });
-        setOrders(formatted);
-      }
-    });
+    loadOrders();
+
+    const handleUpdate = () => {
+      loadOrders();
+    };
+
+    window.addEventListener('tanoah_orders_updated', handleUpdate);
     return () => {
-      isMounted = false;
+      window.removeEventListener('tanoah_orders_updated', handleUpdate);
     };
   }, []);
 
@@ -174,7 +146,25 @@ export const OrderListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
-                {orders.map((ord) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-neutral-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-[#3F3F8F] border-t-transparent rounded-full animate-spin" />
+                        <span>Loading live orders from Supabase...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-12 text-center text-neutral-500">
+                      <ShoppingBag className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                      <div className="font-semibold text-black text-sm">No orders found</div>
+                      <p className="text-neutral-400 text-xs mt-1">When customers place orders, they will appear here dynamically in real-time.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((ord) => (
                   <tr key={ord.id} className="hover:bg-[#FAFAFA] transition-colors">
                     <td className="p-4 font-mono font-bold">
                       <Link to={`/admin/orders/${ord.orderNumber}`} className="text-[#3F3F8F] hover:underline" title="Click to open full Order Details & Dispatch Management">
@@ -221,8 +211,8 @@ export const OrderListPage: React.FC = () => {
                           }}
                           className={`w-36 p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans ${
                             ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !ord.trackingNumber
-                              ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 placeholder:text-rose-500'
-                              : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
+                              ? 'border-amber-400 bg-amber-50/50'
+                              : 'border-[#E7E7E7]'
                           }`}
                         />
                         {ord.trackingNumber && (
@@ -253,7 +243,8 @@ export const OrderListPage: React.FC = () => {
                       </select>
                     </td>
                   </tr>
-                ))}
+                ))
+              )}
               </tbody>
             </table>
           </div>

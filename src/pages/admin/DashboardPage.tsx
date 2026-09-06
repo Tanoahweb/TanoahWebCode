@@ -4,6 +4,7 @@ import { TrendingUp, ShoppingBag, Users, AlertTriangle, ArrowUpRight, CheckCircl
 import { AdminLayout } from './AdminLayout';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 import { Product } from '../../types';
 
 export const DashboardPage: React.FC = () => {
@@ -11,28 +12,53 @@ export const DashboardPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadData = async () => {
+    try {
+      const [loadedOrders, loadedProducts] = await Promise.all([
+        api.getAdminOrders(),
+        api.getProducts(),
+      ]);
+      setOrders(loadedOrders || []);
+      setProducts(loadedProducts || []);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    Promise.all([api.getAdminOrders(), api.getProducts()]).then(([loadedOrders, loadedProducts]) => {
-      if (isMounted) {
-        setOrders(loadedOrders || []);
-        setProducts(loadedProducts || []);
-        setIsLoading(false);
-      }
-    });
+    loadData();
+
+    const handleUpdate = () => {
+      loadData();
+    };
+
+    window.addEventListener('tanoah_orders_updated', handleUpdate);
+    window.addEventListener('tanoah_products_updated', handleUpdate);
+
+    // Supabase Realtime channel for live order updates
+    const channel = supabase
+      .channel('admin_dashboard_orders_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadData();
+      })
+      .subscribe();
+
     return () => {
-      isMounted = false;
+      window.removeEventListener('tanoah_orders_updated', handleUpdate);
+      window.removeEventListener('tanoah_products_updated', handleUpdate);
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  // Compute live business metrics
-  const totalRevenue = orders.reduce((sum, o) => {
+  // Compute purely dynamic live business metrics
+  const nonCancelledOrders = orders.filter((o) => o.status !== 'cancelled');
+  const totalRevenue = nonCancelledOrders.reduce((sum, o) => {
     const val = Number(o.grand_total || o.grandTotal || o.subtotal || 0);
     return sum + (isNaN(val) ? 0 : val);
   }, 0);
 
-  const activeOrders = orders.filter((o) => o.status !== 'cancelled');
-  const aov = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
+  const activeOrdersCount = nonCancelledOrders.length;
+  const aov = nonCancelledOrders.length > 0 ? Math.round(totalRevenue / nonCancelledOrders.length) : 0;
 
   const uniqueClients = new Set(
     orders.map((o) => (o.guest_email || o.formData?.email || '').toLowerCase().trim()).filter(Boolean)
@@ -77,7 +103,13 @@ export const DashboardPage: React.FC = () => {
               <span>STORE REVENUE</span>
               <DollarSign className="w-4 h-4 text-[#3F3F8F]" />
             </div>
-            <div className="text-2xl font-bold text-black">{formatPrice(totalRevenue)}</div>
+            <div className="text-2xl font-bold text-black">
+              {isLoading ? (
+                <div className="h-8 w-28 bg-neutral-100 animate-pulse rounded" />
+              ) : (
+                formatPrice(totalRevenue)
+              )}
+            </div>
             <div className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Live Gross Volume
             </div>
@@ -88,9 +120,15 @@ export const DashboardPage: React.FC = () => {
               <span>TOTAL ORDERS</span>
               <ShoppingBag className="w-4 h-4 text-[#3F3F8F]" />
             </div>
-            <div className="text-2xl font-bold text-black">{orders.length}</div>
+            <div className="text-2xl font-bold text-black">
+              {isLoading ? (
+                <div className="h-8 w-16 bg-neutral-100 animate-pulse rounded" />
+              ) : (
+                orders.length
+              )}
+            </div>
             <div className="text-[10px] text-[#3F3F8F] font-semibold flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" /> {activeOrders.length} active orders
+              <TrendingUp className="w-3 h-3" /> {activeOrdersCount} active orders
             </div>
           </div>
 
@@ -99,9 +137,15 @@ export const DashboardPage: React.FC = () => {
               <span>AVERAGE BASKET (AOV)</span>
               <TrendingUp className="w-4 h-4 text-[#3F3F8F]" />
             </div>
-            <div className="text-2xl font-bold text-black">{formatPrice(aov)}</div>
+            <div className="text-2xl font-bold text-black">
+              {isLoading ? (
+                <div className="h-8 w-24 bg-neutral-100 animate-pulse rounded" />
+              ) : (
+                formatPrice(aov)
+              )}
+            </div>
             <div className="text-[10px] text-emerald-600 font-semibold">
-              Calculated across all orders
+              Calculated across {activeOrdersCount} orders
             </div>
           </div>
 
@@ -110,9 +154,15 @@ export const DashboardPage: React.FC = () => {
               <span>CLIENT BASE</span>
               <Users className="w-4 h-4 text-[#3F3F8F]" />
             </div>
-            <div className="text-2xl font-bold text-black">{Math.max(uniqueClients, 12)}</div>
+            <div className="text-2xl font-bold text-black">
+              {isLoading ? (
+                <div className="h-8 w-16 bg-neutral-100 animate-pulse rounded" />
+              ) : (
+                uniqueClients
+              )}
+            </div>
             <div className="text-[10px] text-emerald-600 font-semibold">
-              Verified customer profiles
+              {uniqueClients === 1 ? '1 verified customer profile' : `${uniqueClients} verified customer profiles`}
             </div>
           </div>
         </div>

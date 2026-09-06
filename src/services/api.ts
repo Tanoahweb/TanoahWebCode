@@ -1701,6 +1701,10 @@ export const api = {
       // remote sync best effort
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tanoah_orders_updated', { detail: { order_number: orderNumber } }));
+    }
+
     return { success: true, order_number: orderNumber };
   },
 
@@ -1934,7 +1938,7 @@ export const api = {
     // 1. Remote orders from Supabase are the primary source of truth
     const merged: any[] = [...remoteOrders];
 
-    // 2. Overlay customOrders (guest orders or overridden sample orders)
+    // 2. Overlay customOrders (guest orders from active session)
     customOrders.forEach((co) => {
       const coNum = co.order_number || co.orderNumber;
       if (!coNum) return;
@@ -1953,14 +1957,6 @@ export const api = {
         if ((!merged[remoteIdx].items || merged[remoteIdx].items.length === 0) && co.items?.length > 0) {
           merged[remoteIdx].items = co.items;
         }
-      }
-    });
-
-    // 3. Add default sample orders if not already in merged
-    SAMPLE_ORDERS_DETAILED.forEach((so) => {
-      const soNum = so.orderNumber || so.order_number;
-      if (!merged.some((m) => (m.order_number || m.orderNumber) === soNum)) {
-        merged.push(so);
       }
     });
 
@@ -2052,6 +2048,14 @@ export const api = {
             safeSetItem('tanoah_last_order', JSON.stringify(parsed));
           }
         } catch {}
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tanoah_orders_updated', {
+            detail: { order_number: cleanId, status, trackingNumber: cleanTracking },
+          })
+        );
       }
 
       return { success: true };
@@ -2177,34 +2181,6 @@ export const api = {
   async getCustomers(): Promise<any[]> {
     const orders = await this.getAdminOrders();
     const customerMap = new Map<string, any>();
-
-    // Seed patrons
-    const SEED_CUSTOMERS = [
-      {
-        id: 'c-vip-1',
-        name: 'Aditya Sharma',
-        email: 'aditya.sharma@example.com',
-        phone: '+91 8714141849',
-        city: 'Mumbai, Maharashtra',
-        totalOrders: 4,
-        lifetimeValue: 18992,
-        isVip: true,
-        lastOrderDate: '2026-09-02',
-      },
-      {
-        id: 'c-vip-2',
-        name: 'Ananya Singhania',
-        email: 'ananya.s@example.com',
-        phone: '+91 98111 22334',
-        city: 'New Delhi',
-        totalOrders: 3,
-        lifetimeValue: 13497,
-        isVip: true,
-        lastOrderDate: '2026-08-28',
-      },
-    ];
-
-    SEED_CUSTOMERS.forEach((c) => customerMap.set(c.email.toLowerCase(), { ...c }));
 
     // Aggregate real orders
     orders.forEach((o) => {
