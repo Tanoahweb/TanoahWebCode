@@ -227,10 +227,11 @@ export interface Order {
 export interface ProductReview {
   id: string;
   product_id: string;
+  product_title?: string;
   user_id?: string;
   author_name: string;
   rating: number; // 1 to 5
-  title: string;
+  title?: string;
   review_text: string;
   image_urls?: string[];
   is_verified_buyer: boolean;

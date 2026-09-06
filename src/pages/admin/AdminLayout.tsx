@@ -23,6 +23,7 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Star,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -57,6 +58,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Navigation & Menus', icon: <Compass className="w-4 h-4" />, path: '/admin/navigation' },
     { label: 'Media Library (R2)', icon: <ImageIcon className="w-4 h-4" />, path: '/admin/media' },
     { label: 'Coupons & Discounts', icon: <Tag className="w-4 h-4" />, path: '/admin/coupons' },
+    { label: 'Reviews & Testimonials', icon: <Star className="w-4 h-4" />, path: '/admin/reviews' },
     { label: 'Payment Gateways', icon: <CreditCard className="w-4 h-4" />, path: '/admin/settings?tab=payments' },
     { label: 'Atelier Editorial Section', icon: <Sparkles className="w-4 h-4" />, path: '/admin/settings?tab=editorial' },
     { label: 'Special Offer Popup', icon: <Gift className="w-4 h-4" />, path: '/admin/settings?tab=offer_popup' },

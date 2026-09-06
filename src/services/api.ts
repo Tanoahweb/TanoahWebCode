@@ -1,23 +1,12 @@
 import { supabase } from './supabase';
-import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier } from '@/types';
+import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
 import { safeSetItem, safeGetItem, sanitizeOrderForStorage } from '@/utils/safeStorage';
 
-export interface ProductReview {
-  id: string;
-  product_id: string;
-  author_name: string;
-  rating: number;
-  title?: string;
-  review_text: string;
-  image_urls?: string[];
-  is_verified_buyer: boolean;
-  status?: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-}
+export type { ProductReview };
 
 export interface Banner {
   id: string;
@@ -882,13 +871,13 @@ export const api = {
   async getProductReviews(productId: string): Promise<ProductReview[]> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
     
-    // Retrieve any locally submitted reviews from browser storage
+    // Retrieve only approved reviews from browser storage
     let localReviews: ProductReview[] = [];
     try {
       const stored = localStorage.getItem('tanoah_custom_reviews');
       if (stored) {
         const allLocal = JSON.parse(stored) as ProductReview[];
-        localReviews = allLocal.filter((r) => r.product_id === productId);
+        localReviews = allLocal.filter((r) => r.product_id === productId && r.status === 'approved');
       }
     } catch {
       localReviews = [];
@@ -901,6 +890,7 @@ export const api = {
           .from('product_reviews')
           .select('*')
           .eq('product_id', productId)
+          .eq('status', 'approved')
           .order('created_at', { ascending: false });
 
         if (!error && data && data.length > 0) {
@@ -911,7 +901,7 @@ export const api = {
       }
     }
 
-    // Default curated reviews if no remote reviews exist yet
+    // Default curated reviews only if no remote or local reviews exist yet
     const defaultReviews: ProductReview[] = [
       {
         id: `rev-${productId}-1`,
@@ -922,6 +912,7 @@ export const api = {
         review_text: 'The tailoring and fabric weight are world-class. Holds structure throughout the entire day without losing shape. Highly recommended.',
         is_verified_buyer: true,
         status: 'approved',
+        is_featured: false,
         created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
       },
       {
@@ -933,53 +924,250 @@ export const api = {
         review_text: 'Subtle, understated elegance. The stitching details and tactile feel match international atelier standards.',
         is_verified_buyer: true,
         status: 'approved',
+        is_featured: false,
         created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
       },
     ];
 
-    const baseReviews = remoteReviews.length > 0 ? remoteReviews : defaultReviews;
-    return [...localReviews, ...baseReviews];
+    const baseReviews = remoteReviews.length > 0 ? remoteReviews : (localReviews.length > 0 ? [] : defaultReviews);
+    
+    // Deduplicate
+    const reviewMap = new Map<string, ProductReview>();
+    [...localReviews, ...baseReviews].forEach((r) => {
+      if (r.id) reviewMap.set(r.id, r);
+    });
+
+    return Array.from(reviewMap.values());
   },
 
-  // Submit Review
-  async submitReview(review: Omit<ProductReview, 'id' | 'created_at'>): Promise<{ success: boolean; message: string; review: ProductReview }> {
+  // Submit Review - All reviews enter moderation as PENDING
+  async submitReview(review: Partial<ProductReview> & { product_id: string; author_name: string; rating: number; review_text: string }): Promise<{ success: boolean; message: string; review: ProductReview }> {
+    const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `rev_${Date.now()}`;
     const newReview: ProductReview = {
-      ...review,
-      id: `rev_${Date.now()}`,
+      id: generatedId,
+      product_id: review.product_id,
+      product_title: review.product_title,
+      user_id: review.user_id,
+      author_name: review.author_name || 'Verified Client',
+      rating: Math.max(1, Math.min(5, review.rating)),
+      title: review.title || '',
+      review_text: review.review_text,
+      image_urls: review.image_urls || [],
+      is_verified_buyer: review.is_verified_buyer ?? true,
+      status: 'pending', // Strictly pending until admin approval
+      is_featured: false,
       created_at: new Date().toISOString(),
-      status: 'approved',
-      is_verified_buyer: true,
     };
 
-    // Store in browser storage immediately so client sees it
+    // Store in browser storage queue
     try {
       const stored = localStorage.getItem('tanoah_custom_reviews');
       const allLocal = stored ? JSON.parse(stored) : [];
       allLocal.unshift(newReview);
       localStorage.setItem('tanoah_custom_reviews', JSON.stringify(allLocal));
     } catch (e) {
-      console.error('Failed to store review in localStorage:', e);
+      console.error('Failed to store review locally:', e);
     }
 
-    // If product_id is a valid Supabase UUID, also persist to database
+    // Persist to Supabase if valid UUID
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(review.product_id);
     if (isUuid) {
       try {
         await supabase.from('product_reviews').insert([{
-          ...review,
-          status: 'approved',
-          is_verified_buyer: true,
+          id: newReview.id,
+          product_id: newReview.product_id,
+          user_id: newReview.user_id || null,
+          author_name: newReview.author_name,
+          rating: newReview.rating,
+          title: newReview.title,
+          review_text: newReview.review_text,
+          image_urls: newReview.image_urls,
+          is_verified_buyer: newReview.is_verified_buyer,
+          status: 'pending',
+          is_featured: false,
         }]);
       } catch (err) {
-        console.warn('Database insert failed, but saved locally:', err);
+        console.warn('Database insert failed, preserved in local queue:', err);
       }
     }
 
     return {
       success: true,
-      message: 'Review published successfully! Thank you for your feedback.',
+      message: 'Review submitted for atelier verification! It will appear publicly once approved by our moderation team.',
       review: newReview,
     };
+  },
+
+  // Get Approved Featured Testimonials for Homepage
+  async getFeaturedTestimonials(): Promise<ProductReview[]> {
+    let remoteReviews: ProductReview[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('product_reviews')
+        .select('*, products(title, slug)')
+        .eq('status', 'approved')
+        .eq('is_featured', true)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      if (!error && data && data.length > 0) {
+        remoteReviews = data.map((item: any) => ({
+          ...item,
+          product_title: item.products?.title || item.product_title || 'Atelier Signature Piece',
+        }));
+      }
+    } catch {
+      remoteReviews = [];
+    }
+
+    // If fewer than 2 featured in DB, also fetch any other approved reviews with rating >= 4
+    if (remoteReviews.length < 2) {
+      try {
+        const { data } = await supabase
+          .from('product_reviews')
+          .select('*, products(title, slug)')
+          .eq('status', 'approved')
+          .gte('rating', 4)
+          .order('created_at', { ascending: false })
+          .limit(6);
+        if (data) {
+          const addl = data.map((item: any) => ({
+            ...item,
+            product_title: item.products?.title || item.product_title || 'Atelier Signature Piece',
+          }));
+          remoteReviews = [...remoteReviews, ...addl];
+        }
+      } catch {}
+    }
+
+    // Local approved featured reviews
+    let localReviews: ProductReview[] = [];
+    try {
+      const stored = localStorage.getItem('tanoah_custom_reviews');
+      if (stored) {
+        const allLocal = JSON.parse(stored) as ProductReview[];
+        localReviews = allLocal.filter((r) => r.status === 'approved' && r.is_featured);
+      }
+    } catch {}
+
+    const reviewMap = new Map<string, ProductReview>();
+    [...localReviews, ...remoteReviews].forEach((r) => {
+      if (r.id) reviewMap.set(r.id, r);
+    });
+
+    return Array.from(reviewMap.values());
+  },
+
+  // Admin: Get all reviews across the store
+  async getAllAdminReviews(): Promise<ProductReview[]> {
+    let dbReviews: ProductReview[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('product_reviews')
+        .select('*, products(title, slug)')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        dbReviews = data.map((item: any) => ({
+          ...item,
+          product_title: item.products?.title || item.product_title || 'Atelier Product',
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin reviews from Supabase:', err);
+    }
+
+    // Also get local reviews
+    let localReviews: ProductReview[] = [];
+    try {
+      const stored = localStorage.getItem('tanoah_custom_reviews');
+      if (stored) {
+        localReviews = JSON.parse(stored) as ProductReview[];
+      }
+    } catch {}
+
+    const reviewMap = new Map<string, ProductReview>();
+    localReviews.forEach((r) => reviewMap.set(r.id, r));
+    dbReviews.forEach((r) => reviewMap.set(r.id, r));
+
+    return Array.from(reviewMap.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  },
+
+  // Admin: Update Review Status (Approve, Reject, Hide)
+  async updateReviewStatus(id: string, status: 'pending' | 'approved' | 'rejected' | 'hidden'): Promise<boolean> {
+    let success = false;
+    try {
+      const { error } = await supabase
+        .from('product_reviews')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (!error) success = true;
+    } catch (e) {
+      console.warn('Supabase status update error:', e);
+    }
+
+    try {
+      const stored = localStorage.getItem('tanoah_custom_reviews');
+      if (stored) {
+        const all = JSON.parse(stored) as ProductReview[];
+        const updated = all.map((r) => (r.id === id ? { ...r, status } : r));
+        localStorage.setItem('tanoah_custom_reviews', JSON.stringify(updated));
+        success = true;
+      }
+    } catch {}
+
+    return success;
+  },
+
+  // Admin: Toggle Feature on Homepage
+  async toggleReviewFeatured(id: string, isFeatured: boolean): Promise<boolean> {
+    let success = false;
+    try {
+      const { error } = await supabase
+        .from('product_reviews')
+        .update({ is_featured: isFeatured, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (!error) success = true;
+    } catch (e) {
+      console.warn('Supabase toggle featured error:', e);
+    }
+
+    try {
+      const stored = localStorage.getItem('tanoah_custom_reviews');
+      if (stored) {
+        const all = JSON.parse(stored) as ProductReview[];
+        const updated = all.map((r) => (r.id === id ? { ...r, is_featured: isFeatured } : r));
+        localStorage.setItem('tanoah_custom_reviews', JSON.stringify(updated));
+        success = true;
+      }
+    } catch {}
+
+    return success;
+  },
+
+  // Admin: Delete Review
+  async deleteReview(id: string): Promise<boolean> {
+    let success = false;
+    try {
+      const { error } = await supabase.from('product_reviews').delete().eq('id', id);
+      if (!error) success = true;
+    } catch (e) {
+      console.warn('Supabase delete review error:', e);
+    }
+
+    try {
+      const stored = localStorage.getItem('tanoah_custom_reviews');
+      if (stored) {
+        const all = JSON.parse(stored) as ProductReview[];
+        const updated = all.filter((r) => r.id !== id);
+        localStorage.setItem('tanoah_custom_reviews', JSON.stringify(updated));
+        success = true;
+      }
+    } catch {}
+
+    return success;
   },
 
   // Coupon Management (Dual-sync)

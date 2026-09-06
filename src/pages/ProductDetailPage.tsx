@@ -14,6 +14,13 @@ import {
   Star,
   MapPin,
   Sparkles,
+  Camera,
+  ThumbsUp,
+  ZoomIn,
+  Lock,
+  LogIn,
+  X,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from '../data/mockData';
 import { ProductCard } from '../components/product/ProductCard';
@@ -21,6 +28,7 @@ import { formatPrice, calculateDiscountPercentage } from '../utils/formatters';
 import { useCartStore } from '../store/useCartStore';
 import { useWishlistStore } from '../store/useWishlistStore';
 import { useUIStore } from '../store/useUIStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { api, ProductReview } from '../services/api';
@@ -92,13 +100,49 @@ export const ProductDetailPage: React.FC = () => {
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
   const [addedAnimation, setAddedAnimation] = useState(false);
 
+  // Auth state for mandatory review login
+  const { user, profile } = useAuthStore();
+  const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
+
   // Live reviews state
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewAuthor, setReviewAuthor] = useState('');
+  const [reviewTitle, setReviewTitle] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
+  const [reviewImages, setReviewImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Reviews filtering and gallery lightbox
+  const [reviewsFilter, setReviewsFilter] = useState<'all' | 'with_photos' | '5' | '4' | '3' | '2' | '1'>('all');
+  const [activePhotoLightbox, setActivePhotoLightbox] = useState<{
+    url: string;
+    author: string;
+    rating: number;
+    title?: string;
+    text: string;
+    date: string;
+  } | null>(null);
+
+  // Helpful votes state (persisted locally)
+  const [helpfulVotes, setHelpfulVotes] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem('tanoah_review_helpful_votes');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [userVotedReviews, setUserVotedReviews] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('tanoah_review_user_voted');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   // Zoom lens state
   const [isZoomed, setIsZoomed] = useState(false);
@@ -223,6 +267,42 @@ export const ProductDetailPage: React.FC = () => {
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
     : '5.0';
 
+  const totalReviewsCount = reviews.length;
+
+  // 5-to-1 Star Distribution (Myntra-style)
+  const ratingDistribution = [5, 4, 3, 2, 1].map((stars) => {
+    const count = reviews.filter((r) => r.rating === stars).length;
+    const percentage = totalReviewsCount > 0 ? Math.round((count / totalReviewsCount) * 100) : (stars === 5 ? 100 : 0);
+    return { stars, count, percentage };
+  });
+
+  // Extract all customer photos for the gallery row
+  const customerPhotos = reviews.flatMap((r) =>
+    (r.image_urls || []).map((url) => ({
+      url,
+      author: r.author_name,
+      rating: r.rating,
+      title: r.title,
+      text: r.review_text,
+      date: new Date(r.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    }))
+  );
+
+  // Filtered reviews list
+  const filteredReviews = reviews.filter((r) => {
+    if (reviewsFilter === 'with_photos') return (r.image_urls || []).length > 0;
+    if (reviewsFilter === '5') return r.rating === 5;
+    if (reviewsFilter === '4') return r.rating === 4;
+    if (reviewsFilter === '3') return r.rating === 3;
+    if (reviewsFilter === '2') return r.rating === 2;
+    if (reviewsFilter === '1') return r.rating === 1;
+    return true;
+  });
+
   // Group colors with explicit typing
   const colors: { name: string; hex: string }[] = Array.from(
     new Map<string, { name: string; hex: string }>(
@@ -328,37 +408,105 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
+  const handleOpenReviewModal = () => {
+    if (!user) {
+      setIsAuthPromptOpen(true);
+      return;
+    }
+    const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+    setReviewAuthor(name);
+    setIsReviewModalOpen(true);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    const remainingSlots = 4 - reviewImages.length;
+    const validFiles = files.slice(0, remainingSlots);
+
+    const newPreviews = validFiles.map((f) => URL.createObjectURL(f));
+    setReviewImages((prev) => [...prev, ...validFiles]);
+    setImagePreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setReviewImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleHelpfulVote = (reviewId: string) => {
+    if (userVotedReviews.has(reviewId)) {
+      addToast({
+        type: 'info',
+        title: 'Already Recorded',
+        description: 'You have already marked this review as helpful.',
+      });
+      return;
+    }
+    const nextVotes = { ...helpfulVotes, [reviewId]: (helpfulVotes[reviewId] || 0) + 1 };
+    setHelpfulVotes(nextVotes);
+    const nextSet = new Set(userVotedReviews);
+    nextSet.add(reviewId);
+    setUserVotedReviews(nextSet);
+    try {
+      localStorage.setItem('tanoah_review_helpful_votes', JSON.stringify(nextVotes));
+      localStorage.setItem('tanoah_review_user_voted', JSON.stringify(Array.from(nextSet)));
+    } catch {}
+    addToast({
+      type: 'success',
+      title: 'Feedback Appreciated',
+      description: 'Thank you for your review feedback!',
+    });
+  };
+
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setIsAuthPromptOpen(true);
+      return;
+    }
     if (!reviewAuthor.trim() || !reviewText.trim()) return;
 
     setIsSubmittingReview(true);
     try {
+      // 1. Upload customer photos if any
+      const uploadedUrls: string[] = [];
+      for (const file of reviewImages) {
+        try {
+          const mediaRes = await api.uploadMediaFile(file);
+          if (mediaRes?.publicUrl) {
+            uploadedUrls.push(mediaRes.publicUrl);
+          }
+        } catch (uploadErr) {
+          console.warn('Review photo upload fallback:', uploadErr);
+        }
+      }
+
+      // 2. Submit to API (enforces pending status until admin moderation)
       const res = await api.submitReview({
         product_id: product.id,
+        product_title: product.title,
+        user_id: user.id,
         author_name: reviewAuthor.trim(),
         rating: reviewRating,
+        title: reviewTitle.trim() || undefined,
         review_text: reviewText.trim(),
+        image_urls: uploadedUrls,
         is_verified_buyer: true,
-        status: 'approved',
       });
 
       addToast({
         type: 'success',
-        title: 'Review Posted',
+        title: 'Review Submitted for Moderation',
         description: res.message,
       });
 
-      if (res.review) {
-        setReviews((prev) => [res.review, ...prev.filter((r) => r.id !== res.review.id)]);
-      } else {
-        const freshReviews = await api.getProductReviews(product.id);
-        setReviews(freshReviews);
-      }
-
       setIsReviewModalOpen(false);
-      setReviewAuthor('');
+      setReviewTitle('');
       setReviewText('');
+      setReviewImages([]);
+      setImagePreviews([]);
+      setReviewRating(5);
     } catch (err: any) {
       addToast({
         type: 'error',
@@ -515,10 +663,17 @@ export const ProductDetailPage: React.FC = () => {
                 <span className="text-[11px] font-poppins font-semibold text-[#888888] tracking-widest uppercase">
                   {product.category_name ? `${product.category_name.toUpperCase()} • ` : ''}{product.gender?.toUpperCase() || 'UNISEX'}
                 </span>
-                <div className="flex items-center gap-1 text-[#3F3F8F] text-xs">
+                <div 
+                  onClick={() => {
+                    const el = document.getElementById('ratings-and-reviews-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="flex items-center gap-1 text-[#3F3F8F] text-xs cursor-pointer hover:underline"
+                  title="View client ratings and customer photos"
+                >
                   <Star className="w-3.5 h-3.5 fill-current" />
-                  <span className="font-semibold">4.9</span>
-                  <span className="text-[#888888]">(28 reviews)</span>
+                  <span className="font-semibold">{avgRating}</span>
+                  <span className="text-[#888888]">({reviews.length} reviews)</span>
                 </div>
               </div>
 
@@ -790,48 +945,329 @@ export const ProductDetailPage: React.FC = () => {
                     <div className="flex justify-between items-center border-b border-[#E7E7E7] pb-3">
                       <div>
                         <div className="font-semibold text-black">Verified Buyer Reviews</div>
-                        <div className="text-[11px] text-[#666666]">Average Rating: {avgRating} / 5.0</div>
+                        <div className="text-[11px] text-[#666666]">Average Rating: {avgRating} / 5.0 ({reviews.length})</div>
                       </div>
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => setIsReviewModalOpen(true)}
+                        onClick={handleOpenReviewModal}
                         className="text-[11px]"
                       >
                         WRITE A REVIEW
                       </Button>
                     </div>
 
-                    {reviews.length === 0 ? (
-                      <p className="text-[#666666] italic py-2">
-                        Be the first to review this silhouette.
-                      </p>
-                    ) : (
-                      <div className="space-y-3 divide-y divide-[#E7E7E7]">
-                        {reviews.map((r) => (
-                          <div key={r.id} className="pt-3 first:pt-0">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-semibold text-black">{r.author_name}</span>
-                              <div className="flex text-amber-500 text-xs">
-                                {'★'.repeat(r.rating)}
-                              </div>
-                            </div>
-                            {r.title && <div className="font-medium text-black mb-0.5">{r.title}</div>}
-                            <p className="text-[#666666] leading-relaxed">{r.review_text}</p>
-                            {r.is_verified_buyer && (
-                              <span className="inline-block mt-1 text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-                                ✓ Verified Client
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <p className="text-xs text-[#666666] leading-relaxed">
+                      Read authentic client feedback and inspect real customer photos for this silhouette.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('ratings-and-reviews-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="w-full py-2 bg-neutral-100 hover:bg-neutral-200 text-black text-xs font-semibold rounded uppercase tracking-wider transition-colors text-center block"
+                    >
+                      View Full Ratings & Customer Photos ({customerPhotos.length}) ↓
+                    </button>
                   </div>
                 )}
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* MYNTRA-STYLE RATINGS & REVIEWS SECTION */}
+        {/* ========================================================================= */}
+        <div id="ratings-and-reviews-section" className="mt-20 border-t border-[#E7E7E7] pt-16">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase">
+                  VERIFIED CLIENT FEEDBACK
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                  <ShieldCheck className="w-3 h-3" /> 100% Genuine Atelier Reviews
+                </span>
+              </div>
+              <h2 className="font-wondra text-2xl sm:text-3xl text-black">
+                RATINGS & CUSTOMER REVIEWS
+              </h2>
+            </div>
+
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleOpenReviewModal}
+              icon={<MessageSquarePlus className="w-4 h-4" />}
+              className="text-xs uppercase tracking-wider px-6 py-3 shrink-0"
+            >
+              Rate & Review Product
+            </Button>
+          </div>
+
+          {/* Top Rating Summary Card & Distribution Bar Chart (Myntra Layout) */}
+          <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-6 sm:p-8 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+              {/* Left: Overall Big Score */}
+              <div className="md:col-span-4 flex flex-col items-center md:items-start justify-center border-b md:border-b-0 md:border-r border-[#E7E7E7] pb-6 md:pb-0 md:pr-8">
+                <div className="flex items-center gap-2">
+                  <span className="text-5xl font-bold font-poppins text-black">{avgRating}</span>
+                  <Star className="w-8 h-8 fill-amber-400 text-amber-400" />
+                </div>
+                <p className="text-xs text-[#666666] font-medium mt-2">
+                  Based on <span className="font-bold text-black">{totalReviewsCount}</span> verified ratings
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-xs text-emerald-700 bg-white px-3 py-1.5 rounded border border-emerald-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Verified Buyer Community</span>
+                </div>
+              </div>
+
+              {/* Right: 5-to-1 Star Distribution Bar Chart */}
+              <div className="md:col-span-8 space-y-2.5">
+                {ratingDistribution.map(({ stars, count, percentage }) => (
+                  <div key={stars} className="flex items-center gap-3 text-xs">
+                    <span className="w-8 font-semibold text-black flex items-center gap-1 shrink-0">
+                      <span>{stars}</span>
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    </span>
+
+                    {/* Progress Bar Container */}
+                    <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 rounded-full ${
+                          stars >= 4
+                            ? 'bg-emerald-600'
+                            : stars === 3
+                            ? 'bg-amber-500'
+                            : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+
+                    <span className="w-10 text-right text-[#888888] font-medium text-[11px] shrink-0">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Photos Gallery Row (Clickable to Lightbox) */}
+          {customerPhotos.length > 0 && (
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-[#3F3F8F]" />
+                  <h3 className="font-semibold text-black text-sm uppercase tracking-wide">
+                    Customer Photos ({customerPhotos.length})
+                  </h3>
+                </div>
+                <span className="text-xs text-[#888888]">Click photo to inspect full details</span>
+              </div>
+
+              <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-thin">
+                {customerPhotos.map((photo, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setActivePhotoLightbox(photo)}
+                    className="relative group cursor-pointer w-24 h-24 sm:w-28 sm:h-28 rounded-md overflow-hidden bg-neutral-100 border border-[#E7E7E7] hover:border-[#3F3F8F] shrink-0 shadow-xs transition-all"
+                  >
+                    <img
+                      src={photo.url}
+                      alt={`Customer photo by ${photo.author}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs gap-1">
+                      <ZoomIn className="w-5 h-5" />
+                      <span className="text-[9px] uppercase font-bold tracking-wider">Inspect</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reviews Filter Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E7E7E7] pb-4 mb-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setReviewsFilter('all')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  reviewsFilter === 'all'
+                    ? 'bg-black text-white'
+                    : 'bg-white text-[#666666] border border-[#E7E7E7] hover:border-black'
+                }`}
+              >
+                All Reviews ({reviews.length})
+              </button>
+
+              {customerPhotos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setReviewsFilter('with_photos')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    reviewsFilter === 'with_photos'
+                      ? 'bg-black text-white'
+                      : 'bg-white text-[#666666] border border-[#E7E7E7] hover:border-black'
+                  }`}
+                >
+                  <Camera className="w-3 h-3" />
+                  <span>With Photos ({reviews.filter((r) => (r.image_urls || []).length > 0).length})</span>
+                </button>
+              )}
+
+              {[5, 4, 3, 2, 1].map((st) => {
+                const count = reviews.filter((r) => r.rating === st).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setReviewsFilter(String(st) as any)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1 transition-all ${
+                      reviewsFilter === String(st)
+                        ? 'bg-black text-white'
+                        : 'bg-white text-[#666666] border border-[#E7E7E7] hover:border-black'
+                    }`}
+                  >
+                    <span>{st}</span>
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    <span>({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="text-xs text-[#888888]">
+              Showing <span className="font-semibold text-black">{filteredReviews.length}</span> verified customer reviews
+            </div>
+          </div>
+
+          {/* Individual Reviews Cards List */}
+          {filteredReviews.length === 0 ? (
+            <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-10 text-center">
+              <Star className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+              <h3 className="font-semibold text-black text-base">No reviews match your selection</h3>
+              <p className="text-xs text-[#666666] mt-1 mb-4">
+                Be the first verified connoisseur to review this silhouette.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenReviewModal}
+                className="text-xs uppercase"
+              >
+                Write a Review
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6 divide-y divide-[#E7E7E7]">
+              {filteredReviews.map((rev) => {
+                const votes = helpfulVotes[rev.id] || 0;
+                const hasVoted = userVotedReviews.has(rev.id);
+                return (
+                  <div key={rev.id} className="pt-6 first:pt-0 space-y-3">
+                    {/* Header Row: Rating badge & Review Title */}
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex items-center gap-1 bg-emerald-700 text-white px-2 py-0.5 rounded text-xs font-bold shadow-xs">
+                        <span>{rev.rating}</span>
+                        <Star className="w-3 h-3 fill-current" />
+                      </div>
+                      {rev.title && (
+                        <h4 className="font-semibold text-black text-sm">{rev.title}</h4>
+                      )}
+                    </div>
+
+                    {/* Review Body */}
+                    <p className="text-[#444444] text-xs leading-relaxed max-w-3xl">
+                      {rev.review_text}
+                    </p>
+
+                    {/* Customer Photos for this review */}
+                    {rev.image_urls && rev.image_urls.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {rev.image_urls.map((imgUrl, pIdx) => (
+                          <div
+                            key={pIdx}
+                            onClick={() =>
+                              setActivePhotoLightbox({
+                                url: imgUrl,
+                                author: rev.author_name,
+                                rating: rev.rating,
+                                title: rev.title,
+                                text: rev.review_text,
+                                date: new Date(rev.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                }),
+                              })
+                            }
+                            className="relative group cursor-pointer w-20 h-20 rounded border border-[#E7E7E7] overflow-hidden bg-neutral-100 hover:border-black transition-all"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`Customer photo ${pIdx + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <ZoomIn className="w-4 h-4" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Author Footer & Helpful Reaction */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-2 text-[#888888]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-black">{rev.author_name}</span>
+                        <span>•</span>
+                        <span>
+                          {new Date(rev.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </span>
+                        {rev.is_verified_buyer && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                              <ShieldCheck className="w-3.5 h-3.5" /> Verified Buyer
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Helpful Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleHelpfulVote(rev.id)}
+                        disabled={hasVoted}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-colors ${
+                          hasVoted
+                            ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                            : 'hover:bg-neutral-100 text-[#666666] hover:text-black'
+                        }`}
+                        title="Mark review as helpful"
+                      >
+                        <ThumbsUp className={`w-3.5 h-3.5 ${hasVoted ? 'fill-emerald-600 text-emerald-600' : ''}`} />
+                        <span>Helpful {votes > 0 ? `(${votes})` : ''}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Related Products Carousel */}
@@ -885,7 +1321,86 @@ export const ProductDetailPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Write Review Modal */}
+      {/* Mandatory Login Prompt Modal */}
+      <Modal
+        isOpen={isAuthPromptOpen}
+        onClose={() => setIsAuthPromptOpen(false)}
+        title="CLIENT AUTHENTICATION REQUIRED"
+        maxWidth="sm"
+      >
+        <div className="space-y-4 text-xs font-poppins text-center py-2">
+          <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto text-[#3F3F8F]">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base text-black">Sign In to Rate & Review</h3>
+            <p className="text-[#666666] mt-1 leading-relaxed">
+              To protect the authenticity of our atelier and preserve verified buyer integrity, product reviews and customer photos can only be submitted by registered TANOAH clients.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              to="/login"
+              state={{ from: window.location.pathname }}
+              className="w-full py-2.5 bg-black text-white font-semibold rounded text-xs uppercase tracking-wider hover:bg-[#3F3F8F] transition-colors inline-block"
+            >
+              Sign In to Your Account
+            </Link>
+            <Link
+              to="/register"
+              state={{ from: window.location.pathname }}
+              className="w-full py-2.5 border border-[#E7E7E7] text-black font-semibold rounded text-xs uppercase tracking-wider hover:border-black transition-colors inline-block"
+            >
+              Create New Account
+            </Link>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Customer Photo Fullscreen Lightbox Modal */}
+      <Modal
+        isOpen={!!activePhotoLightbox}
+        onClose={() => setActivePhotoLightbox(null)}
+        title="CUSTOMER PHOTO & VERIFIED REVIEW"
+        maxWidth="lg"
+      >
+        {activePhotoLightbox && (
+          <div className="space-y-4 font-poppins">
+            <div className="bg-neutral-950 rounded-lg overflow-hidden flex items-center justify-center max-h-[70vh]">
+              <img
+                src={activePhotoLightbox.url}
+                alt={`Customer review by ${activePhotoLightbox.author}`}
+                className="max-h-[70vh] w-auto object-contain"
+              />
+            </div>
+            <div className="space-y-2 text-xs pt-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-black text-sm">{activePhotoLightbox.author}</span>
+                  <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                    <ShieldCheck className="w-3 h-3" /> Verified Buyer
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 bg-emerald-700 text-white px-2 py-0.5 rounded text-[11px] font-bold">
+                  <span>{activePhotoLightbox.rating}</span>
+                  <Star className="w-3 h-3 fill-current" />
+                </div>
+              </div>
+              {activePhotoLightbox.title && (
+                <div className="font-semibold text-black text-sm">{activePhotoLightbox.title}</div>
+              )}
+              <p className="text-[#444444] leading-relaxed italic bg-[#FAFAFA] p-3 rounded border border-neutral-100">
+                "{activePhotoLightbox.text}"
+              </p>
+              <div className="text-[11px] text-neutral-400 text-right">
+                Posted {activePhotoLightbox.date}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Write Review Modal with Image Upload */}
       <Modal
         isOpen={isReviewModalOpen}
         onClose={() => setIsReviewModalOpen(false)}
@@ -893,6 +1408,14 @@ export const ProductDetailPage: React.FC = () => {
         maxWidth="md"
       >
         <form onSubmit={handleSubmitReview} className="space-y-4 text-xs font-poppins">
+          {/* Atelier Moderation Note */}
+          <div className="bg-[#EEEEF8] border border-[#3F3F8F]/20 rounded p-3 text-[11px] text-[#3F3F8F] flex items-start gap-2">
+            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              <strong>Atelier Verification Policy:</strong> All client reviews and uploaded photos undergo administrative moderation to ensure genuine feedback before appearing live on the storefront.
+            </span>
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold text-black uppercase mb-1">
               Your Name *
@@ -927,6 +1450,19 @@ export const ProductDetailPage: React.FC = () => {
 
           <div>
             <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+              Review Headline (Optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Unmatched Fabric Quality & Drape"
+              value={reviewTitle}
+              onChange={(e) => setReviewTitle(e.target.value)}
+              className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-black uppercase mb-1">
               Review Comments *
             </label>
             <textarea
@@ -937,6 +1473,47 @@ export const ProductDetailPage: React.FC = () => {
               onChange={(e) => setReviewText(e.target.value)}
               className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
             />
+          </div>
+
+          {/* Customer Product Image Upload */}
+          <div>
+            <label className="block text-[11px] font-semibold text-black uppercase mb-1 flex items-center justify-between">
+              <span>Upload Garment Photos (Optional, Max 4)</span>
+              <span className="text-neutral-400 font-normal">{reviewImages.length} / 4 attached</span>
+            </label>
+
+            {/* Thumbnail previews with remove button */}
+            {imagePreviews.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {imagePreviews.map((preview, idx) => (
+                  <div key={idx} className="relative w-16 h-16 rounded border border-[#E7E7E7] overflow-hidden bg-neutral-100">
+                    <img src={preview} alt={`Upload preview ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(idx)}
+                      className="absolute top-1 right-1 bg-black/70 hover:bg-rose-600 text-white p-0.5 rounded-full transition-colors"
+                      title="Remove image"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {reviewImages.length < 4 && (
+              <label className="border-2 border-dashed border-[#E7E7E7] hover:border-[#3F3F8F] rounded p-3 flex items-center justify-center gap-2 cursor-pointer transition-colors text-[#666666] hover:text-[#3F3F8F]">
+                <Camera className="w-4 h-4" />
+                <span className="text-xs font-medium">Click to select photo(s) of the product</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
           <div className="pt-2 flex justify-end gap-2">
@@ -954,7 +1531,7 @@ export const ProductDetailPage: React.FC = () => {
               type="submit"
               isLoading={isSubmittingReview}
             >
-              SUBMIT REVIEW
+              SUBMIT FOR VERIFICATION
             </Button>
           </div>
         </form>

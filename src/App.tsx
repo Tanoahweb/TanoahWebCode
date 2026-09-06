@@ -50,6 +50,7 @@ import { CouponsPage } from './pages/admin/CouponsPage';
 import { StoreSettingsPage } from './pages/admin/StoreSettingsPage';
 import { CollectionsPage } from './pages/admin/CollectionsPage';
 import { NavigationPage } from './pages/admin/NavigationPage';
+import { ReviewsPage } from './pages/admin/ReviewsPage';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -115,6 +116,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin/navigation" element={<NavigationPage />} />
           <Route path="/admin/media" element={<MediaLibraryPage />} />
           <Route path="/admin/coupons" element={<CouponsPage />} />
+          <Route path="/admin/reviews" element={<ReviewsPage />} />
           <Route path="/admin/settings" element={<StoreSettingsPage />} />
         </Routes>
       </main>
