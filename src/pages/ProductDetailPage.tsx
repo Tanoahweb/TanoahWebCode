@@ -172,6 +172,54 @@ export const ProductDetailPage: React.FC = () => {
     };
   }, [product?.id]);
 
+  const handleOpenReviewModal = async () => {
+    if (!user) {
+      setIsAuthPromptOpen(true);
+      return;
+    }
+    if (!product) return;
+
+    setIsCheckingPurchase(true);
+    try {
+      const hasPurchased = await api.checkUserPurchasedProduct({
+        productId: product.id,
+        productTitle: product.title,
+        productSlug: product.slug,
+        userId: user.id,
+        userEmail: user.email || undefined,
+      });
+
+      if (!hasPurchased) {
+        setIsPurchaseRequiredModalOpen(true);
+        return;
+      }
+
+      const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      setReviewAuthor(name);
+      setIsReviewModalOpen(true);
+    } catch (err) {
+      console.warn('Purchase check error:', err);
+      setIsReviewModalOpen(true);
+    } finally {
+      setIsCheckingPurchase(false);
+    }
+  };
+
+  // Trigger review modal if user returned from login with action=write_review
+  useEffect(() => {
+    if (searchParams.get('action') === 'write_review') {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+
+      if (user) {
+        handleOpenReviewModal();
+      } else {
+        setIsAuthPromptOpen(true);
+      }
+    }
+  }, [searchParams, user, product]);
+
   if (isLoading) {
     return (
       <div className="w-full bg-white font-poppins min-h-screen">
@@ -410,54 +458,6 @@ export const ProductDetailPage: React.FC = () => {
       addToast({ type: 'info', title: 'Link Copied', description: 'Product link copied to clipboard.' });
     }
   };
-
-  const handleOpenReviewModal = async () => {
-    if (!user) {
-      setIsAuthPromptOpen(true);
-      return;
-    }
-    if (!product) return;
-
-    setIsCheckingPurchase(true);
-    try {
-      const hasPurchased = await api.checkUserPurchasedProduct({
-        productId: product.id,
-        productTitle: product.title,
-        productSlug: product.slug,
-        userId: user.id,
-        userEmail: user.email || undefined,
-      });
-
-      if (!hasPurchased) {
-        setIsPurchaseRequiredModalOpen(true);
-        return;
-      }
-
-      const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
-      setReviewAuthor(name);
-      setIsReviewModalOpen(true);
-    } catch (err) {
-      console.warn('Purchase check error:', err);
-      setIsReviewModalOpen(true);
-    } finally {
-      setIsCheckingPurchase(false);
-    }
-  };
-
-  // Trigger review modal if user returned from login with action=write_review
-  useEffect(() => {
-    if (searchParams.get('action') === 'write_review') {
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-
-      if (user) {
-        handleOpenReviewModal();
-      } else {
-        setIsAuthPromptOpen(true);
-      }
-    }
-  }, [searchParams, user, product]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;

@@ -10,6 +10,7 @@ import { QuickViewModal } from './components/product/QuickViewModal';
 import { SearchOverlay } from './components/common/SearchOverlay';
 import { OfferPopup } from './components/common/OfferPopup';
 import { ToastContainer } from './components/common/ToastContainer';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useSmoothScroll } from './hooks/useSmoothScroll';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -23,6 +24,7 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { LookbookPage } from './pages/LookbookPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 // Auth & Account
 import { LoginPage } from './pages/Auth/LoginPage';
@@ -118,6 +120,9 @@ const AppContent: React.FC = () => {
           <Route path="/admin/coupons" element={<CouponsPage />} />
           <Route path="/admin/reviews" element={<ReviewsPage />} />
           <Route path="/admin/settings" element={<StoreSettingsPage />} />
+
+          {/* 404 Catch-All Page for Unmatched URLs */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
 
@@ -142,9 +147,11 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
