@@ -52,6 +52,22 @@ export const OfferPopup: React.FC = () => {
     return () => clearTimeout(timer);
   }, [config.delaySeconds, config.isEnabled, config.frequency, location.pathname, shouldShowPopup, openPopup]);
 
+  // Handle body scroll lock & Lenis pause
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleCopyCode = () => {
@@ -120,21 +136,6 @@ export const OfferPopup: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    const lenis = getLenis();
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      lenis?.stop();
-    } else {
-      document.body.style.overflow = '';
-      lenis?.start();
-    }
-    return () => {
-      document.body.style.overflow = '';
-      lenis?.start();
-    };
-  }, [isOpen]);
 
   const handleDismiss = () => {
     dismissPopup();
