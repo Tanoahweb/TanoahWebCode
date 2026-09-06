@@ -19,6 +19,8 @@ import {
   Search,
   ExternalLink,
   FolderTree,
+  Package,
+  Sparkles,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -189,6 +191,19 @@ export const ProductEditPage: React.FC = () => {
   // Media state with color tagging (Feature 2)
   const [images, setImages] = useState<ProductImage[]>([]);
 
+  // Variations Mode Toggle: false = Simple product without variants, true = Multi-option variant matrix
+  const [hasVariations, setHasVariations] = useState<boolean>(false);
+
+  // Single Product Inventory & SKU Management (when hasVariations === false)
+  const [singleStockQuantity, setSingleStockQuantity] = useState<number>(25);
+  const [singleLowStockThreshold, setSingleLowStockThreshold] = useState<number>(5);
+  const [singleSku, setSingleSku] = useState<string>('');
+  const [singleBarcode, setSingleBarcode] = useState<string>('');
+  const [singleColorName, setSingleColorName] = useState<string>('');
+  const [singleColorHex, setSingleColorHex] = useState<string>('#1C1C1C');
+  const [singleSizeName, setSingleSizeName] = useState<string>('One Size');
+  const [isSingleColorPaletteOpen, setIsSingleColorPaletteOpen] = useState(false);
+
   // Options System (Matches user's screenshots 1 & 2)
   const [options, setOptions] = useState<ProductOption[]>([
     {
@@ -233,10 +248,14 @@ export const ProductEditPage: React.FC = () => {
   const [modalCurrentHex, setModalCurrentHex] = useState('#10B981');
   const [modalChoices, setModalChoices] = useState<OptionChoice[]>([]);
 
-  // Distinct color names from options for image tagging
-  const configuredColorChoices = options.find(
-    (o) => o.type === 'color' || o.name.toLowerCase().includes('colo')
-  )?.choices || [];
+  // Distinct color names from options or single product for image tagging
+  const configuredColorChoices = hasVariations
+    ? (options.find(
+        (o) => o.type === 'color' || o.name.toLowerCase().includes('colo')
+      )?.choices || [])
+    : (singleColorName.trim()
+        ? [{ id: 'choice_single_col', name: singleColorName.trim(), hex: singleColorHex }]
+        : []);
 
   // Generate Cartesian Product Variants from Options
   const buildVariantsFromOptions = (
@@ -478,9 +497,28 @@ export const ProductEditPage: React.FC = () => {
                 });
               }
 
-              if (reconstructed.length > 0) {
+              if (reconstructed.length > 0 || match.variants.length > 1) {
+                setHasVariations(true);
                 setOptions(reconstructed);
+              } else if (match.variants.length === 1) {
+                // Simple product without variations
+                setHasVariations(false);
+                const firstVar = match.variants[0];
+                setSingleStockQuantity(firstVar.stock_quantity ?? 0);
+                setSingleLowStockThreshold(firstVar.low_stock_threshold ?? 5);
+                setSingleSku(firstVar.sku || '');
+                setSingleBarcode(firstVar.barcode || '');
+                setSingleColorName(firstVar.color_name && firstVar.color_name !== 'Standard' ? firstVar.color_name : '');
+                setSingleColorHex(firstVar.color_hex || '#1C1C1C');
+                setSingleSizeName(firstVar.size || 'One Size');
+                setOptions([]);
+              } else {
+                setHasVariations(false);
+                setOptions([]);
               }
+            } else {
+              setHasVariations(false);
+              setOptions([]);
             }
           } catch (loadErr) {
             console.error('Error hydrating product edit fields:', loadErr);
@@ -488,7 +526,10 @@ export const ProductEditPage: React.FC = () => {
         }
       });
     } else {
-      buildVariantsFromOptions(options);
+      // New product: default to simple product without variations
+      setHasVariations(false);
+      setOptions([]);
+      setVariants([]);
     }
 
     return () => {
@@ -905,6 +946,18 @@ export const ProductEditPage: React.FC = () => {
     });
   };
 
+  // Auto-generate SKU helper for simple single products
+  const handleGenerateSingleSku = () => {
+    const prefix = (slug || title || 'ITEM')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 6) || 'TAN';
+    const colorPart = singleColorName.trim()
+      ? `-${singleColorName.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase()}`
+      : '';
+    setSingleSku(`TAN-${prefix}${colorPart}`);
+  };
+
   // Save Product Handler (Calls unified api.saveProduct)
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -917,13 +970,57 @@ export const ProductEditPage: React.FC = () => {
       return;
     }
 
-    if (variants.length === 0) {
-      addToast({
-        type: 'error',
-        title: 'Missing Variants',
-        description: 'Please add at least one product option (e.g. Colour or Size).',
-      });
-      return;
+    // Sanitize images first to ensure non-empty valid URLs and at least one primary image
+    const cleanedImages = images.filter(
+      (img) => img && typeof img.image_url === 'string' && img.image_url.trim().length > 0
+    );
+    if (cleanedImages.length > 0 && !cleanedImages.some((img) => img.is_primary)) {
+      cleanedImages[0].is_primary = true;
+    }
+
+    let finalVariants: ProductVariant[] = [];
+
+    if (hasVariations) {
+      if (variants.length === 0) {
+        addToast({
+          type: 'error',
+          title: 'Missing Variants',
+          description: 'Please add at least one product option choice or uncheck variations.',
+        });
+        return;
+      }
+      finalVariants = variants;
+    } else {
+      // Build master single variant for simple product without variations
+      const prefix = (slug || title || 'ITEM')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 6) || 'TAN';
+      const autoSku = `TAN-${prefix}`;
+      const effectiveSku = singleSku.trim() || autoSku;
+
+      const existingSingle = variants[0];
+      const singleVariant: ProductVariant = {
+        id: existingSingle?.id || `var_${Date.now()}_default`,
+        product_id: id && id !== 'new' ? id : 'new',
+        title: singleColorName.trim()
+          ? `${singleColorName.trim()} / ${singleSizeName.trim() || 'One Size'}`
+          : 'Standard',
+        sku: effectiveSku,
+        barcode: singleBarcode.trim() || undefined,
+        color_name: singleColorName.trim() || 'Standard',
+        color_hex: singleColorName.trim() ? singleColorHex : '#000000',
+        color_image_url: cleanedImages[0]?.image_url || '',
+        size: singleSizeName.trim() || 'One Size',
+        price: basePrice,
+        sale_price: basePrice < compareAtPrice ? basePrice : undefined,
+        compare_at_price: compareAtPrice,
+        stock_quantity: Math.max(0, Number(singleStockQuantity) || 0),
+        reserved_stock: 0,
+        low_stock_threshold: Math.max(0, Number(singleLowStockThreshold) || 0),
+        is_active: true,
+      };
+      finalVariants = [singleVariant];
     }
 
     setIsLoading(true);
@@ -933,17 +1030,9 @@ export const ProductEditPage: React.FC = () => {
     const mergedTagsSet = new Set(rawTags);
     selectedCollectionSlugs.forEach((colSlug) => mergedTagsSet.add(colSlug));
 
-    // Sanitize images to ensure non-empty valid URLs and at least one primary image
-    const cleanedImages = images.filter(
-      (img) => img && typeof img.image_url === 'string' && img.image_url.trim().length > 0
-    );
-    if (cleanedImages.length > 0 && !cleanedImages.some((img) => img.is_primary)) {
-      cleanedImages[0].is_primary = true;
-    }
-
     // Ensure variants ONLY reference active valid images from cleanedImages
     const validImgUrls = new Set(cleanedImages.map((i) => i.image_url));
-    const cleanedVariants = variants.map((v) => {
+    const cleanedVariants = finalVariants.map((v) => {
       const matchingImg = cleanedImages.find(
         (img) => img.color_name && img.color_name.toLowerCase().trim() === v.color_name?.toLowerCase().trim()
       );
@@ -997,7 +1086,9 @@ export const ProductEditPage: React.FC = () => {
       addToast({
         type: 'success',
         title: isEditing ? 'Product Updated' : 'Product Published',
-        description: `${productPayload.title} saved with ${variants.length} variants & color image switching.`,
+        description: hasVariations
+          ? `${productPayload.title} saved with ${cleanedVariants.length} variants.`
+          : `${productPayload.title} saved with inventory of ${singleStockQuantity} units.`,
       });
 
       setIsLoading(false);
@@ -1225,32 +1316,283 @@ export const ProductEditPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 4. Shopify-Style Options & Variants System (Clean Version) */}
+            {/* 4. Options & Variants / Direct Inventory Section */}
             <div className="bg-white p-6 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-4 border-b border-[#E7E7E7] gap-3">
-                <div>
-                  <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-[#3F3F8F]" />
-                    <span>OPTIONS & VARIANTS (SHOPIFY ARCHITECTURE)</span>
-                  </h3>
-                  <p className="text-[11px] text-[#666666] mt-0.5">
-                    Configure Colour (e.g. Red, Blue) and Size (e.g. S, M, L).
-                  </p>
+              {/* Header & Variations Master Toggle */}
+              <div className="pb-4 border-b border-[#E7E7E7] space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-[#3F3F8F]" />
+                      <span>INVENTORY & PRODUCT VARIATIONS</span>
+                    </h3>
+                    <p className="text-[11px] text-[#666666] mt-0.5">
+                      Manage inventory stock, SKUs, and optional variants (like sizes and colours).
+                    </p>
+                  </div>
+
+                  {hasVariations && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="button"
+                      onClick={handleOpenAddOptionModal}
+                      icon={<Plus className="w-3.5 h-3.5" />}
+                    >
+                      ADD PRODUCT OPTION
+                    </Button>
+                  )}
                 </div>
 
-                <Button
-                  variant="primary"
-                  size="sm"
-                  type="button"
-                  onClick={handleOpenAddOptionModal}
-                  icon={<Plus className="w-3.5 h-3.5" />}
-                >
-                  ADD PRODUCT OPTION
-                </Button>
+                {/* Master Toggle Switch: Has Variations */}
+                <div className="p-3.5 bg-[#F9F9FB] rounded-[4px] border border-[#E5E5EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="hasVariationsToggle"
+                      checked={hasVariations}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setHasVariations(next);
+                        if (next && variants.length === 0) {
+                          buildVariantsFromOptions(options);
+                        }
+                      }}
+                      className="w-4 h-4 accent-[#3F3F8F] cursor-pointer rounded"
+                    />
+                    <label htmlFor="hasVariationsToggle" className="cursor-pointer select-none">
+                      <div className="text-xs font-semibold text-black">
+                        This product has multiple variations (e.g. multiple sizes or colours)
+                      </div>
+                      <div className="text-[11px] text-[#666666]">
+                        {hasVariations
+                          ? 'Generating combinations and separate inventory tracking per size/colour'
+                          : 'Simple product: Direct stock & SKU management without requiring size or colour options (e.g. accessories, scarves, or single-piece items)'}
+                      </div>
+                    </label>
+                  </div>
+
+                  <span
+                    className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded border shrink-0 ${
+                      hasVariations
+                        ? 'bg-[#3F3F8F]/10 text-[#3F3F8F] border-[#3F3F8F]/30'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}
+                  >
+                    {hasVariations ? 'Variations Enabled' : 'Simple Product'}
+                  </span>
+                </div>
               </div>
 
-              {/* Configured Options Cards */}
-              <div className="space-y-4">
+              {!hasVariations ? (
+                /* Simple Product Inventory Card */
+                <div className="space-y-6">
+                  <div className="p-4 bg-[#F8F9FA] rounded-[4px] border border-[#E7E7E7] space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-black">
+                        <Package className="w-4 h-4 text-[#3F3F8F]" />
+                        <span>SINGLE PRODUCT INVENTORY & DETAILS</span>
+                      </div>
+                      <span className="text-[10px] text-[#666666] bg-white px-2 py-0.5 rounded border border-[#E7E7E7]">
+                        Single Variant Mode
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                      {/* Stock Quantity */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#222222] mb-1">
+                          Available Stock Quantity <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={singleStockQuantity}
+                          onChange={(e) => setSingleStockQuantity(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          placeholder="25"
+                          className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-semibold focus:outline-none focus:border-[#3F3F8F]"
+                          required
+                        />
+                        <span className="text-[10px] text-[#888888] mt-0.5 block">
+                          Current available inventory ready to sell
+                        </span>
+                      </div>
+
+                      {/* Low Stock Threshold */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#222222] mb-1">
+                          Low Stock Alert Threshold
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={singleLowStockThreshold}
+                          onChange={(e) => setSingleLowStockThreshold(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          placeholder="5"
+                          className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                        <span className="text-[10px] text-[#888888] mt-0.5 block">
+                          Alert in admin when stock drops to or below this level
+                        </span>
+                      </div>
+
+                      {/* SKU */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-xs font-medium text-[#222222]">
+                            SKU (Stock Keeping Unit)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleGenerateSingleSku}
+                            className="text-[10px] text-[#3F3F8F] font-semibold hover:underline flex items-center gap-0.5"
+                          >
+                            <Sparkles className="w-2.5 h-2.5" /> Auto-generate
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={singleSku}
+                          onChange={(e) => setSingleSku(e.target.value)}
+                          placeholder="e.g. TAN-SCARF-01"
+                          className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                      </div>
+
+                      {/* Barcode / ISBN */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#222222] mb-1">
+                          Barcode / ISBN / UPC (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={singleBarcode}
+                          onChange={(e) => setSingleBarcode(e.target.value)}
+                          placeholder="e.g. 8901234567890"
+                          className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                      </div>
+
+                      {/* Single Product Colour (Optional) */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#222222] mb-1">
+                          Single Colour (Optional)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setIsSingleColorPaletteOpen(!isSingleColorPaletteOpen)}
+                              className="w-9 h-9 rounded-[4px] border border-[#D5D5ED] shadow-2xs flex items-center justify-center relative hover:border-[#3F3F8F] transition-colors"
+                              title="Pick colour swatch"
+                            >
+                              <span
+                                className="w-5 h-5 rounded-full border border-black/15 block"
+                                style={{ backgroundColor: singleColorHex || '#1C1C1C' }}
+                              />
+                            </button>
+
+                            {isSingleColorPaletteOpen && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setIsSingleColorPaletteOpen(false)}
+                                />
+                                <div className="absolute top-full left-0 mt-2 z-50 p-3 bg-white rounded-[6px] shadow-xl border border-[#E7E7E7] w-64 space-y-2">
+                                  <div className="flex justify-between items-center pb-1 border-b border-[#E7E7E7]">
+                                    <span className="text-[11px] font-bold text-black uppercase">
+                                      Select Colour Shade
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsSingleColorPaletteOpen(false)}
+                                      className="text-[#888888] hover:text-black p-0.5"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-6 gap-1.5 pt-1">
+                                    {FASHION_PALETTE_COLORS.map((c) => (
+                                      <button
+                                        key={c.name}
+                                        type="button"
+                                        onClick={() => {
+                                          setSingleColorHex(c.hex);
+                                          if (!singleColorName.trim()) {
+                                            setSingleColorName(c.name);
+                                          }
+                                          setIsSingleColorPaletteOpen(false);
+                                        }}
+                                        title={`${c.name} (${c.hex})`}
+                                        className="p-1 flex flex-col items-center hover:bg-neutral-100 rounded transition-colors"
+                                      >
+                                        <span
+                                          className="w-5 h-5 rounded-full block border border-black/10 hover:scale-110 transition-transform"
+                                          style={{ backgroundColor: c.hex }}
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <div className="pt-2 border-t border-[#E7E7E7] flex items-center gap-2">
+                                    <span className="text-[10px] text-[#666666] font-mono">HEX:</span>
+                                    <input
+                                      type="text"
+                                      value={singleColorHex}
+                                      onChange={(e) => setSingleColorHex(e.target.value)}
+                                      placeholder="#1C1C1C"
+                                      className="flex-1 p-1 text-[11px] font-mono border border-[#E7E7E7] rounded uppercase focus:outline-none focus:border-[#3F3F8F]"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <input
+                            type="text"
+                            value={singleColorName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSingleColorName(val);
+                              const detected = detectHexForColor(val);
+                              if (detected !== '#10B981') {
+                                setSingleColorHex(detected);
+                              }
+                            }}
+                            placeholder="e.g. Emerald, Maroon, Black"
+                            className="flex-1 p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                          />
+                        </div>
+                        <span className="text-[10px] text-[#888888] mt-0.5 block">
+                          Leave blank if not applicable
+                        </span>
+                      </div>
+
+                      {/* Size / Dimension Label */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#222222] mb-1">
+                          Size / Dimension Label
+                        </label>
+                        <input
+                          type="text"
+                          value={singleSizeName}
+                          onChange={(e) => setSingleSizeName(e.target.value)}
+                          placeholder="One Size"
+                          className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                        <span className="text-[10px] text-[#888888] mt-0.5 block">
+                          Shown as attribute on store (no size selection required)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Configured Options Cards */}
+                  <div className="space-y-4">
                 {options.map((opt) => (
                   <div
                     key={opt.id}
@@ -1676,8 +2018,10 @@ export const ProductEditPage: React.FC = () => {
                   </table>
                 </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
+        </div>
+      </div>
 
           {/* Sidebar Settings (Col 4) */}
           <div className="lg:col-span-4 space-y-6">

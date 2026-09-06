@@ -312,11 +312,18 @@ export const CartDrawer: React.FC = () => {
                         </Link>
                       </div>
 
-                      <div className="text-[11px] text-[#666666] mt-0.5 space-x-2">
-                        <span>Color: {item.variant.color_name}</span>
-                        <span>•</span>
-                        <span>Size: {item.variant.size}</span>
-                      </div>
+                      {(() => {
+                        const isStdCol = !item.variant.color_name || ['standard', 'default'].includes(item.variant.color_name.toLowerCase());
+                        const isStdSz = !item.variant.size || ['standard', 'one size', 'free size', 'os', 'n/a'].includes(item.variant.size.toLowerCase());
+                        if (isStdCol && isStdSz) return null;
+                        return (
+                          <div className="text-[11px] text-[#666666] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            {!isStdCol && <span>Color: {item.variant.color_name}</span>}
+                            {!isStdCol && !isStdSz && <span>•</span>}
+                            {!isStdSz && <span>Size: {item.variant.size}</span>}
+                          </div>
+                        );
+                      })()}
 
                       <div className="text-[10px] text-[#888888] font-mono mt-0.5">
                         SKU: {item.variant.sku}

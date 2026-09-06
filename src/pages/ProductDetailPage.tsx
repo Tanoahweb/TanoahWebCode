@@ -415,20 +415,49 @@ export const ProductDetailPage: React.FC = () => {
     ];
   }
 
+  const isStandardColor = (c: string) => {
+    const norm = (c || '').trim().toLowerCase();
+    return !norm || norm === 'standard' || norm === 'default';
+  };
+
+  const isStandardSize = (s: string) => {
+    const norm = (s || '').trim().toLowerCase();
+    return !norm || norm === 'one size' || norm === 'standard' || norm === 'free size' || norm === 'os' || norm === 'n/a';
+  };
+
+  const hasMultipleColors = colors.length > 1;
+  const showSingleColor = colors.length === 1 && !isStandardColor(colors[0].name);
+
+  const hasMultipleSizes = sizes.length > 1;
+  const isSingleStandardSize = sizes.length === 1 && isStandardSize(sizes[0].size);
+  const showSingleCustomSize = sizes.length === 1 && !isStandardSize(sizes[0].size);
+
   const images = variantSpecificImages;
 
   const handleAddToCart = () => {
     if (isOutOfStock || !activeVariant) {
-      addToast({ type: 'error', title: 'Out of Stock', description: 'Selected size is unavailable.' });
+      addToast({ type: 'error', title: 'Out of Stock', description: 'Selected item is unavailable.' });
       return;
     }
     addToCart(product, activeVariant, quantity);
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 2000);
+
+    const isStdCol = isStandardColor(activeVariant.color_name);
+    const isStdSz = isStandardSize(activeVariant.size);
+    let variantDesc = '';
+    if (!isStdCol && !isStdSz) {
+      variantDesc = ` (${activeVariant.color_name} / ${activeVariant.size})`;
+    } else if (!isStdCol) {
+      variantDesc = ` (${activeVariant.color_name})`;
+    } else if (!isStdSz) {
+      variantDesc = ` (${activeVariant.size})`;
+    }
+
     addToast({
       type: 'success',
       title: 'Added to Bag',
-      description: `${product.title} (${activeVariant.color_name} / ${activeVariant.size}) added.`,
+      description: `${product.title}${variantDesc} added.`,
     });
   };
 
@@ -747,8 +776,8 @@ export const ProductDetailPage: React.FC = () => {
               {product.short_description || product.description}
             </p>
 
-            {/* Color Palette */}
-            {colors.length > 0 && (
+            {/* Color Palette or Single Color Display */}
+            {hasMultipleColors ? (
               <div className="space-y-2 border-t border-[#E7E7E7] pt-4">
                 <label className="text-xs font-semibold text-black uppercase tracking-wider block">
                   COLOR: <span className="font-normal text-[#666666]">{activeColorName}</span>
@@ -773,60 +802,115 @@ export const ProductDetailPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Size Selector */}
-            <div className="space-y-2 border-t border-[#E7E7E7] pt-4">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold text-black uppercase tracking-wider">
-                  SIZE: <span className="font-normal text-[#666666]">{activeSizeName}</span>
-                </label>
-                <button
-                  onClick={() => setIsSizeGuideOpen(true)}
-                  className="text-xs text-[#3F3F8F] hover:underline font-medium"
-                >
-                  Size & Fit Guide
-                </button>
+            ) : showSingleColor ? (
+              <div className="space-y-1.5 border-t border-[#E7E7E7] pt-4">
+                <div className="text-xs font-semibold text-black uppercase tracking-wider flex items-center gap-2">
+                  <span>COLOR:</span>
+                  <span className="font-medium text-[#222222]">{colors[0].name}</span>
+                  {colors[0].hex && (
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border border-neutral-300 inline-block shadow-2xs"
+                      style={{ backgroundColor: colors[0].hex }}
+                    />
+                  )}
+                </div>
               </div>
+            ) : null}
 
-              <div className="grid grid-cols-4 gap-2">
-                {sizes.map((s) => (
+            {/* Size Selector or Single Size Display */}
+            {hasMultipleSizes ? (
+              <div className="space-y-2 border-t border-[#E7E7E7] pt-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-black uppercase tracking-wider">
+                    SIZE: <span className="font-normal text-[#666666]">{activeSizeName}</span>
+                  </label>
                   <button
-                    key={s.size}
-                    disabled={!s.inStock}
-                    onClick={() => setSelectedSize(s.size)}
-                    className={`py-3 text-xs font-medium uppercase rounded-[4px] border transition-all ${
-                      activeSizeName === s.size
-                        ? 'border-[#3F3F8F] bg-[#3F3F8F] text-white'
-                        : s.inStock
-                        ? 'border-[#E7E7E7] text-black hover:border-black'
-                        : 'border-neutral-200 text-neutral-300 bg-neutral-50 line-through cursor-not-allowed'
-                    }`}
+                    onClick={() => setIsSizeGuideOpen(true)}
+                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
                   >
-                    {s.size}
+                    Size & Fit Guide
                   </button>
-                ))}
-              </div>
+                </div>
 
-              {isLowStock && (
-                <p className="text-[11px] text-amber-600 font-medium mt-2 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Only {activeVariant.stock_quantity} left in stock - order soon!
+                <div className="grid grid-cols-4 gap-2">
+                  {sizes.map((s) => (
+                    <button
+                      key={s.size}
+                      disabled={!s.inStock}
+                      onClick={() => setSelectedSize(s.size)}
+                      className={`py-3 text-xs font-medium uppercase rounded-[4px] border transition-all ${
+                        activeSizeName === s.size
+                          ? 'border-[#3F3F8F] bg-[#3F3F8F] text-white'
+                          : s.inStock
+                          ? 'border-[#E7E7E7] text-black hover:border-black'
+                          : 'border-neutral-200 text-neutral-300 bg-neutral-50 line-through cursor-not-allowed'
+                      }`}
+                    >
+                      {s.size}
+                    </button>
+                  ))}
+                </div>
+
+                {isLowStock && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Only {activeVariant?.stock_quantity} left in stock - order soon!
+                  </p>
+                )}
+
+                <p className="text-[10px] text-[#666666] pt-1">
+                  ⓘ No size or colour exchanges. Please consult our{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsSizeGuideOpen(true)}
+                    className="text-[#3F3F8F] underline font-medium"
+                  >
+                    Size & Fit Guide
+                  </button>{' '}
+                  prior to placing your order.
                 </p>
-              )}
-
-              <p className="text-[10px] text-[#666666] pt-1">
-                ⓘ No size or colour exchanges. Please consult our{' '}
-                <button
-                  type="button"
-                  onClick={() => setIsSizeGuideOpen(true)}
-                  className="text-[#3F3F8F] underline font-medium"
-                >
-                  Size & Fit Guide
-                </button>{' '}
-                prior to placing your order.
-              </p>
-            </div>
+              </div>
+            ) : isSingleStandardSize ? (
+              <div className="space-y-1.5 border-t border-[#E7E7E7] pt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-black uppercase tracking-wider">SIZE:</span>
+                  <span className="px-2.5 py-0.5 bg-[#F4F4F8] border border-[#D5D5ED] text-black text-[11px] font-semibold tracking-wider uppercase rounded-[3px]">
+                    {sizes[0]?.size || 'ONE SIZE'}
+                  </span>
+                </div>
+                {isLowStock && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Only {activeVariant?.stock_quantity} left in stock - order soon!
+                  </p>
+                )}
+              </div>
+            ) : showSingleCustomSize ? (
+              <div className="space-y-2 border-t border-[#E7E7E7] pt-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-black uppercase tracking-wider">
+                    SIZE: <span className="font-normal text-[#666666]">{sizes[0]?.size}</span>
+                  </label>
+                  <button
+                    onClick={() => setIsSizeGuideOpen(true)}
+                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
+                  >
+                    Size & Fit Guide
+                  </button>
+                </div>
+                <div className="inline-flex">
+                  <span className="px-4 py-2 text-xs font-semibold uppercase rounded-[4px] border border-[#3F3F8F] bg-[#3F3F8F] text-white">
+                    {sizes[0]?.size}
+                  </span>
+                </div>
+                {isLowStock && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Only {activeVariant?.stock_quantity} left in stock - order soon!
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             {/* Quantity and Actions */}
             <div className="space-y-3 border-t border-[#E7E7E7] pt-4">

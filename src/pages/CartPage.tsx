@@ -136,13 +136,19 @@ export const CartPage: React.FC = () => {
                       >
                         {item.product.title}
                       </Link>
-                      <div className="text-[#666666] text-[11px] space-x-2">
-                        <span>Color: {item.variant.color_name}</span>
-                        <span>•</span>
-                        <span>Size: {item.variant.size}</span>
-                        <span>•</span>
-                        <span className="font-mono">SKU: {item.variant.sku}</span>
-                      </div>
+                      {(() => {
+                        const isStdCol = !item.variant.color_name || ['standard', 'default'].includes(item.variant.color_name.toLowerCase());
+                        const isStdSz = !item.variant.size || ['standard', 'one size', 'free size', 'os', 'n/a'].includes(item.variant.size.toLowerCase());
+                        return (
+                          <div className="text-[#666666] text-[11px] flex items-center gap-2 flex-wrap">
+                            {!isStdCol && <span>Color: {item.variant.color_name}</span>}
+                            {!isStdCol && (!isStdSz || item.variant.sku) && <span>•</span>}
+                            {!isStdSz && <span>Size: {item.variant.size}</span>}
+                            {!isStdSz && item.variant.sku && <span>•</span>}
+                            <span className="font-mono">SKU: {item.variant.sku}</span>
+                          </div>
+                        );
+                      })()}
 
                       <div className="pt-2 flex items-baseline gap-2">
                         <span className="font-semibold text-black text-sm">
