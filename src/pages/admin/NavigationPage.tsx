@@ -8,6 +8,7 @@ import {
   Save,
   RotateCcw,
   Eye,
+  EyeOff,
   Check,
   Sparkles,
   ExternalLink,
@@ -65,6 +66,7 @@ export const NavigationPage: React.FC = () => {
   const [editingItem, setEditingItem] = useState<HeaderMenuItem | null>(null);
   const [modalLabel, setModalLabel] = useState('');
   const [modalUrl, setModalUrl] = useState('');
+  const [modalIsActive, setModalIsActive] = useState<boolean>(true);
   const [modalHasMegaMenu, setModalHasMegaMenu] = useState(false);
   const [modalHighlightStyle, setModalHighlightStyle] = useState<'default' | 'bold' | 'colored' | 'badge'>('default');
   const [modalBadgeText, setModalBadgeText] = useState('');
@@ -128,10 +130,36 @@ export const NavigationPage: React.FC = () => {
     setDraftItems(updated.map((item, idx) => ({ ...item, sort_order: idx })));
   };
 
-  const handleToggleItemActive = (id: string) => {
-    setDraftItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, is_active: !item.is_active } : item))
+  const handleToggleItemActive = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const targetItem = draftItems.find((i) => i.id === id);
+    if (!targetItem) return;
+    const newActiveState = !targetItem.is_active;
+
+    const updated = draftItems.map((item) =>
+      item.id === id ? { ...item, is_active: newActiveState } : item
     );
+    setDraftItems(updated);
+
+    // Save changes to backend immediately so the admin does not need to worry
+    const success = await saveNavigation({
+      header_menu: updated,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (success) {
+      addToast({
+        type: newActiveState ? 'success' : 'info',
+        title: newActiveState ? 'Menu Link Visible' : 'Menu Link Hidden',
+        description: `"${targetItem.label}" is now ${newActiveState ? 'VISIBLE in' : 'HIDDEN from'} storefront navigation.`,
+      });
+    } else {
+      addToast({
+        type: 'info',
+        title: 'Status Updated Locally',
+        description: `"${targetItem.label}" set to ${newActiveState ? 'Active' : 'Hidden'}. Click "SAVE & PUBLISH" to deploy.`,
+      });
+    }
   };
 
   const handleToggleItemMegaMenu = (id: string) => {
@@ -176,6 +204,7 @@ export const NavigationPage: React.FC = () => {
     setEditingItem(null);
     setModalLabel('');
     setModalUrl('/collections/');
+    setModalIsActive(true);
     setModalHasMegaMenu(false);
     setModalHighlightStyle('default');
     setModalBadgeText('');
@@ -186,6 +215,7 @@ export const NavigationPage: React.FC = () => {
     setEditingItem(item);
     setModalLabel(item.label);
     setModalUrl(item.url);
+    setModalIsActive(item.is_active !== false);
     setModalHasMegaMenu(item.has_mega_menu);
     setModalHighlightStyle(item.highlight_style || 'default');
     setModalBadgeText(item.badge_text || '');
@@ -207,6 +237,7 @@ export const NavigationPage: React.FC = () => {
                 ...item,
                 label: modalLabel.trim().toUpperCase(),
                 url: modalUrl.trim(),
+                is_active: modalIsActive,
                 has_mega_menu: modalHasMegaMenu,
                 highlight_style: modalHighlightStyle,
                 badge_text: modalHighlightStyle === 'badge' ? modalBadgeText.trim() : undefined,
@@ -235,7 +266,7 @@ export const NavigationPage: React.FC = () => {
         label: modalLabel.trim().toUpperCase(),
         url: modalUrl.trim(),
         sort_order: draftItems.length,
-        is_active: true,
+        is_active: modalIsActive,
         has_mega_menu: modalHasMegaMenu,
         highlight_style: modalHighlightStyle,
         badge_text: modalHighlightStyle === 'badge' ? modalBadgeText.trim() : undefined,
@@ -929,7 +960,7 @@ export const NavigationPage: React.FC = () => {
                   <span>Header Menu Links ({draftItems.length})</span>
                 </h3>
                 <p className="text-[11px] text-[#666666] mt-0.5">
-                  Desktop top navigation bar items. Click an item to edit its mega menu.
+                  Desktop top navigation bar items. Click <strong>VISIBLE</strong> / <strong>HIDDEN</strong> to show or hide items on your storefront.
                 </p>
               </div>
 
@@ -948,6 +979,7 @@ export const NavigationPage: React.FC = () => {
             <div className="space-y-2">
               {draftItems.map((item, index) => {
                 const isSelected = selectedItemId === item.id;
+                const isItemVisible = item.is_active !== false;
                 return (
                   <div
                     key={item.id}
@@ -955,7 +987,9 @@ export const NavigationPage: React.FC = () => {
                     className={`p-3 rounded-[4px] border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                       isSelected
                         ? 'border-[#3F3F8F] bg-[#EEEEF8]/40 shadow-xs'
-                        : 'border-[#E7E7E7] bg-white hover:border-neutral-300'
+                        : isItemVisible
+                        ? 'border-[#E7E7E7] bg-white hover:border-neutral-300'
+                        : 'border-dashed border-neutral-300 bg-neutral-50/70 hover:border-neutral-400'
                     }`}
                   >
                     {/* Left: Reorder & Name */}
@@ -983,9 +1017,19 @@ export const NavigationPage: React.FC = () => {
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-black text-xs uppercase tracking-wide">
+                          <span
+                            className={`font-bold text-xs uppercase tracking-wide ${
+                              isItemVisible ? 'text-black' : 'text-neutral-500 line-through'
+                            }`}
+                          >
                             {item.label}
                           </span>
+
+                          {!isItemVisible && (
+                            <span className="text-[9px] bg-neutral-200 text-neutral-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                              <EyeOff className="w-2.5 h-2.5" /> HIDDEN
+                            </span>
+                          )}
 
                           {item.has_mega_menu && (
                             <span className="text-[9px] bg-[#3F3F8F] text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
@@ -1014,18 +1058,32 @@ export const NavigationPage: React.FC = () => {
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {/* Active Toggle */}
+                      {/* Active / Hidden Visibility Toggle */}
                       <button
                         type="button"
-                        onClick={() => handleToggleItemActive(item.id)}
-                        className={`px-2 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                          item.is_active
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+                        onClick={(e) => handleToggleItemActive(item.id, e)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                          isItemVisible
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                            : 'bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-neutral-200'
                         }`}
-                        title="Toggle visibility on storefront"
+                        title={
+                          isItemVisible
+                            ? `Click to hide "${item.label}" from the main menu`
+                            : `Click to show "${item.label}" in the main menu`
+                        }
                       >
-                        {item.is_active ? 'Active' : 'Hidden'}
+                        {isItemVisible ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5 text-neutral-400" />
+                            <span>Hidden</span>
+                          </>
+                        )}
                       </button>
 
                       {/* Edit modal */}
@@ -1033,7 +1091,7 @@ export const NavigationPage: React.FC = () => {
                         type="button"
                         onClick={() => handleOpenEditItem(item)}
                         className="p-1.5 text-neutral-400 hover:text-black rounded hover:bg-neutral-100 transition-colors"
-                        title="Edit Item Details"
+                        title="Edit Item Details & Visibility"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -1058,18 +1116,51 @@ export const NavigationPage: React.FC = () => {
           <div className="lg:col-span-7 bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-xs space-y-6">
             {selectedItem ? (
               <>
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-3 border-b border-[#E7E7E7] gap-2">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-3 border-b border-[#E7E7E7] gap-3">
                   <div>
                     <span className="text-[10px] text-[#3F3F8F] uppercase font-bold tracking-wider block">
                       CONFIGURING DROPDOWN FOR:
                     </span>
-                    <h3 className="font-bold text-black text-sm uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="font-bold text-black text-sm uppercase tracking-wider flex items-center gap-2 flex-wrap">
                       <span>{selectedItem.label}</span>
                       <span className="text-[10px] text-neutral-400 font-mono">({selectedItem.url})</span>
+                      {selectedItem.is_active === false && (
+                        <span className="text-[9px] bg-neutral-200 text-neutral-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                          <EyeOff className="w-2.5 h-2.5" /> HIDDEN FROM STOREFRONT
+                        </span>
+                      )}
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    {/* Direct Visibility Toggle in Header */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleItemActive(selectedItem.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold uppercase tracking-wide border transition-all ${
+                        selectedItem.is_active !== false
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                          : 'bg-neutral-100 text-neutral-600 border-neutral-300 hover:bg-neutral-200'
+                      }`}
+                      title={
+                        selectedItem.is_active !== false
+                          ? `Click to hide "${selectedItem.label}" from storefront menu`
+                          : `Click to show "${selectedItem.label}" in storefront menu`
+                      }
+                    >
+                      {selectedItem.is_active !== false ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Visible</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5 text-neutral-500" />
+                          <span>Hidden</span>
+                        </>
+                      )}
+                    </button>
+
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-700">
                       <input
                         type="checkbox"
@@ -1708,6 +1799,47 @@ export const NavigationPage: React.FC = () => {
                 <p className="text-[10px] text-[#888888] mt-1 pl-6">
                   If enabled, you will be able to configure multi-column links and promotional imagery for this item.
                 </p>
+              </div>
+
+              {/* Menu Link Visibility Switch */}
+              <div className="p-3.5 rounded-[4px] border border-[#E7E7E7] bg-[#FAFAFA] flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-black">
+                    {modalIsActive ? (
+                      <Eye className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <EyeOff className="w-4 h-4 text-neutral-400" />
+                    )}
+                    <span>Menu Link Visibility</span>
+                  </div>
+                  <p className="text-[10px] text-[#666666] mt-0.5">
+                    {modalIsActive
+                      ? 'Visible in header top bar and mobile navigation drawer.'
+                      : 'Hidden from customer view without deleting its dropdown structure.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setModalIsActive(!modalIsActive)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold uppercase tracking-wider transition-colors border ${
+                    modalIsActive
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-neutral-200'
+                  }`}
+                >
+                  {modalIsActive ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Visible</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5 text-neutral-400" />
+                      <span>Hidden</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-[#E7E7E7]">

@@ -43,7 +43,7 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose, activeMenuI
   // Use configured mega menu for this item, or fallback to first available mega menu
   const megaMenuData =
     activeMenuItem.mega_menu ||
-    config.header_menu.find((i) => i.has_mega_menu && i.mega_menu)?.mega_menu;
+    config.header_menu.find((i) => i.is_active && i.has_mega_menu && i.mega_menu)?.mega_menu;
 
   if (!megaMenuData) return null;
 
