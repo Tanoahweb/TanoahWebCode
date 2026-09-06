@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
+import { Product, ProductDetailSection, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
@@ -77,8 +77,29 @@ const sanitizeProduct = (p: Product): Product => {
     };
   });
 
+  // Ensure custom_sections are properly formatted and parsed
+  let customSections: ProductDetailSection[] = [];
+  if (Array.isArray(p.custom_sections)) {
+    customSections = p.custom_sections;
+  } else if (typeof p.custom_sections === 'string') {
+    try {
+      const parsed = JSON.parse(p.custom_sections);
+      if (Array.isArray(parsed)) {
+        customSections = parsed;
+      }
+    } catch {}
+  }
+  const cleanSections = customSections
+    .filter((sec) => sec && (typeof sec.title === 'string' || typeof sec.content === 'string'))
+    .map((sec, idx) => ({
+      id: sec.id || `sec_${Date.now()}_${idx}`,
+      title: (sec.title || '').trim(),
+      content: (sec.content || '').trim(),
+    }));
+
   return {
     ...p,
+    custom_sections: cleanSections,
     images: validImgs,
     variants: sanitizedVariants,
   };
@@ -768,6 +789,7 @@ export const api = {
       description: sanitized.description || '',
       short_description: sanitized.short_description || '',
       tags: sanitized.tags || [],
+      custom_sections: sanitized.custom_sections || [],
       updated_at: new Date().toISOString(),
     };
 

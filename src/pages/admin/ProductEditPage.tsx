@@ -434,8 +434,20 @@ export const ProductEditPage: React.FC = () => {
             });
             setSelectedCollectionSlugs(initialColSlugs);
 
+            let loadedSections: ProductDetailSection[] | null = null;
             if (Array.isArray(match.custom_sections) && match.custom_sections.length > 0) {
-              setCustomSections(match.custom_sections);
+              loadedSections = match.custom_sections;
+            } else if (typeof match.custom_sections === 'string') {
+              try {
+                const parsed = JSON.parse(match.custom_sections);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  loadedSections = parsed;
+                }
+              } catch (e) {}
+            }
+
+            if (loadedSections && loadedSections.length > 0) {
+              setCustomSections(loadedSections);
             }
 
             const isCustomMatch =
@@ -1071,7 +1083,13 @@ export const ProductEditPage: React.FC = () => {
       is_new_arrival: isNewArrival,
       short_description: shortDescription,
       description,
-      custom_sections: customSections,
+      custom_sections: customSections
+        .map((sec, idx) => ({
+          id: sec.id || `sec_${idx}_${Date.now()}`,
+          title: sec.title.trim(),
+          content: sec.content.trim(),
+        }))
+        .filter((sec) => sec.title.length > 0 || sec.content.length > 0),
       collections: selectedCollectionSlugs,
       tags: Array.from(mergedTagsSet),
       images: cleanedImages,

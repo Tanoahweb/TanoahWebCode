@@ -1017,9 +1017,21 @@ export const ProductDetailPage: React.FC = () => {
 
             {/* Accordion Sections: Headings & Custom Points */}
             <div className="border-t border-[#E7E7E7] divide-y divide-[#E7E7E7] text-xs">
-              {(product.custom_sections && product.custom_sections.length > 0
-                ? product.custom_sections
-                : [
+              {(() => {
+                let sectionsList: { id: string; title: string; content: string }[] = [];
+                if (Array.isArray(product.custom_sections) && product.custom_sections.length > 0) {
+                  sectionsList = product.custom_sections;
+                } else if (typeof product.custom_sections === 'string') {
+                  try {
+                    const parsed = JSON.parse(product.custom_sections);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      sectionsList = parsed;
+                    }
+                  } catch {}
+                }
+
+                if (sectionsList.length === 0) {
+                  sectionsList = [
                     {
                       id: 'details',
                       title: 'PRODUCT SPECIFICATIONS & FIT',
@@ -1033,23 +1045,33 @@ export const ProductDetailPage: React.FC = () => {
                       content:
                         '• Insured domestic shipping across India via India Post.\n• Transit damage protection covered within 24 hours of delivery with mandatory 360° unboxing video.\n• Delivered in our luxury matte branded boxes with recycled garment tissue.',
                     },
-                  ]
-              ).map((section) => (
-                <div key={section.id} className="py-3">
-                  <button
-                    onClick={() => setOpenAccordion(openAccordion === section.id ? null : section.id)}
-                    className="w-full flex justify-between items-center text-black font-semibold uppercase tracking-wider"
-                  >
-                    <span>{section.title}</span>
-                    {openAccordion === section.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {openAccordion === section.id && (
-                    <div className="pt-3 text-[#666666] leading-relaxed space-y-1.5 whitespace-pre-line text-left">
-                      {section.content}
+                  ];
+                }
+
+                return sectionsList.map((section, idx) => {
+                  const isSectionOpen =
+                    openAccordion === section.id ||
+                    (openAccordion === 'details' && (section.id === 'details' || section.id === 'sec_spec' || idx === 0));
+
+                  return (
+                    <div key={section.id || idx} className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => setOpenAccordion(isSectionOpen ? null : section.id)}
+                        className="w-full flex justify-between items-center text-black font-semibold uppercase tracking-wider text-left"
+                      >
+                        <span>{section.title}</span>
+                        {isSectionOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+                      </button>
+                      {isSectionOpen && (
+                        <div className="pt-3 text-[#666666] leading-relaxed space-y-1.5 whitespace-pre-line text-left">
+                          {section.content}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  );
+                });
+              })()}
 
               {/* Client Reviews Accordion */}
               <div className="py-3">
