@@ -34,9 +34,9 @@ export const ProductDetailPage: React.FC = () => {
   const colorQueryParam = searchParams.get('color');
   const navigate = useNavigate();
 
-  const [product, setProduct] = useState<Product>(() => {
-    return SAMPLE_PRODUCTS.find((p) => p.slug === slug) || SAMPLE_PRODUCTS[0];
-  });
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
 
   const [selectedColor, setSelectedColor] = useState<string>(colorQueryParam || '');
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -46,22 +46,46 @@ export const ProductDetailPage: React.FC = () => {
   useEffect(() => {
     if (!slug) return;
     let isMounted = true;
+    setIsLoading(true);
+    setActiveImageIndex(0);
     api.getProductBySlug(slug).then((fetched) => {
-      if (isMounted && fetched) {
-        setProduct(fetched);
-        if (fetched.variants && fetched.variants.length > 0) {
-          const matched = colorQueryParam
-            ? fetched.variants.find((v) => v.color_name.toLowerCase() === colorQueryParam.toLowerCase())
-            : null;
-          setSelectedColor(matched?.color_name || fetched.variants[0].color_name || '');
-          setSelectedSize(matched?.size || fetched.variants[0].size || '');
+      if (isMounted) {
+        if (fetched) {
+          setProduct(fetched);
+          if (fetched.variants && fetched.variants.length > 0) {
+            const matched = colorQueryParam
+              ? fetched.variants.find((v) => v.color_name.toLowerCase() === colorQueryParam.toLowerCase())
+              : null;
+            setSelectedColor(matched?.color_name || fetched.variants[0].color_name || '');
+            setSelectedSize(matched?.size || fetched.variants[0].size || '');
+          }
+        } else {
+          setProduct(null);
         }
+        setIsLoading(false);
+      }
+    }).catch(() => {
+      if (isMounted) {
+        setProduct(null);
+        setIsLoading(false);
       }
     });
     return () => {
       isMounted = false;
     };
   }, [slug, colorQueryParam]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getProducts('active').then((data) => {
+      if (isMounted && data && data.length > 0) {
+        setCatalogProducts(data);
+      }
+    }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const [pincode, setPincode] = useState('');
   const [pincodeStatus, setPincodeStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
@@ -91,6 +115,7 @@ export const ProductDetailPage: React.FC = () => {
   const { addToast } = useUIStore();
 
   useEffect(() => {
+    if (!product?.id) return;
     let isMounted = true;
     api.getProductReviews(product.id).then((data) => {
       if (isMounted) setReviews(data);
@@ -98,7 +123,99 @@ export const ProductDetailPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [product.id]);
+  }, [product?.id]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full bg-white font-poppins min-h-screen">
+        {/* Breadcrumb Skeleton */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 border-b border-[#E7E7E7]">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-12 bg-neutral-200 animate-pulse rounded" />
+            <span className="text-neutral-300">/</span>
+            <div className="h-3 w-20 bg-neutral-200 animate-pulse rounded" />
+            <span className="text-neutral-300">/</span>
+            <div className="h-3 w-36 bg-neutral-200 animate-pulse rounded" />
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+            {/* Gallery Skeleton */}
+            <div className="lg:col-span-7 flex flex-col gap-4">
+              <div className="w-full aspect-[4/5] bg-neutral-100 animate-pulse rounded-[4px] border border-neutral-100" />
+              <div className="grid grid-cols-4 gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="aspect-[4/5] bg-neutral-100 animate-pulse rounded-[4px]" />
+                ))}
+              </div>
+            </div>
+
+            {/* Details Skeleton */}
+            <div className="lg:col-span-5 flex flex-col space-y-6">
+              <div>
+                <div className="h-3 w-24 bg-neutral-200 animate-pulse rounded mb-3" />
+                <div className="h-8 w-4/5 bg-neutral-200 animate-pulse rounded mb-3" />
+                <div className="h-6 w-32 bg-neutral-200 animate-pulse rounded" />
+              </div>
+
+              <div className="h-[1px] bg-[#E7E7E7]" />
+
+              {/* Color swatches skeleton */}
+              <div>
+                <div className="h-3 w-20 bg-neutral-200 animate-pulse rounded mb-3" />
+                <div className="flex gap-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="w-8 h-8 rounded-full bg-neutral-100 animate-pulse" />
+                  ))}
+                </div>
+              </div>
+
+              {/* Size pills skeleton */}
+              <div>
+                <div className="h-3 w-24 bg-neutral-200 animate-pulse rounded mb-3" />
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="h-11 bg-neutral-100 animate-pulse rounded" />
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons skeleton */}
+              <div className="space-y-3 pt-4">
+                <div className="h-13 bg-neutral-200 animate-pulse rounded" />
+                <div className="h-13 bg-neutral-100 animate-pulse rounded" />
+              </div>
+
+              {/* Accordions skeleton */}
+              <div className="space-y-3 pt-4">
+                <div className="h-12 bg-neutral-50 animate-pulse rounded" />
+                <div className="h-12 bg-neutral-50 animate-pulse rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="w-full bg-white font-poppins min-h-[65vh] flex flex-col items-center justify-center text-center px-4 py-20">
+        <span className="text-xs uppercase tracking-widest text-[#3F3F8F] font-semibold mb-2">Tanoah Atelier</span>
+        <h1 className="text-2xl sm:text-4xl font-wondra text-black mb-4">Product Not Found</h1>
+        <p className="text-sm text-neutral-500 max-w-md mb-8">
+          The creation you are seeking may have been archived or is temporarily unavailable.
+        </p>
+        <Link
+          to="/collections/all"
+          className="inline-flex items-center justify-center px-8 py-3.5 bg-black text-white text-xs tracking-widest uppercase font-semibold hover:bg-[#3F3F8F] transition-colors"
+        >
+          EXPLORE ALL COLLECTIONS
+        </Link>
+      </div>
+    );
+  }
 
   const isWishlisted = isInWishlist(product.id);
 
@@ -286,7 +403,9 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
-  const relatedProducts = SAMPLE_PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4);
+  const relatedProducts = (catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS)
+    .filter((p) => p.id !== product.id)
+    .slice(0, 4);
 
   return (
     <div className="w-full bg-white font-poppins min-h-screen">
