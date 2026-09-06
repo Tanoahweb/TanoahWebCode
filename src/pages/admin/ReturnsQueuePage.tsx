@@ -11,75 +11,46 @@ import {
   Search,
   Truck,
   ExternalLink,
+  MessageCircle,
+  ShieldCheck,
+  ShieldAlert,
+  Tag,
+  AlertTriangle,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { useUIStore } from '../../store/useUIStore';
+import { api } from '../../services/api';
 
 interface ReturnTicket {
   id: string;
   order_number: string;
   customer_name: string;
   customer_email: string;
-  return_type: 'return' | 'exchange';
+  customer_phone?: string;
+  return_type?: string;
   reason: string;
   customer_description?: string;
   product_title: string;
   variant_info: string;
-  status: 'requested' | 'approved' | 'item_received' | 'completed' | 'rejected';
+  status: 'awaiting_video' | 'claim_approved' | 'in_transit' | 'item_received' | 'completed' | 'rejected' | 'requested' | 'approved';
+  delivered_at?: string;
+  hours_since_delivery?: number;
+  tag_intact_confirmed?: boolean;
+  unboxing_video_confirmed?: boolean;
+  self_ship_confirmed?: boolean;
+  customer_courier_name?: string;
+  customer_consignment_no?: string;
   created_at: string;
 }
 
-const INITIAL_TICKETS: ReturnTicket[] = [
-  {
-    id: 'ret_101',
-    order_number: 'TAN-849201',
-    customer_name: 'Aditya Sharma',
-    customer_email: 'aditya.sharma@example.com',
-    return_type: 'exchange',
-    reason: 'Size Too Large',
-    customer_description: 'The Medium fits looser than expected. Would like to exchange for size Small in Noir Black.',
-    product_title: 'Signature Heavyweight Oversized Tee',
-    variant_info: 'Noir Black / M -> Exchange for S',
-    status: 'requested',
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'ret_102',
-    order_number: 'TAN-719382',
-    customer_name: 'Mira Nair',
-    customer_email: 'mira.nair@example.com',
-    return_type: 'return',
-    reason: 'Fabric Preference',
-    customer_description: 'Looking for a slightly heavier drape for autumn.',
-    product_title: 'French Linen Relaxed Camp Shirt',
-    variant_info: 'Ecru Sand / M',
-    status: 'approved',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'ret_103',
-    order_number: 'TAN-659102',
-    customer_name: 'Karan Patel',
-    customer_email: 'karan.patel@example.com',
-    return_type: 'exchange',
-    reason: 'Color Exchange',
-    customer_description: 'Exchanging Slate Navy for Charcoal Grey.',
-    product_title: 'Tailored Wide-Leg Pleated Trouser',
-    variant_info: 'Slate Navy / 32 -> Exchange for Charcoal',
-    status: 'completed',
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-];
-
-import { api } from '../../services/api';
-
 export const ReturnsQueuePage: React.FC = () => {
   const { addToast } = useUIStore();
-  const [tickets, setTickets] = useState<ReturnTicket[]>(INITIAL_TICKETS);
+  const [tickets, setTickets] = useState<ReturnTicket[]>([]);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [tagInspectionModal, setTagInspectionModal] = useState<ReturnTicket | null>(null);
 
   const loadTickets = async () => {
     const live = await api.getReturnTickets();
@@ -92,87 +63,147 @@ export const ReturnsQueuePage: React.FC = () => {
     loadTickets();
   }, []);
 
-  const handleUpdateStatus = async (ticketId: string, newStatus: ReturnTicket['status']) => {
+  const handleUpdateStatus = async (ticketId: string, newStatus: string) => {
     setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
+      prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus as any } : t))
     );
 
     await api.updateReturnTicketStatus(ticketId, newStatus);
 
     addToast({
       type: 'success',
-      title: 'Ticket Updated',
-      description: `Return ticket ${ticketId} status updated to ${newStatus.toUpperCase()}.`,
+      title: 'Status Updated',
+      description: `Claim ticket status updated to ${newStatus.replace('_', ' ').toUpperCase()}.`,
     });
   };
 
   const filteredTickets = tickets.filter((t) => {
-    const matchesTab = activeTab === 'all' || t.status === activeTab;
+    const status = t.status || 'awaiting_video';
+    let matchesTab = true;
+    if (activeTab === 'awaiting_video') {
+      matchesTab = status === 'awaiting_video' || status === 'requested';
+    } else if (activeTab === 'in_transit') {
+      matchesTab = status === 'claim_approved' || status === 'in_transit' || status === 'approved';
+    } else if (activeTab === 'item_received') {
+      matchesTab = status === 'item_received';
+    } else if (activeTab === 'completed') {
+      matchesTab = status === 'completed';
+    } else if (activeTab === 'rejected') {
+      matchesTab = status === 'rejected';
+    }
+
     const matchesSearch =
       t.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.product_title.toLowerCase().includes(searchTerm.toLowerCase());
+      (t.customer_phone && t.customer_phone.includes(searchTerm)) ||
+      (t.customer_consignment_no && t.customer_consignment_no.toLowerCase().includes(searchTerm.toLowerCase()));
+
     return matchesTab && matchesSearch;
   });
 
-  const pendingCount = tickets.filter((t) => t.status === 'requested').length;
-  const approvedCount = tickets.filter((t) => t.status === 'approved').length;
-  const completedCount = tickets.filter((t) => t.status === 'completed').length;
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'awaiting_video':
+      case 'requested':
+        return <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Awaiting 360° Video</span>;
+      case 'claim_approved':
+      case 'approved':
+        return <span className="bg-indigo-100 text-indigo-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Approved · Awaiting Dispatch</span>;
+      case 'in_transit':
+        return <span className="bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">In Transit by Client</span>;
+      case 'item_received':
+        return <span className="bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Parcel Received · 7D Refund SLA</span>;
+      case 'completed':
+        return <span className="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Refund Processed ✓</span>;
+      case 'rejected':
+        return <span className="bg-red-100 text-red-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Claim Rejected ✕</span>;
+      default:
+        return <span className="bg-neutral-100 text-neutral-800 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase">{status}</span>;
+    }
+  };
 
   return (
     <AdminLayout>
-      <div className="space-y-6 text-left font-poppins text-xs pb-16">
+      <div className="p-6 sm:p-8 space-y-6 text-left font-poppins">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-6 border-b border-[#E7E7E7] gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E7E7E7]">
           <div>
-            <h1 className="font-wondra text-2xl sm:text-3xl text-black">
-              RETURNS & EXCHANGES HUB
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-widest uppercase">
+                RETURNS & CLAIMS DISPATCH
+              </span>
+            </div>
+            <h1 className="font-wondra text-2xl sm:text-3xl text-black mt-1">
+              DAMAGE & REFUND CLAIMS QUEUE
             </h1>
-            <p className="text-[#666666] mt-0.5">
-              Review customer size exchange requests, approve reverse courier pickups, and authorize store credits.
+            <p className="text-xs text-[#666666] mt-1">
+              Enforcing the 24-hour reporting SLA, 360° unboxing video verification, intact price tag inspection, and 7-day refund fulfillment.
             </p>
           </div>
-        </div>
-
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm">
-            <span className="text-[10px] text-[#888888] uppercase tracking-wider block mb-1">
-              ACTION REQUIRED (PENDING)
-            </span>
-            <div className="text-2xl font-bold text-amber-600 font-mono">{pendingCount}</div>
-            <p className="text-[11px] text-[#888888] mt-1">Awaiting atelier approval</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm">
-            <span className="text-[10px] text-[#888888] uppercase tracking-wider block mb-1">
-              REVERSE PICKUP IN TRANSIT
-            </span>
-            <div className="text-2xl font-bold text-[#3F3F8F] font-mono">{approvedCount}</div>
-            <p className="text-[11px] text-[#888888] mt-1">Scheduled with India Post reverse parcel</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm">
-            <span className="text-[10px] text-[#888888] uppercase tracking-wider block mb-1">
-              RESOLVED EXCHANGES
-            </span>
-            <div className="text-2xl font-bold text-emerald-700 font-mono">{completedCount}</div>
-            <p className="text-[11px] text-[#888888] mt-1">Replacements shipped & closed</p>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/pages/refund-policy"
+              target="_blank"
+              className="text-xs font-semibold text-[#3F3F8F] hover:underline flex items-center gap-1 bg-[#EEEEF8] px-3 py-1.5 rounded"
+            >
+              <span>View Store Policy</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
-        {/* Filter Controls */}
-        <div className="bg-white p-4 border border-[#E7E7E7] rounded-[4px] shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-1 bg-[#F8F8F8] p-1 rounded-[4px] border border-[#E7E7E7]">
-            {['all', 'requested', 'approved', 'item_received', 'completed'].map((tab) => (
+        {/* Policy Summary Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-[#E7E7E7] p-4 rounded-[4px] shadow-xs text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-black block">Strict 24-Hour SLA</span>
+              <span className="text-[11px] text-[#666666]">Claims permitted only within 24h of delivery</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+              <MessageCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-black block">Mandatory 360° Video</span>
+              <span className="text-[11px] text-[#666666]">Unopened parcel & damage verified via WhatsApp</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <Tag className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-black block">Intact Tag & 7-Day Refund</span>
+              <span className="text-[11px] text-[#666666]">Refund void if tag removed; 7-day post-receipt SLA</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Tabs & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {[
+              { id: 'all', label: 'All Claims' },
+              { id: 'awaiting_video', label: 'Awaiting Video' },
+              { id: 'in_transit', label: 'Approved / In Transit' },
+              { id: 'item_received', label: 'Received (Inspect Tag)' },
+              { id: 'completed', label: 'Refunded' },
+              { id: 'rejected', label: 'Rejected' },
+            ].map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-1.5 rounded-[2px] text-xs font-semibold uppercase transition-colors ${
-                  activeTab === tab ? 'bg-[#3F3F8F] text-white' : 'text-[#666666] hover:text-black'
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-[4px] text-xs font-semibold whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-[#3F3F8F] text-white'
+                    : 'bg-[#F8F8F8] text-[#666666] hover:bg-[#EEEEF8] hover:text-[#3F3F8F]'
                 }`}
               >
-                {tab === 'all' ? 'All Tickets' : tab === 'requested' ? 'Pending' : tab.replace('_', ' ')}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -180,7 +211,7 @@ export const ReturnsQueuePage: React.FC = () => {
           <div className="relative flex-1 max-w-xs">
             <input
               type="text"
-              placeholder="Search by order # or client name..."
+              placeholder="Search by order #, client, phone, or tracking..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-[#3F3F8F]"
@@ -196,112 +227,240 @@ export const ReturnsQueuePage: React.FC = () => {
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
                 <tr>
                   <th className="p-4">Order Ref & Client</th>
-                  <th className="p-4">Request Type</th>
-                  <th className="p-4">Garment & Reason</th>
+                  <th className="p-4">24h SLA & Verification</th>
+                  <th className="p-4">Garment & Defect</th>
+                  <th className="p-4">Customer Self-Shipment</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Fulfillment Actions</th>
+                  <th className="p-4 text-right">Concierge Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
-                {filteredTickets.map((t) => (
-                  <tr key={t.id} className="hover:bg-[#FAFAFA]">
-                    <td className="p-4">
-                      <Link to={`/admin/orders/${t.order_number}`} className="font-mono font-bold text-[#3F3F8F] hover:underline block">
-                        {t.order_number}
-                      </Link>
-                      <div className="font-semibold text-black mt-0.5">{t.customer_name}</div>
-                      <div className="text-[10px] text-[#888888]">{t.customer_email}</div>
-                    </td>
-
-                    <td className="p-4">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        t.return_type === 'exchange' ? 'bg-[#EEEEF8] text-[#3F3F8F]' : 'bg-neutral-100 text-neutral-700'
-                      }`}>
-                        {t.return_type === 'exchange' ? 'Size Exchange' : 'Return for Refund'}
-                      </span>
-                    </td>
-
-                    <td className="p-4 max-w-xs">
-                      <div className="font-semibold text-black">{t.product_title}</div>
-                      <div className="text-[11px] text-[#666666]">{t.variant_info}</div>
-                      <div className="text-[10px] text-black font-medium mt-1">Reason: {t.reason}</div>
-                      {t.customer_description && (
-                        <p className="text-[10px] text-[#888888] italic mt-0.5 line-clamp-2">
-                          "{t.customer_description}"
-                        </p>
-                      )}
-                    </td>
-
-                    <td className="p-4">
-                      <span className={`inline-block px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase rounded-[2px] ${
-                        t.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : t.status === 'approved'
-                          ? 'bg-[#EEEEF8] text-[#3F3F8F]'
-                          : t.status === 'rejected'
-                          ? 'bg-red-50 text-red-700'
-                          : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {t.status.toUpperCase()}
-                      </span>
-                    </td>
-
-                    <td className="p-4 text-right space-x-2">
-                      {t.status === 'requested' && (
-                        <>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleUpdateStatus(t.id, 'approved')}
-                            className="text-[10px] py-1 px-2.5"
-                          >
-                            APPROVE PICKUP
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleUpdateStatus(t.id, 'rejected')}
-                            className="text-[10px] py-1 px-2.5 text-red-600 hover:text-red-700"
-                          >
-                            REJECT
-                          </Button>
-                        </>
-                      )}
-
-                      {t.status === 'approved' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(t.id, 'item_received')}
-                          className="text-[10px] py-1 px-2.5"
-                        >
-                          MARK RECEIVED
-                        </Button>
-                      )}
-
-                      {t.status === 'item_received' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(t.id, 'completed')}
-                          className="text-[10px] py-1 px-2.5 bg-emerald-700 hover:bg-emerald-800"
-                        >
-                          COMPLETE & DISPATCH
-                        </Button>
-                      )}
-
-                      {t.status === 'completed' && (
-                        <span className="text-[10px] text-emerald-700 font-semibold inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Resolved
-                        </span>
-                      )}
+                {filteredTickets.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-xs text-neutral-500">
+                      No claims found in this category.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredTickets.map((t) => {
+                    const cleanPhone = (t.customer_phone || '').replace(/\D/g, '');
+                    const whatsAppMsg = `Hello ${t.customer_name}, this is Tanoah Client Services regarding your Damage Claim for Order #${t.order_number}.`;
+                    const whatsAppChatUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsAppMsg)}` : null;
+
+                    return (
+                      <tr key={t.id} className="hover:bg-[#FAFAFA] text-xs">
+                        {/* 1. Order Ref & Client */}
+                        <td className="p-4">
+                          <Link to={`/admin/orders/${t.order_number}`} className="font-mono font-bold text-[#3F3F8F] hover:underline block">
+                            {t.order_number}
+                          </Link>
+                          <div className="font-semibold text-black mt-0.5">{t.customer_name}</div>
+                          <div className="text-[10px] text-[#888888]">{t.customer_email}</div>
+                          {t.customer_phone && (
+                            <div className="text-[10px] text-[#555555] font-mono mt-0.5 flex items-center gap-1">
+                              <span>{t.customer_phone}</span>
+                              {whatsAppChatUrl && (
+                                <a
+                                  href={whatsAppChatUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#25D366] hover:underline font-bold"
+                                  title="Chat on WhatsApp"
+                                >
+                                  [WA ↗]
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 2. 24h SLA & Verification */}
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Within 24h SLA</span>
+                            </span>
+                            <div className="text-[10px] text-neutral-600">
+                              Reported: {t.hours_since_delivery ? `${t.hours_since_delivery.toFixed(1)}h post-delivery` : 'Within 24h'}
+                            </div>
+                            <div className="text-[10px] text-[#444444]">
+                              Tag Intact Attested: <strong className="text-black">Yes</strong>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 3. Garment & Defect */}
+                        <td className="p-4 max-w-xs">
+                          <div className="font-semibold text-black">{t.product_title}</div>
+                          <div className="text-[11px] text-[#666666]">{t.variant_info}</div>
+                          <div className="text-[10px] text-red-700 font-semibold mt-1">Reason: {t.reason}</div>
+                          {t.customer_description && (
+                            <p className="text-[10px] text-[#666666] italic mt-0.5 line-clamp-2">
+                              "{t.customer_description}"
+                            </p>
+                          )}
+                        </td>
+
+                        {/* 4. Customer Self-Shipment */}
+                        <td className="p-4">
+                          {t.customer_consignment_no ? (
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded block w-fit">
+                                {t.customer_courier_name || 'Courier'}
+                              </span>
+                              <div className="font-mono text-xs font-semibold text-black">
+                                {t.customer_consignment_no}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-neutral-400 italic">
+                              Awaiting dispatch details
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 5. Status Badge */}
+                        <td className="p-4">
+                          {getStatusBadge(t.status)}
+                        </td>
+
+                        {/* 6. Concierge Actions */}
+                        <td className="p-4 text-right space-y-1.5">
+                          {/* Awaiting Video State */}
+                          {(t.status === 'awaiting_video' || t.status === 'requested') && (
+                            <div className="flex flex-col items-end gap-1.5">
+                              {whatsAppChatUrl && (
+                                <a
+                                  href={whatsAppChatUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded text-[10px] font-semibold tracking-wider uppercase shadow-xs"
+                                >
+                                  <MessageCircle className="w-3 h-3 fill-current" />
+                                  <span>REVIEW VIDEO</span>
+                                </a>
+                              )}
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleUpdateStatus(t.id, 'claim_approved')}
+                                  className="text-[10px] py-1 px-2 bg-emerald-700 hover:bg-emerald-800"
+                                >
+                                  APPROVE CLAIM
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleUpdateStatus(t.id, 'rejected')}
+                                  className="text-[10px] py-1 px-2 text-red-600 hover:text-red-700"
+                                >
+                                  REJECT
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Claim Approved / In Transit */}
+                          {(t.status === 'claim_approved' || t.status === 'in_transit' || t.status === 'approved') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setTagInspectionModal(t)}
+                              className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8]"
+                            >
+                              VERIFY TAG & RECEIVE
+                            </Button>
+                          )}
+
+                          {/* Item Received (7-Day SLA active) */}
+                          {t.status === 'item_received' && (
+                            <div className="space-y-1 text-right">
+                              <div className="text-[10px] text-purple-800 font-semibold flex items-center justify-end gap-1">
+                                <Clock className="w-3 h-3 text-purple-600" />
+                                <span>7-Day Refund Timer Active</span>
+                              </div>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleUpdateStatus(t.id, 'completed')}
+                                className="text-[10px] py-1 px-3 bg-emerald-700 hover:bg-emerald-800"
+                              >
+                                PROCESS REFUND
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Completed */}
+                          {t.status === 'completed' && (
+                            <span className="text-[11px] text-emerald-700 font-semibold inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Refund Completed
+                            </span>
+                          )}
+
+                          {/* Rejected */}
+                          {t.status === 'rejected' && (
+                            <span className="text-[11px] text-red-600 font-semibold inline-flex items-center gap-1">
+                              <XCircle className="w-3.5 h-3.5" /> Claim Voided
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* Tag Inspection Verification Modal */}
+        {tagInspectionModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white max-w-md w-full rounded-[4px] p-6 shadow-2xl space-y-4 text-left">
+              <div className="flex items-center gap-2 text-black font-semibold text-sm uppercase">
+                <Tag className="w-4 h-4 text-[#3F3F8F]" />
+                <span>Physical Warehouse Tag Inspection</span>
+              </div>
+              <p className="text-xs text-[#555555] leading-relaxed">
+                Order <strong>{tagInspectionModal.order_number}</strong> ({tagInspectionModal.product_title}).
+                <br />
+                As per policy: <em>"No refund will be initiated if the price tag is removed or damaged."</em>
+              </p>
+              <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-xs space-y-1">
+                <p className="font-semibold">Inspection Checklist:</p>
+                <p>• Is the original brand price tag fully attached and unclipped?</p>
+                <p>• Does the defect match the 360° unboxing video provided?</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleUpdateStatus(tagInspectionModal.id, 'rejected');
+                    setTagInspectionModal(null);
+                  }}
+                  className="text-red-600 hover:text-red-700 text-xs"
+                >
+                  TAG MISSING · REJECT REFUND
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    handleUpdateStatus(tagInspectionModal.id, 'item_received');
+                    setTagInspectionModal(null);
+                  }}
+                  className="text-xs bg-emerald-700 hover:bg-emerald-800"
+                >
+                  TAG VERIFIED INTACT · ACCEPT
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

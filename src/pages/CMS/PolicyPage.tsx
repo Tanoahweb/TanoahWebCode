@@ -582,7 +582,7 @@ export const PolicyPage: React.FC = () => {
                   We accept returns and refunds <strong>only for damaged products</strong>. To initiate a return and refund, send us a <strong>360° opening video</strong> showing the damage along with the package.
                 </li>
                 <li>
-                  <strong>No size exchanges are allowed</strong>, so please choose your size carefully from our size chart.
+                  <strong>No size or colour exchanges are allowed</strong>, so please choose your size and colour carefully from our size chart.
                 </li>
                 <li>
                   We will entertain return requests <strong>only if reported within 24 hours</strong> of receiving the parcel.

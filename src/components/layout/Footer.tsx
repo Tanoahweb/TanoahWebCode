@@ -60,8 +60,8 @@ export const Footer: React.FC = () => {
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-poppins font-semibold uppercase tracking-wider">EASY 7-DAY RETURNS</h4>
-              <p className="text-[11px] text-white/70 font-poppins mt-0.5">Hassle-free exchange & doorstep pickup</p>
+              <h4 className="text-xs font-poppins font-semibold uppercase tracking-wider">QUALITY GUARANTEE</h4>
+              <p className="text-[11px] text-white/70 font-poppins mt-0.5">Transit damage covered · 24h 360° video verification</p>
             </div>
           </div>
 

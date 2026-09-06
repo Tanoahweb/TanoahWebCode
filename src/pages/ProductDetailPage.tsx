@@ -618,6 +618,18 @@ export const ProductDetailPage: React.FC = () => {
                   Only {activeVariant.stock_quantity} left in stock - order soon!
                 </p>
               )}
+
+              <p className="text-[10px] text-[#666666] pt-1">
+                ⓘ No size or colour exchanges. Please consult our{' '}
+                <button
+                  type="button"
+                  onClick={() => setIsSizeGuideOpen(true)}
+                  className="text-[#3F3F8F] underline font-medium"
+                >
+                  Size & Fit Guide
+                </button>{' '}
+                prior to placing your order.
+              </p>
             </div>
 
             {/* Quantity and Actions */}
@@ -737,9 +749,9 @@ export const ProductDetailPage: React.FC = () => {
                     },
                     {
                       id: 'shipping',
-                      title: 'COMPLIMENTARY SHIPPING & EASY RETURNS',
+                      title: 'SHIPPING & TRANSIT DAMAGE GUARANTEE',
                       content:
-                        '• Complimentary express domestic shipping on orders over ₹1,999.\n• 7-day doorstep return and exchange pickup for all unworn apparel with tags intact.\n• Delivered in our luxury matte branded boxes with recycled garment tissue.',
+                        '• Insured domestic shipping across India via India Post.\n• Transit damage protection covered within 24 hours of delivery with mandatory 360° unboxing video.\n• Delivered in our luxury matte branded boxes with recycled garment tissue.',
                     },
                   ]
               ).map((section) => (

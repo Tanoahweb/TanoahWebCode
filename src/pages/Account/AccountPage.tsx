@@ -664,13 +664,13 @@ export const AccountPage: React.FC = () => {
 
             {activeTab === 'returns' && (
               <div className="space-y-6">
-                <h3 className="font-wondra text-2xl text-black">RETURNS & EXCHANGES</h3>
-                <p className="text-xs text-[#666666]">
-                  We provide a complimentary 7-day doorstep return and size-exchange policy for all unworn garments with original tags intact.
+                <h3 className="font-wondra text-2xl text-black">DAMAGE & REFUND CLAIMS</h3>
+                <p className="text-xs text-[#666666] leading-relaxed">
+                  We accept returns and refunds exclusively for damaged or defective items reported within 24 hours of delivery with a mandatory continuous 360° unboxing video and intact price tag. Size and colour exchanges are not supported.
                 </p>
                 <Link to="/account/returns">
                   <Button variant="primary" size="md">
-                    SUBMIT NEW RETURN REQUEST
+                    REGISTER DAMAGE CLAIM
                   </Button>
                 </Link>
               </div>

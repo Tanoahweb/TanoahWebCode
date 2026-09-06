@@ -1427,29 +1427,101 @@ export const api = {
   },
 
 
-  // Return & Exchange Request
+  // Return & Damage Claim Request (Option 2: Hybrid WhatsApp Concierge)
   async submitReturn(params: {
     order_number: string;
-    return_type: 'return' | 'exchange';
+    return_type?: 'return' | 'exchange';
     reason: string;
     customer_description?: string;
-  }): Promise<{ success: boolean; message: string }> {
+    customer_name?: string;
+    customer_email?: string;
+    customer_phone?: string;
+    product_title?: string;
+    variant_info?: string;
+    delivered_at?: string;
+    hours_since_delivery?: number;
+    tag_intact_confirmed?: boolean;
+    unboxing_video_confirmed?: boolean;
+    self_ship_confirmed?: boolean;
+    video_submitted_via?: 'whatsapp' | 'upload' | 'link';
+    customer_courier_name?: string;
+    customer_consignment_no?: string;
+  }): Promise<{ success: boolean; message: string; ticket?: any }> {
     try {
       const order = await this.getOrderByNumber(params.order_number);
-      if (!order) return { success: false, message: 'Order number not found.' };
+      const ticketId = `ret_${Date.now()}`;
+      const newTicket = {
+        id: ticketId,
+        order_number: params.order_number,
+        customer_name: params.customer_name || (order ? `${order.shipping_address?.first_name || ''} ${order.shipping_address?.last_name || ''}`.trim() : 'Valued Client'),
+        customer_email: params.customer_email || order?.guest_email || '',
+        customer_phone: params.customer_phone || order?.shipping_address?.phone || '',
+        return_type: 'return',
+        reason: params.reason || 'Damaged in Transit',
+        customer_description: params.customer_description || '',
+        product_title: params.product_title || 'Atelier Garment',
+        variant_info: params.variant_info || 'Standard',
+        delivered_at: params.delivered_at || order?.delivered_at || order?.updated_at || null,
+        hours_since_delivery: params.hours_since_delivery ?? 0,
+        tag_intact_confirmed: params.tag_intact_confirmed ?? true,
+        unboxing_video_confirmed: params.unboxing_video_confirmed ?? true,
+        self_ship_confirmed: params.self_ship_confirmed ?? true,
+        video_submitted_via: params.video_submitted_via || 'whatsapp',
+        customer_courier_name: params.customer_courier_name || '',
+        customer_consignment_no: params.customer_consignment_no || '',
+        status: 'awaiting_video',
+        created_at: new Date().toISOString(),
+      };
 
-      const { error } = await supabase.from('returns').insert([{
-        order_id: order.id,
-        return_type: params.return_type,
-        reason: params.reason,
-        customer_description: params.customer_description || null,
-        status: 'requested',
-      }]);
+      // Persist to local returns store
+      try {
+        const raw = localStorage.getItem('tanoah_custom_returns');
+        const list = raw ? JSON.parse(raw) : [];
+        list.unshift(newTicket);
+        localStorage.setItem('tanoah_custom_returns', JSON.stringify(list));
+      } catch {}
 
-      if (error) throw error;
-      return { success: true, message: 'Return ticket created. Concierge team will review within 24 hours.' };
+      // If remote order exists in Supabase, also record in Supabase
+      if (order?.id) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.id);
+        if (isUUID) {
+          await supabase.from('returns').insert([{
+            order_id: order.id,
+            return_type: 'return',
+            reason: params.reason,
+            customer_description: params.customer_description || null,
+            status: 'requested',
+          }]);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Damage claim ticket registered. Please share your 360° unboxing video on WhatsApp.',
+        ticket: newTicket,
+      };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Failed to submit return request.' };
+      return { success: false, message: err.message || 'Failed to submit claim.' };
+    }
+  },
+
+  async updateReturnCustomerShipment(ticketId: string, courierName: string, consignmentNo: string): Promise<boolean> {
+    try {
+      const tickets = await this.getReturnTickets();
+      const updated = tickets.map((t) =>
+        t.id === ticketId
+          ? {
+              ...t,
+              customer_courier_name: courierName.trim(),
+              customer_consignment_no: consignmentNo.trim(),
+              status: t.status === 'awaiting_video' || t.status === 'claim_approved' ? 'in_transit' : t.status,
+            }
+          : t
+      );
+      localStorage.setItem('tanoah_custom_returns', JSON.stringify(updated));
+      return true;
+    } catch {
+      return false;
     }
   },
 
@@ -1665,26 +1737,40 @@ export const api = {
         order_number: 'TAN-849201',
         customer_name: 'Aditya Sharma',
         customer_email: 'aditya.sharma@example.com',
-        return_type: 'exchange',
-        reason: 'Size Too Large',
-        customer_description: 'Fits slightly looser than expected. Exchange for S.',
+        customer_phone: '+91 98450 12345',
+        return_type: 'return',
+        reason: 'Damaged in Transit (Stitching Defect)',
+        customer_description: 'Parcel arrived with sleeve seam torn. 360° unboxing video shared on WhatsApp.',
         product_title: 'Signature Heavyweight Oversized Tee',
-        variant_info: 'Noir Black / M -> Exchange for S',
-        status: 'requested',
-        created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+        variant_info: 'Noir Black / M',
+        status: 'awaiting_video',
+        hours_since_delivery: 4.5,
+        tag_intact_confirmed: true,
+        unboxing_video_confirmed: true,
+        self_ship_confirmed: true,
+        customer_courier_name: '',
+        customer_consignment_no: '',
+        created_at: new Date(Date.now() - 3600000 * 4.5).toISOString(),
       },
       {
         id: 'ret_102',
         order_number: 'TAN-719382',
         customer_name: 'Mira Nair',
         customer_email: 'mira.nair@example.com',
+        customer_phone: '+91 97123 45678',
         return_type: 'return',
-        reason: 'Fabric Preference',
-        customer_description: 'Looking for a slightly heavier drape.',
+        reason: 'Transit Damage (Torn Package & Stained Fabric)',
+        customer_description: 'Outer packing crushed by courier and shirt has tear. Video verified on WhatsApp.',
         product_title: 'French Linen Relaxed Camp Shirt',
         variant_info: 'Ecru Sand / M',
-        status: 'approved',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
+        status: 'claim_approved',
+        hours_since_delivery: 12.0,
+        tag_intact_confirmed: true,
+        unboxing_video_confirmed: true,
+        self_ship_confirmed: true,
+        customer_courier_name: 'DTDC Express',
+        customer_consignment_no: 'DTDC-9482019',
+        created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
       },
     ];
 

@@ -55,6 +55,7 @@ export const CheckoutPage: React.FC = () => {
   const [deliverySpeeds, setDeliverySpeeds] = useState<DeliverySpeedTier[]>(DEFAULT_DELIVERY_SPEEDS);
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -409,6 +410,15 @@ export const CheckoutPage: React.FC = () => {
         type: 'error',
         title: 'Missing Details',
         description: 'Please complete all required shipping & contact fields.',
+      });
+      return;
+    }
+
+    if (!agreedToTerms) {
+      addToast({
+        type: 'error',
+        title: 'Agreement Required',
+        description: 'Please agree to the Terms & Conditions and Refund Policy to proceed.',
       });
       return;
     }
@@ -1172,6 +1182,29 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Terms & Conditions and Refund Policy Agreement Checkbox */}
+              <div className="pt-2">
+                <label className="flex items-start gap-2.5 text-xs text-[#444444] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="accent-[#3F3F8F] w-4 h-4 mt-0.5 rounded cursor-pointer shrink-0"
+                  />
+                  <span className="leading-snug">
+                    I agree to the{' '}
+                    <Link to="/pages/terms" target="_blank" className="text-[#3F3F8F] underline hover:text-black font-semibold">
+                      Terms & Conditions
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/pages/refund-policy" target="_blank" className="text-[#3F3F8F] underline hover:text-black font-semibold">
+                      Refund Policy
+                    </Link>.
+                  </span>
+                </label>
+              </div>
+
               <Button
                 variant="primary"
                 size="lg"
@@ -1184,10 +1217,10 @@ export const CheckoutPage: React.FC = () => {
               </Button>
 
               <div className="pt-2 text-center text-[10px] text-[#888888] space-y-1">
-                <p>By placing this order you agree to TANOAH Terms and Policies.</p>
+                <p>100% Encrypted & Insured Checkout</p>
                 <div className="flex items-center justify-center gap-1.5 text-black font-medium">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                  <span>Complimentary 7-Day Doorstep Returns</span>
+                  <span>Returns accepted exclusively for transit damage reported within 24h</span>
                 </div>
               </div>
             </div>
