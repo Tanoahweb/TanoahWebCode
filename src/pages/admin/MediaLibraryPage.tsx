@@ -389,14 +389,14 @@ export const MediaLibraryPage: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {filteredMedia.map((asset) => (
               <div
-                key={asset.id}
+                key={asset.id || asset.r2_key}
                 onClick={() => setSelectedAsset(asset)}
                 className="group relative rounded-[4px] overflow-hidden border border-[#E7E7E7] bg-white shadow-xs hover:border-[#3F3F8F] cursor-pointer transition-all flex flex-col justify-between"
               >
                 <div className="relative aspect-[4/5] bg-[#F8F8F8] overflow-hidden">
                   <ProductImage
                     src={asset.r2_key}
-                    alt={asset.original_filename}
+                    alt={asset.original_filename || 'image'}
                     preset="thumbnail"
                     aspectRatio="4/5"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -427,7 +427,7 @@ export const MediaLibraryPage: React.FC = () => {
                       className="p-1.5 bg-white/95 hover:bg-white text-black rounded shadow"
                       title="Copy CDN Link"
                     >
-                      {copiedId === asset.id ? (
+                      {copiedId === (asset.id || asset.r2_key) ? (
                         <Check className="w-3.5 h-3.5 text-emerald-600" />
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
@@ -452,8 +452,8 @@ export const MediaLibraryPage: React.FC = () => {
                     {asset.original_filename}
                   </div>
                   <div className="flex justify-between text-[10px] text-[#888888]">
-                    <span>{formatBytes(asset.file_size)}</span>
-                    <span className="uppercase">{asset.mime_type.replace('image/', '')}</span>
+                    <span>{formatBytes(asset.file_size || 0)}</span>
+                    <span className="uppercase">{(asset.mime_type || 'image/webp').replace('image/', '')}</span>
                   </div>
                 </div>
               </div>

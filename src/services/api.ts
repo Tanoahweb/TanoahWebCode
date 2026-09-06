@@ -2235,13 +2235,32 @@ export const api = {
       if (raw) localMedia = JSON.parse(raw);
     } catch {}
 
+    const normalizeMediaItem = (m: any): MediaItem => ({
+      id: m.id || m.media_id || `med_${Math.random().toString(36).substring(2, 9)}`,
+      r2_key: m.r2_key || '',
+      original_filename: m.original_filename || 'image.webp',
+      stored_filename: m.stored_filename || m.r2_key?.split('/')?.pop() || m.original_filename || 'image.webp',
+      mime_type: m.mime_type || 'image/webp',
+      width: Number(m.width) || 2400,
+      height: Number(m.height) || 3000,
+      file_size: Number(m.file_size) || 0,
+      file_hash: m.file_hash || '',
+      media_type: m.media_type || 'product',
+      storage_provider: m.storage_provider || 'cloudflare_r2',
+      created_at: m.created_at || new Date().toISOString(),
+      updated_at: m.updated_at,
+      deleted_at: m.deleted_at || null,
+      product_reference_count: Number(m.product_reference_count || 0),
+      is_orphan: Boolean(m.is_orphan),
+    });
+
     try {
       const { data, error } = await supabase
         .from('media_usage_stats')
         .select('*')
         .order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
-        return data as unknown as MediaItem[];
+        return data.map(normalizeMediaItem);
       }
     } catch {}
 
@@ -2252,7 +2271,7 @@ export const api = {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
-        return data as unknown as MediaItem[];
+        return data.map(normalizeMediaItem);
       }
     } catch {}
 
