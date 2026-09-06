@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Image as ImageIcon,
   Upload,
@@ -16,6 +16,8 @@ import {
   Info,
   RefreshCw,
   X,
+  CheckSquare,
+  CheckCircle2,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -41,6 +43,13 @@ export const MediaLibraryPage: React.FC = () => {
   // Delete Confirmation Modal State
   const [assetToDelete, setAssetToDelete] = useState<MediaItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Multi-Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [forceBulkDelete, setForceBulkDelete] = useState(false);
 
   // Upload & Drag-and-Drop state
   const [isUploading, setIsUploading] = useState(false);
@@ -201,6 +210,78 @@ export const MediaLibraryPage: React.FC = () => {
 
   const totalStorageBytes = mediaList.reduce((acc, m) => acc + (Number(m.file_size) || 0), 0);
   const orphanCount = mediaList.filter((m) => m.is_orphan || (m.product_reference_count ?? 0) === 0).length;
+
+  // Multi-Selection Computations & Handlers
+  const selectedAssets = useMemo(() => {
+    return mediaList.filter((m) => selectedIds.has(m.id || m.r2_key));
+  }, [mediaList, selectedIds]);
+
+  const selectedBytes = useMemo(() => {
+    return selectedAssets.reduce((sum, m) => sum + (Number(m.file_size) || 0), 0);
+  }, [selectedAssets]);
+
+  const inUseSelectedCount = useMemo(() => {
+    return selectedAssets.filter((m) => !m.is_orphan && (m.product_reference_count ?? 0) > 0).length;
+  }, [selectedAssets]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredMedia.length && filteredMedia.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredMedia.map((m) => m.id || m.r2_key)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const itemsToDelete = selectedAssets.map((m) => ({
+        id: m.id,
+        r2_key: m.r2_key,
+      }));
+
+      const result = await api.deleteBulkMedia(itemsToDelete, forceBulkDelete);
+      if (result.failedCount > 0 && !forceBulkDelete) {
+        addToast({
+          type: 'info',
+          title: 'Partial Bulk Delete',
+          description: `${result.deletedCount} deleted. ${result.failedCount} asset(s) skipped because they are in active use.`,
+        });
+      } else {
+        addToast({
+          type: 'success',
+          title: 'Bulk Delete Complete',
+          description: `Successfully removed ${result.deletedCount} asset(s) from Cloudflare R2 and catalog.`,
+        });
+      }
+
+      setSelectedIds(new Set());
+      setIsBulkModalOpen(false);
+      setForceBulkDelete(false);
+      await loadMedia();
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Bulk Deletion Failed',
+        description: err.message || 'Failed to delete selected assets.',
+      });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -373,8 +454,79 @@ export const MediaLibraryPage: React.FC = () => {
                 Unassigned ({orphanCount})
               </button>
             </div>
+
+            {/* Selection Mode Toggle Button */}
+            <Button
+              variant={isSelectionMode || selectedIds.size > 0 ? 'primary' : 'outline'}
+              size="sm"
+              type="button"
+              onClick={() => {
+                if (isSelectionMode && selectedIds.size > 0) {
+                  setSelectedIds(new Set());
+                }
+                setIsSelectionMode(!isSelectionMode);
+              }}
+              icon={<CheckSquare className="w-4 h-4" />}
+            >
+              {isSelectionMode || selectedIds.size > 0 ? 'EXIT SELECTION' : 'SELECT IMAGES'}
+            </Button>
           </div>
         </div>
+
+        {/* Sticky Multi-Select Action Bar */}
+        {selectedIds.size > 0 && (
+          <div className="sticky top-4 z-30 bg-[#1A1A2E] text-white p-4 rounded-[6px] shadow-xl border border-[#3F3F8F]/40 flex flex-wrap items-center justify-between gap-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#3F3F8F] flex items-center justify-center text-white shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">
+                  {selectedIds.size} image{selectedIds.size > 1 ? 's' : ''} selected
+                  <span className="text-xs text-neutral-400 font-normal ml-2">
+                    ({formatBytes(selectedBytes)} to reclaim)
+                  </span>
+                </div>
+                <div className="text-[11px]">
+                  {inUseSelectedCount > 0 ? (
+                    <span className="text-amber-400 font-medium">
+                      ⚠️ {inUseSelectedCount} selected image(s) currently linked to active products
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-medium">
+                      ✓ All selected images are safe to delete (unassigned)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="px-3 py-1.5 text-xs text-neutral-300 hover:text-white hover:bg-white/10 rounded transition-colors font-medium"
+              >
+                {selectedIds.size === filteredMedia.length ? 'Deselect All' : 'Select All Filtered'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-xs text-neutral-300 hover:text-white hover:bg-white/10 rounded transition-colors font-medium"
+              >
+                Clear
+              </button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setIsBulkModalOpen(true)}
+                icon={<Trash2 className="w-3.5 h-3.5" />}
+              >
+                DELETE SELECTED ({selectedIds.size})
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Media Grid */}
         {filteredMedia.length === 0 ? (
@@ -387,77 +539,116 @@ export const MediaLibraryPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {filteredMedia.map((asset) => (
-              <div
-                key={asset.id || asset.r2_key}
-                onClick={() => setSelectedAsset(asset)}
-                className="group relative rounded-[4px] overflow-hidden border border-[#E7E7E7] bg-white shadow-xs hover:border-[#3F3F8F] cursor-pointer transition-all flex flex-col justify-between"
-              >
-                <div className="relative aspect-[4/5] bg-[#F8F8F8] overflow-hidden">
-                  <ProductImage
-                    src={asset.r2_key}
-                    alt={asset.original_filename || 'image'}
-                    preset="thumbnail"
-                    aspectRatio="4/5"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    wrapperClassName="w-full h-full"
-                  />
+            {filteredMedia.map((asset) => {
+              const assetKey = asset.id || asset.r2_key;
+              const isSelected = selectedIds.has(assetKey);
 
-                  {/* Usage Badge */}
-                  <div className="absolute top-2 left-2 z-10">
-                    {(asset.product_reference_count ?? 1) > 0 && !asset.is_orphan ? (
-                      <span className="bg-[#3F3F8F] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                        {asset.product_reference_count} Used
-                      </span>
-                    ) : (
-                      <span className="bg-amber-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                        Unassigned
-                      </span>
-                    )}
-                  </div>
+              return (
+                <div
+                  key={assetKey}
+                  onClick={() => {
+                    if (isSelectionMode || selectedIds.size > 0) {
+                      toggleSelect(assetKey);
+                    } else {
+                      setSelectedAsset(asset);
+                    }
+                  }}
+                  className={`group relative rounded-[4px] overflow-hidden border bg-white shadow-xs cursor-pointer transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-[#3F3F8F] ring-2 ring-[#3F3F8F] bg-[#EEEEF8]/20'
+                      : 'border-[#E7E7E7] hover:border-[#3F3F8F]'
+                  }`}
+                >
+                  <div className="relative aspect-[4/5] bg-[#F8F8F8] overflow-hidden">
+                    <ProductImage
+                      src={asset.r2_key}
+                      alt={asset.original_filename || 'image'}
+                      preset="thumbnail"
+                      aspectRatio="4/5"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      wrapperClassName="w-full h-full"
+                    />
 
-                  {/* Quick Action Overlay */}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <button
-                      type="button"
+                    {/* Checkbox Selector */}
+                    <div
+                      className={`absolute top-2 left-2 z-20 transition-opacity ${
+                        isSelectionMode || selectedIds.size > 0 || isSelected
+                          ? 'opacity-100'
+                          : 'opacity-0 group-hover:opacity-100'
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleCopyUrl(asset);
+                        toggleSelect(assetKey);
                       }}
-                      className="p-1.5 bg-white/95 hover:bg-white text-black rounded shadow"
-                      title="Copy CDN Link"
                     >
-                      {copiedId === (asset.id || asset.r2_key) ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <div
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-all cursor-pointer shadow-md ${
+                          isSelected
+                            ? 'bg-[#3F3F8F] text-white border-2 border-[#3F3F8F]'
+                            : 'bg-white/90 hover:bg-white text-transparent border-2 border-neutral-400 hover:border-[#3F3F8F]'
+                        }`}
+                        title={isSelected ? 'Deselect image' : 'Select image'}
+                      >
+                        <Check className={`w-3.5 h-3.5 stroke-[3] ${isSelected ? 'text-white' : 'text-transparent'}`} />
+                      </div>
+                    </div>
+
+                    {/* Usage Badge */}
+                    <div className="absolute top-2 right-2 z-10">
+                      {(asset.product_reference_count ?? 1) > 0 && !asset.is_orphan ? (
+                        <span className="bg-[#3F3F8F] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                          {asset.product_reference_count} Used
+                        </span>
                       ) : (
-                        <Copy className="w-3.5 h-3.5" />
+                        <span className="bg-amber-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                          Unassigned
+                        </span>
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAssetToDelete(asset);
-                      }}
-                      className="p-1.5 bg-white/95 hover:bg-white text-red-500 rounded shadow"
-                      title="Safe Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                    </div>
 
-                <div className="p-2 bg-white border-t border-[#E7E7E7] space-y-0.5">
-                  <div className="font-semibold text-black truncate" title={asset.original_filename}>
-                    {asset.original_filename}
+                    {/* Quick Action Overlay (bottom right) */}
+                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyUrl(asset);
+                        }}
+                        className="p-1.5 bg-white/95 hover:bg-white text-black rounded shadow"
+                        title="Copy CDN Link"
+                      >
+                        {copiedId === assetKey ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssetToDelete(asset);
+                        }}
+                        className="p-1.5 bg-white/95 hover:bg-white text-red-500 rounded shadow"
+                        title="Safe Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-[10px] text-[#888888]">
-                    <span>{formatBytes(asset.file_size || 0)}</span>
-                    <span className="uppercase">{(asset.mime_type || 'image/webp').replace('image/', '')}</span>
+
+                  <div className="p-2 bg-white border-t border-[#E7E7E7] space-y-0.5">
+                    <div className="font-semibold text-black truncate" title={asset.original_filename}>
+                      {asset.original_filename}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-[#888888]">
+                      <span>{formatBytes(asset.file_size || 0)}</span>
+                      <span className="uppercase">{(asset.mime_type || 'image/webp').replace('image/', '')}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -623,6 +814,92 @@ export const MediaLibraryPage: React.FC = () => {
                   icon={<Trash2 className="w-3.5 h-3.5" />}
                 >
                   CONFIRM REMOVE
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Bulk Delete Confirmation Modal */}
+        {isBulkModalOpen && (
+          <Modal
+            isOpen={isBulkModalOpen}
+            onClose={() => {
+              if (!isBulkDeleting) setIsBulkModalOpen(false);
+            }}
+            title="CONFIRM BULK DELETION"
+          >
+            <div className="space-y-4 text-xs font-poppins text-left">
+              <div
+                className={`p-4 rounded-[4px] border ${
+                  inUseSelectedCount > 0
+                    ? 'bg-amber-50 border-amber-200 text-amber-900'
+                    : 'bg-red-50 border-red-200 text-red-900'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <AlertCircle
+                    className={`w-5 h-5 shrink-0 mt-0.5 ${
+                      inUseSelectedCount > 0 ? 'text-amber-600' : 'text-red-600'
+                    }`}
+                  />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="font-semibold text-sm">
+                      Delete {selectedIds.size} Media Asset{selectedIds.size > 1 ? 's' : ''}?
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      This will permanently delete <strong>{selectedIds.size} file(s)</strong> (reclaiming{' '}
+                      <strong>{formatBytes(selectedBytes)}</strong>) from Cloudflare R2 bucket (
+                      <code className="font-mono bg-black/10 px-1 py-0.5 rounded">tanoah-media</code>) and
+                      mark them deleted in Supabase.
+                    </p>
+
+                    {inUseSelectedCount > 0 && (
+                      <div className="p-3 bg-white/90 rounded border border-amber-300 text-[11px] space-y-2 mt-2">
+                        <p className="text-red-700 font-semibold">
+                          ⚠️ {inUseSelectedCount} of the selected image(s) are currently linked to active products!
+                        </p>
+                        <label className="flex items-center gap-2 cursor-pointer select-none font-medium text-black">
+                          <input
+                            type="checkbox"
+                            checked={forceBulkDelete}
+                            onChange={(e) => setForceBulkDelete(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-[#3F3F8F] focus:ring-[#3F3F8F]"
+                          />
+                          <span>Force delete active product images anyway</span>
+                        </label>
+                        {!forceBulkDelete && (
+                          <p className="text-[#666666] text-[10px]">
+                            With safe mode active, only unassigned images will be deleted. The {inUseSelectedCount} in-use image(s) will be protected.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isBulkDeleting}
+                  onClick={() => setIsBulkModalOpen(false)}
+                >
+                  CANCEL
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  isLoading={isBulkDeleting}
+                  onClick={handleBulkDelete}
+                  icon={<Trash2 className="w-3.5 h-3.5" />}
+                >
+                  {forceBulkDelete
+                    ? `FORCE DELETE ALL (${selectedIds.size})`
+                    : inUseSelectedCount > 0
+                    ? `DELETE UNASSIGNED ONLY (${selectedIds.size - inUseSelectedCount})`
+                    : `CONFIRM DELETE (${selectedIds.size})`}
                 </Button>
               </div>
             </div>

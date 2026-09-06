@@ -1,4 +1,10 @@
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+} from '@aws-sdk/client-s3';
 
 const ACCOUNT_ID = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID || '';
 const BUCKET_NAME = import.meta.env.VITE_R2_BUCKET_NAME || 'tanoah-media';
@@ -97,6 +103,54 @@ class R2Service {
         success: false,
         message: err.message || 'Failed to connect to Cloudflare R2',
       };
+    }
+  }
+
+  /**
+   * Delete single object from Cloudflare R2 bucket.
+   */
+  public async deleteObject(key: string): Promise<boolean> {
+    try {
+      const cleanKey = key.replace(/^\/+/, '');
+      const client = this.getClient();
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: cleanKey,
+        })
+      );
+      return true;
+    } catch (err) {
+      console.warn('R2 deleteObject error:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Delete multiple objects in bulk from Cloudflare R2 bucket.
+   */
+  public async deleteObjects(keys: string[]): Promise<number> {
+    if (!keys || keys.length === 0) return 0;
+    try {
+      const client = this.getClient();
+      const objects = keys.map((k) => ({ Key: k.replace(/^\/+/, '') }));
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: BUCKET_NAME,
+          Delete: {
+            Objects: objects,
+            Quiet: true,
+          },
+        })
+      );
+      return keys.length;
+    } catch (err) {
+      console.warn('R2 deleteObjects bulk failed, trying individual:', err);
+      let count = 0;
+      for (const k of keys) {
+        if (await this.deleteObject(k)) count++;
+      }
+      return count;
     }
   }
 }

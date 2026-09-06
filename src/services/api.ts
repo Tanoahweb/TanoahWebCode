@@ -854,6 +854,7 @@ export const api = {
         id: uuidRegex.test(img.id) ? img.id : crypto.randomUUID(),
         product_id: targetId,
         image_url: img.image_url,
+        media_id: img.media_id || null,
         alt_text: img.alt_text || sanitized.title,
         sort_order: img.sort_order ?? idx,
         is_primary: img.is_primary ?? idx === 0,
@@ -2254,26 +2255,62 @@ export const api = {
       is_orphan: Boolean(m.is_orphan),
     });
 
+    let items: MediaItem[] = [];
     try {
       const { data, error } = await supabase
         .from('media_usage_stats')
         .select('*')
         .order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
-        return data.map(normalizeMediaItem);
+        items = data.map(normalizeMediaItem);
       }
     } catch {}
 
-    try {
-      const { data, error } = await supabase
-        .from('media')
-        .select('*')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-      if (!error && data && data.length > 0) {
-        return data.map(normalizeMediaItem);
+    if (items.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('media')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          items = data.map(normalizeMediaItem);
+        }
+      } catch {}
+    }
+
+    if (items.length > 0) {
+      // Cross-verify with product_images to guarantee 100% accurate 'In Use' labels
+      try {
+        const { data: allProductImages } = await supabase.from('product_images').select('image_url, media_id');
+        if (allProductImages && allProductImages.length > 0) {
+          items = items.map((m) => {
+            const matches = allProductImages.filter((pi) => {
+              if (pi.media_id && (pi.media_id === m.id || pi.media_id === (m as any).media_id)) return true;
+              if (!pi.image_url) return false;
+              const imgUrl = pi.image_url.toLowerCase();
+              const key = (m.r2_key || '').toLowerCase();
+              const orig = (m.original_filename || '').toLowerCase();
+              const stored = (m.stored_filename || '').toLowerCase();
+              return (
+                (key && imgUrl.includes(key)) ||
+                (orig && imgUrl.includes(orig)) ||
+                (stored && imgUrl.includes(stored))
+              );
+            });
+            const count = Math.max(m.product_reference_count || 0, matches.length);
+            return {
+              ...m,
+              product_reference_count: count,
+              is_orphan: count === 0,
+            };
+          });
+        }
+      } catch (checkErr) {
+        console.warn('Cross-verification error:', checkErr);
       }
-    } catch {}
+      return items;
+    }
 
     const SAMPLE_FALLBACK: MediaItem[] = [
       {
@@ -2496,6 +2533,15 @@ export const api = {
       }
     } catch {}
 
+    // Delete from Cloudflare R2 bucket
+    if (r2Key) {
+      try {
+        await r2Service.deleteObject(r2Key);
+      } catch (r2Err) {
+        console.warn('R2 deleteObject error:', r2Err);
+      }
+    }
+
     // Fallback: update local storage registry and Supabase soft delete
     try {
       const existing = localStorage.getItem('tanoah_custom_media');
@@ -2511,6 +2557,107 @@ export const api = {
     } catch {}
 
     return { success: true, message: 'Media removed from registry.', safeToDelete: true };
+  },
+
+  async deleteBulkMedia(
+    items: { id: string; r2_key?: string }[],
+    force = false
+  ): Promise<{ success: boolean; deletedCount: number; failedCount: number; message: string }> {
+    if (!items || items.length === 0) {
+      return { success: true, deletedCount: 0, failedCount: 0, message: 'No items selected.' };
+    }
+
+    let itemsToDelete = [...items];
+    let failedCount = 0;
+
+    // In safe mode, protect any item linked to an active product
+    if (!force) {
+      try {
+        const { data: allProductImages } = await supabase.from('product_images').select('image_url, media_id');
+        if (allProductImages && allProductImages.length > 0) {
+          const safeItems: typeof items = [];
+          for (const item of items) {
+            const isReferenced = allProductImages.some((pi) => {
+              if (pi.media_id && pi.media_id === item.id) return true;
+              if (!pi.image_url) return false;
+              const imgUrl = pi.image_url.toLowerCase();
+              const key = (item.r2_key || '').toLowerCase();
+              return Boolean(key && imgUrl.includes(key));
+            });
+
+            if (isReferenced) {
+              failedCount++;
+            } else {
+              safeItems.push(item);
+            }
+          }
+          itemsToDelete = safeItems;
+        }
+      } catch (err) {
+        console.warn('Error checking product references before bulk delete:', err);
+      }
+    }
+
+    if (itemsToDelete.length === 0) {
+      return {
+        success: false,
+        deletedCount: 0,
+        failedCount,
+        message: 'All selected items are currently in use by active products. Deletion cancelled.',
+      };
+    }
+
+    const ids = itemsToDelete.map((i) => i.id).filter(Boolean);
+    const r2Keys = itemsToDelete.map((i) => i.r2_key).filter((k): k is string => Boolean(k));
+
+    // 1. Delete from Cloudflare R2 bucket directly
+    try {
+      if (r2Keys.length > 0) {
+        await r2Service.deleteObjects(r2Keys);
+      }
+    } catch (e) {
+      console.warn('Direct R2 bulk deletion warning:', e);
+    }
+
+    // 2. Call backend endpoint if available
+    try {
+      await fetch('/api/media/delete-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, r2Keys, force }),
+      });
+    } catch {}
+
+    // 3. Supabase soft delete
+    try {
+      if (ids.length > 0) {
+        await supabase
+          .from('media')
+          .update({ deleted_at: new Date().toISOString() })
+          .in('id', ids);
+      }
+    } catch (dbErr) {
+      console.warn('Supabase bulk media soft delete warning:', dbErr);
+    }
+
+    // 4. Update localStorage registry
+    try {
+      const existing = localStorage.getItem('tanoah_custom_media');
+      if (existing) {
+        const list: MediaItem[] = JSON.parse(existing);
+        const updated = list.filter((m) => !ids.includes(m.id) && !r2Keys.includes(m.r2_key));
+        localStorage.setItem('tanoah_custom_media', JSON.stringify(updated));
+      }
+    } catch {}
+
+    return {
+      success: true,
+      deletedCount: itemsToDelete.length,
+      failedCount,
+      message: `${itemsToDelete.length} media asset(s) deleted successfully from R2 and catalog.${
+        failedCount > 0 ? ` ${failedCount} in-use image(s) were protected.` : ''
+      }`,
+    };
   },
 
   async getStorageAnalytics(): Promise<any> {
