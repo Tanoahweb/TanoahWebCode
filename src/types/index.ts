@@ -262,6 +262,7 @@ export interface Coupon {
   end_date?: string;
   total_usage_limit?: number;
   per_customer_limit?: number;
+  usage_count?: number;
   eligible_categories?: string[];
   eligible_collections?: string[];
   eligible_products?: string[];

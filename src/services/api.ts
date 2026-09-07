@@ -1406,6 +1406,10 @@ export const api = {
     discount_value: number;
     min_spend?: number;
     max_discount?: number;
+    start_date?: string;
+    end_date?: string;
+    total_usage_limit?: number;
+    per_customer_limit?: number;
     eligible_collections?: string[];
     is_active?: boolean;
   }): Promise<{ success: boolean; coupon: Coupon }> {
@@ -1418,6 +1422,11 @@ export const api = {
       discount_value: coupon.discount_value,
       min_spend: coupon.min_spend || 0,
       max_discount: coupon.max_discount,
+      start_date: coupon.start_date || new Date().toISOString().split('T')[0],
+      end_date: coupon.end_date || undefined,
+      total_usage_limit: coupon.total_usage_limit || undefined,
+      per_customer_limit: coupon.per_customer_limit || undefined,
+      usage_count: 0,
       eligible_collections: coupon.eligible_collections && coupon.eligible_collections.length > 0 ? coupon.eligible_collections : undefined,
       is_automatic: false,
       is_active: coupon.is_active !== undefined ? coupon.is_active : true,
@@ -1441,6 +1450,11 @@ export const api = {
         discount_value: newCoupon.discount_value,
         min_spend: newCoupon.min_spend,
         max_discount: newCoupon.max_discount || null,
+        start_date: newCoupon.start_date || null,
+        end_date: newCoupon.end_date || null,
+        total_usage_limit: newCoupon.total_usage_limit || null,
+        per_customer_limit: newCoupon.per_customer_limit || null,
+        usage_count: 0,
         eligible_collections: newCoupon.eligible_collections || [],
         is_active: newCoupon.is_active,
       }]);
@@ -1502,6 +1516,32 @@ export const api = {
         return { valid: false, message: 'Invalid or expired promo code.' };
       }
 
+      // Date Range Validation (Valid Between)
+      const now = new Date();
+      if (match.start_date) {
+        const start = new Date(match.start_date);
+        start.setHours(0, 0, 0, 0);
+        if (now < start) {
+          const dateStr = start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
+          return { valid: false, message: `This coupon is not active yet (Starts ${dateStr}).` };
+        }
+      }
+      if (match.end_date) {
+        const end = new Date(match.end_date);
+        end.setHours(23, 59, 59, 999);
+        if (now > end) {
+          return { valid: false, message: 'This promo code has expired.' };
+        }
+      }
+
+      // Total Usage Limit Validation
+      if (match.total_usage_limit && match.total_usage_limit > 0) {
+        const usageCount = match.usage_count || 0;
+        if (usageCount >= match.total_usage_limit) {
+          return { valid: false, message: 'This promo code has reached its maximum redemption limit.' };
+        }
+      }
+
       // Collection-specific validation
       if (match.eligible_collections && match.eligible_collections.length > 0) {
         if (items && items.length > 0) {
@@ -1552,6 +1592,20 @@ export const api = {
       return { valid: true, coupon: match, message: 'Coupon applied successfully!' };
     } catch {
       return { valid: false, message: 'Unable to validate coupon at this time.' };
+    }
+  },
+
+  async recordCouponUsage(code: string): Promise<void> {
+    try {
+      const cleanCode = code.trim().toUpperCase();
+      const allCoupons = await this.getCoupons();
+      const target = allCoupons.find((c) => c.code.toUpperCase() === cleanCode);
+      if (target) {
+        const newCount = (target.usage_count || 0) + 1;
+        await this.updateCoupon(target.id, { usage_count: newCount });
+      }
+    } catch (e) {
+      console.warn('Could not record coupon usage:', e);
     }
   },
 

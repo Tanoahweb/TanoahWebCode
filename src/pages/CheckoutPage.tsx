@@ -350,6 +350,10 @@ export const CheckoutPage: React.FC = () => {
       items,
     });
 
+    if (coupon?.code) {
+      api.recordCouponUsage(coupon.code).catch(() => {});
+    }
+
     const orderNum = res.order_number || `TAN-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const orderPayload = {

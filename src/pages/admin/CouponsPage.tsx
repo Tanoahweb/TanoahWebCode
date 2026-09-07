@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Plus, Trash2, Edit2, Globe, Layers, X, Check, Power } from 'lucide-react';
+import { Tag, Plus, Trash2, Edit2, Globe, Layers, X, Check, Power, Calendar, Info } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
@@ -22,6 +22,13 @@ export const CouponsPage: React.FC = () => {
   const [applicability, setApplicability] = useState<'all' | 'collections'>('all');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
 
+  // Validity & Usage Limits for New Coupon
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState<string>('');
+  const [dontSetEndDate, setDontSetEndDate] = useState<boolean>(true);
+  const [limitTotalUses, setLimitTotalUses] = useState<boolean>(false);
+  const [totalUsageLimit, setTotalUsageLimit] = useState<string>('');
+
   // Edit Coupon Modal State
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -33,6 +40,11 @@ export const CouponsPage: React.FC = () => {
     applicability: 'all' | 'collections';
     eligible_collections: string[];
     is_active: boolean;
+    start_date: string;
+    end_date: string;
+    dont_set_end_date: boolean;
+    limit_total_uses: boolean;
+    total_usage_limit: string;
   }>({
     description: '',
     discount_type: 'percentage',
@@ -42,6 +54,11 @@ export const CouponsPage: React.FC = () => {
     applicability: 'all',
     eligible_collections: [],
     is_active: true,
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: '',
+    dont_set_end_date: true,
+    limit_total_uses: false,
+    total_usage_limit: '',
   });
 
   const loadData = async () => {
@@ -91,6 +108,15 @@ export const CouponsPage: React.FC = () => {
       return;
     }
 
+    if (!dontSetEndDate && endDate && startDate && new Date(endDate) < new Date(startDate)) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Date Range',
+        description: 'End date cannot be earlier than start date.',
+      });
+      return;
+    }
+
     const res = await api.createCoupon({
       code: newCode.trim().toUpperCase(),
       description: newDescription.trim() || undefined,
@@ -99,6 +125,9 @@ export const CouponsPage: React.FC = () => {
       min_spend: minSpend,
       max_discount: maxDiscount ? Number(maxDiscount) : undefined,
       eligible_collections: applicability === 'collections' ? selectedCollections : [],
+      start_date: startDate || undefined,
+      end_date: !dontSetEndDate && endDate ? endDate : undefined,
+      total_usage_limit: limitTotalUses && totalUsageLimit ? Number(totalUsageLimit) : undefined,
       is_active: true,
     });
 
@@ -116,6 +145,11 @@ export const CouponsPage: React.FC = () => {
       setMaxDiscount('');
       setApplicability('all');
       setSelectedCollections([]);
+      setStartDate(new Date().toISOString().split('T')[0]);
+      setEndDate('');
+      setDontSetEndDate(true);
+      setLimitTotalUses(false);
+      setTotalUsageLimit('');
       loadData();
     }
   };
@@ -136,6 +170,12 @@ export const CouponsPage: React.FC = () => {
   const openEditModal = (c: Coupon) => {
     setEditingCoupon(c);
     const hasCollections = Boolean(c.eligible_collections && c.eligible_collections.length > 0);
+    const hasEndDate = Boolean(c.end_date);
+    const hasUsageLimit = Boolean(c.total_usage_limit && c.total_usage_limit > 0);
+
+    const sDate = c.start_date ? c.start_date.split('T')[0] : new Date().toISOString().split('T')[0];
+    const eDate = c.end_date ? c.end_date.split('T')[0] : '';
+
     setEditForm({
       description: c.description || '',
       discount_type: (c.discount_type as any) || 'percentage',
@@ -145,6 +185,11 @@ export const CouponsPage: React.FC = () => {
       applicability: hasCollections ? 'collections' : 'all',
       eligible_collections: c.eligible_collections || [],
       is_active: c.is_active !== false,
+      start_date: sDate,
+      end_date: eDate,
+      dont_set_end_date: !hasEndDate,
+      limit_total_uses: hasUsageLimit,
+      total_usage_limit: hasUsageLimit ? String(c.total_usage_limit) : '',
     });
   };
 
@@ -161,6 +206,15 @@ export const CouponsPage: React.FC = () => {
       return;
     }
 
+    if (!editForm.dont_set_end_date && editForm.end_date && editForm.start_date && new Date(editForm.end_date) < new Date(editForm.start_date)) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Date Range',
+        description: 'End date cannot be earlier than start date.',
+      });
+      return;
+    }
+
     const updates: Partial<Coupon> = {
       description: editForm.description.trim() || undefined,
       discount_type: editForm.discount_type,
@@ -168,6 +222,9 @@ export const CouponsPage: React.FC = () => {
       min_spend: Number(editForm.min_spend),
       max_discount: editForm.max_discount ? Number(editForm.max_discount) : undefined,
       eligible_collections: editForm.applicability === 'collections' ? editForm.eligible_collections : [],
+      start_date: editForm.start_date || undefined,
+      end_date: !editForm.dont_set_end_date && editForm.end_date ? editForm.end_date : undefined,
+      total_usage_limit: editForm.limit_total_uses && editForm.total_usage_limit ? Number(editForm.total_usage_limit) : undefined,
       is_active: editForm.is_active,
     };
 
@@ -388,6 +445,114 @@ export const CouponsPage: React.FC = () => {
             )}
           </div>
 
+          {/* Validity & Usage Limits (Valid between & Limit uses) */}
+          <div className="pt-3 border-t border-[#EEEEEE] space-y-4">
+            {/* Valid between */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-neutral-700">
+                <span>Valid between</span>
+                <span title="Set the date range during which this promotion is active.">
+                  <Info className="w-3.5 h-3.5 text-[#3F3F8F] cursor-help" />
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Date Inputs Box */}
+                <div className="inline-flex items-center border border-[#E7E7E7] rounded-[4px] bg-white overflow-hidden shadow-2xs divide-x divide-[#E7E7E7]">
+                  {/* Start Date */}
+                  <div className="relative flex items-center px-3 py-2 bg-white">
+                    <Calendar className="w-4 h-4 text-blue-600 mr-2 shrink-0 pointer-events-none" />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="bg-transparent text-xs text-neutral-800 focus:outline-none cursor-pointer font-medium"
+                    />
+                  </div>
+
+                  {/* End Date */}
+                  <div
+                    className={`relative flex items-center px-3 py-2 transition-colors ${
+                      dontSetEndDate ? 'bg-[#F9F9F9] text-neutral-400 cursor-not-allowed' : 'bg-white text-neutral-800'
+                    }`}
+                  >
+                    <Calendar
+                      className={`w-4 h-4 mr-2 shrink-0 pointer-events-none ${
+                        dontSetEndDate ? 'text-neutral-300' : 'text-blue-600'
+                      }`}
+                    />
+                    <input
+                      type="date"
+                      value={endDate}
+                      min={startDate}
+                      disabled={dontSetEndDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      placeholder="End Date"
+                      className={`bg-transparent text-xs focus:outline-none font-medium ${
+                        dontSetEndDate ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-800 cursor-pointer'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Don't set an end date checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-800">
+                  <input
+                    type="checkbox"
+                    checked={dontSetEndDate}
+                    onChange={(e) => {
+                      setDontSetEndDate(e.target.checked);
+                      if (e.target.checked) setEndDate('');
+                    }}
+                    className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span>Don't set an end date</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Limit uses */}
+            <div className="space-y-2 pt-1">
+              <div className="text-[11px] font-semibold uppercase text-neutral-700">
+                Limit uses
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-800">
+                  <input
+                    type="checkbox"
+                    checked={limitTotalUses}
+                    onChange={(e) => setLimitTotalUses(e.target.checked)}
+                    className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span>Limit the total number of uses for this coupon</span>
+                  <span title="Specify how many times this coupon code can be redeemed across all customers before it expires.">
+                    <Info className="w-3.5 h-3.5 text-neutral-400 cursor-help" />
+                  </span>
+                </label>
+
+                {limitTotalUses && (
+                  <div className="pl-6 pt-1 max-w-xs animate-fadeIn">
+                    <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                      Total redemption limit *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="e.g., 100"
+                      value={totalUsageLimit}
+                      onChange={(e) => setTotalUsageLimit(e.target.value)}
+                      className="w-full p-2 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-neutral-400 mt-1">
+                      Coupon will automatically expire once {totalUsageLimit || 'this number of'} orders have redeemed it.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end pt-1">
             <Button variant="primary" size="md" type="submit" icon={<Plus className="w-4 h-4" />}>
               CREATE PROMOTION
@@ -412,7 +577,8 @@ export const CouponsPage: React.FC = () => {
                 <tr>
                   <th className="p-4">Coupon Code</th>
                   <th className="p-4">Offer Value</th>
-                  <th className="p-4">Min. Spend / Limit</th>
+                  <th className="p-4">Spend & Usage Limits</th>
+                  <th className="p-4">Validity</th>
                   <th className="p-4">Applicability</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Actions</th>
@@ -421,13 +587,13 @@ export const CouponsPage: React.FC = () => {
               <tbody className="divide-y divide-[#E7E7E7]">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-neutral-400">
+                    <td colSpan={7} className="p-8 text-center text-neutral-400">
                       Loading promotions...
                     </td>
                   </tr>
                 ) : coupons.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-neutral-400">
+                    <td colSpan={7} className="p-8 text-center text-neutral-400">
                       No coupon codes found. Create one using the form above.
                     </td>
                   </tr>
@@ -441,6 +607,17 @@ export const CouponsPage: React.FC = () => {
                         : `₹${c.discount_value} OFF`;
 
                     const hasCollections = Boolean(c.eligible_collections && c.eligible_collections.length > 0);
+
+                    // Validity calculation
+                    const sDate = c.start_date ? new Date(c.start_date) : null;
+                    const eDate = c.end_date ? new Date(c.end_date) : null;
+                    const now = new Date();
+                    let isExpired = false;
+                    if (eDate) {
+                      const eDateEnd = new Date(eDate);
+                      eDateEnd.setHours(23, 59, 59, 999);
+                      isExpired = now > eDateEnd;
+                    }
 
                     return (
                       <tr key={c.id || c.code} className="hover:bg-[#FAFAFA] transition-colors">
@@ -463,9 +640,45 @@ export const CouponsPage: React.FC = () => {
                         </td>
 
                         <td className="p-4">
-                          <span className="font-mono text-neutral-700 font-medium">
-                            {c.min_spend ? `₹${c.min_spend.toLocaleString('en-IN')}` : 'No minimum'}
-                          </span>
+                          <div className="font-mono text-neutral-700 font-medium">
+                            {c.min_spend ? `Min ₹${c.min_spend.toLocaleString('en-IN')}` : 'No min spend'}
+                          </div>
+                          {c.total_usage_limit ? (
+                            <div className="text-[10px] text-[#3F3F8F] font-medium mt-0.5">
+                              Limit: {c.usage_count || 0} / {c.total_usage_limit} used
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-neutral-400 mt-0.5">Unlimited uses</div>
+                          )}
+                        </td>
+
+                        <td className="p-4">
+                          {eDate ? (
+                            <div>
+                              <span
+                                className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                                  isExpired ? 'text-rose-600' : 'text-neutral-800'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-rose-600' : 'bg-emerald-500'}`} />
+                                {isExpired ? 'Expired' : 'Active Range'}
+                              </span>
+                              <p className="text-[10px] text-neutral-500 mt-0.5">
+                                {sDate ? sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Live'} –{' '}
+                                {eDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                Never expires
+                              </span>
+                              <p className="text-[10px] text-neutral-400 mt-0.5">
+                                {sDate ? `From ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No end date'}
+                              </p>
+                            </div>
+                          )}
                         </td>
 
                         <td className="p-4">
@@ -686,6 +899,110 @@ export const CouponsPage: React.FC = () => {
                       })}
                     </div>
                   )}
+                </div>
+
+                {/* Validity & Usage Limits in Edit Modal */}
+                <div className="bg-[#FBFBFC] border border-[#EEEEEE] p-3.5 rounded-[6px] space-y-3.5">
+                  {/* Valid between */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-neutral-700">
+                      <span>Valid between</span>
+                      <span title="Set the date range during which this promotion is active.">
+                        <Info className="w-3.5 h-3.5 text-[#3F3F8F] cursor-help" />
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="inline-flex items-center border border-[#E7E7E7] rounded-[4px] bg-white overflow-hidden divide-x divide-[#E7E7E7]">
+                        <div className="relative flex items-center px-2.5 py-1.5 bg-white">
+                          <Calendar className="w-3.5 h-3.5 text-blue-600 mr-1.5 shrink-0 pointer-events-none" />
+                          <input
+                            type="date"
+                            value={editForm.start_date}
+                            onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
+                            className="bg-transparent text-xs text-neutral-800 focus:outline-none cursor-pointer font-medium"
+                          />
+                        </div>
+
+                        <div
+                          className={`relative flex items-center px-2.5 py-1.5 transition-colors ${
+                            editForm.dont_set_end_date ? 'bg-[#F9F9F9] text-neutral-400 cursor-not-allowed' : 'bg-white text-neutral-800'
+                          }`}
+                        >
+                          <Calendar
+                            className={`w-3.5 h-3.5 mr-1.5 shrink-0 pointer-events-none ${
+                              editForm.dont_set_end_date ? 'text-neutral-300' : 'text-blue-600'
+                            }`}
+                          />
+                          <input
+                            type="date"
+                            value={editForm.end_date}
+                            min={editForm.start_date}
+                            disabled={editForm.dont_set_end_date}
+                            onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })}
+                            placeholder="End Date"
+                            className={`bg-transparent text-xs focus:outline-none font-medium ${
+                              editForm.dont_set_end_date ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-800 cursor-pointer'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-neutral-800">
+                        <input
+                          type="checkbox"
+                          checked={editForm.dont_set_end_date}
+                          onChange={(e) => {
+                            setEditForm({
+                              ...editForm,
+                              dont_set_end_date: e.target.checked,
+                              end_date: e.target.checked ? '' : editForm.end_date,
+                            });
+                          }}
+                          className="w-3.5 h-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Don't set an end date</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Limit uses */}
+                  <div className="space-y-1.5 pt-1 border-t border-neutral-200">
+                    <div className="text-[11px] font-semibold uppercase text-neutral-700">
+                      Limit uses
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-neutral-800">
+                        <input
+                          type="checkbox"
+                          checked={editForm.limit_total_uses}
+                          onChange={(e) => setEditForm({ ...editForm, limit_total_uses: e.target.checked })}
+                          className="w-3.5 h-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Limit the total number of uses for this coupon</span>
+                        <span title="Specify how many times this coupon code can be redeemed across all customers before it expires.">
+                          <Info className="w-3.5 h-3.5 text-neutral-400 cursor-help" />
+                        </span>
+                      </label>
+
+                      {editForm.limit_total_uses && (
+                        <div className="pl-5 pt-1 max-w-xs animate-fadeIn">
+                          <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                            Total redemption limit
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="e.g., 100"
+                            value={editForm.total_usage_limit}
+                            onChange={(e) => setEditForm({ ...editForm, total_usage_limit: e.target.value })}
+                            className="w-full p-2 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-[#F0F0F0]">
