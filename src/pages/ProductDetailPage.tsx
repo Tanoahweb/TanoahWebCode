@@ -1002,42 +1002,44 @@ export const ProductDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Pincode Delivery Availability Checker */}
-            <div className="p-4 bg-[#F8F8F8] rounded-[4px] border border-[#E7E7E7] space-y-2 text-xs">
-              <div className="flex items-center gap-1.5 font-semibold text-black uppercase tracking-wider">
-                <MapPin className="w-4 h-4 text-[#3F3F8F]" />
-                <span>CHECK DELIVERY AVAILABILITY</span>
-              </div>
-              <form onSubmit={handlePincodeCheck} className="flex gap-2">
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="Enter 6-digit Pincode"
-                  value={pincode}
-                  onChange={(e) => {
-                    setPincode(e.target.value.replace(/\D/g, ''));
-                    setPincodeStatus('idle');
-                  }}
-                  className="flex-1 px-3 py-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-mono"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-white border border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#3F3F8F] hover:text-white rounded-[4px] font-semibold text-xs transition-colors"
-                >
-                  CHECK
-                </button>
-              </form>
-
-              {pincodeStatus === 'valid' && (
-                <div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-[2px] mt-1 space-y-0.5">
-                  <p className="font-semibold">✓ Express Delivery Available to {pincode}</p>
-                  <p>Estimated Delivery: 3–5 Business Days | Insured Doorstep Delivery via India Post</p>
+            {/* Pincode Delivery Availability Checker (Hidden on Sold Out products) */}
+            {!isOutOfStock && (
+              <div className="p-4 bg-[#F8F8F8] rounded-[4px] border border-[#E7E7E7] space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-black uppercase tracking-wider">
+                  <MapPin className="w-4 h-4 text-[#3F3F8F]" />
+                  <span>CHECK DELIVERY AVAILABILITY</span>
                 </div>
-              )}
-              {pincodeStatus === 'invalid' && (
-                <p className="text-[11px] text-red-600 mt-1">Please enter a valid 6-digit postal code.</p>
-              )}
-            </div>
+                <form onSubmit={handlePincodeCheck} className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter 6-digit Pincode"
+                    value={pincode}
+                    onChange={(e) => {
+                      setPincode(e.target.value.replace(/\D/g, ''));
+                      setPincodeStatus('idle');
+                    }}
+                    className="flex-1 px-3 py-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-white border border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#3F3F8F] hover:text-white rounded-[4px] font-semibold text-xs transition-colors"
+                  >
+                    CHECK
+                  </button>
+                </form>
+
+                {pincodeStatus === 'valid' && (
+                  <div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-[2px] mt-1 space-y-0.5">
+                    <p className="font-semibold">✓ Delivery Available to {pincode}</p>
+                    <p>Estimated Delivery: 10–15 Business Days | Insured Doorstep Delivery</p>
+                  </div>
+                )}
+                {pincodeStatus === 'invalid' && (
+                  <p className="text-[11px] text-red-600 mt-1">Please enter a valid 6-digit postal code.</p>
+                )}
+              </div>
+            )}
 
             {/* Accordion Sections: Headings & Custom Points */}
             <div className="border-t border-[#E7E7E7] divide-y divide-[#E7E7E7] text-xs">
