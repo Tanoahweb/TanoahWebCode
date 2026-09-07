@@ -21,6 +21,8 @@ import {
   LogIn,
   X,
   MessageSquarePlus,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from '../data/mockData';
 import { ProductCard } from '../components/product/ProductCard';
@@ -98,7 +100,9 @@ export const ProductDetailPage: React.FC = () => {
     };
   }, []);
   const [pincode, setPincode] = useState('');
-  const [pincodeStatus, setPincodeStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [pincodeStatus, setPincodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [pincodeLocation, setPincodeLocation] = useState<string>('');
+  const [pincodeErrorMessage, setPincodeErrorMessage] = useState<string>('');
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
   const [addedAnimation, setAddedAnimation] = useState(false);
@@ -469,13 +473,78 @@ export const ProductDetailPage: React.FC = () => {
     navigate('/checkout');
   };
 
-  const handlePincodeCheck = (e: React.FormEvent) => {
+  const handlePincodeCheck = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pincode || pincode.length < 6) {
+    const cleanPin = pincode.trim();
+
+    if (!cleanPin || cleanPin.length !== 6 || !/^\d{6}$/.test(cleanPin)) {
       setPincodeStatus('invalid');
+      setPincodeErrorMessage('Please enter a valid 6-digit postal code.');
+      setPincodeLocation('');
       return;
     }
-    setPincodeStatus('valid');
+
+    // Instant check for demo / non-serviceable patterns
+    const dummyPatterns = [
+      '123456', '654321', '000000', '111111', '222222', '333333',
+      '444444', '555555', '666666', '777777', '888888', '999999',
+      '121212', '101010'
+    ];
+
+    if (cleanPin.startsWith('0') || dummyPatterns.includes(cleanPin)) {
+      setPincodeStatus('invalid');
+      setPincodeErrorMessage(`Delivery not available for invalid postal code ${cleanPin}.`);
+      setPincodeLocation('');
+      return;
+    }
+
+    setPincodeStatus('checking');
+    setPincodeErrorMessage('');
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+      const response = await fetch(`https://api.postalpincode.in/pincode/${cleanPin}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error('Network response not ok');
+      }
+
+      const data = await response.json();
+
+      if (
+        Array.isArray(data) &&
+        data[0]?.Status === 'Success' &&
+        Array.isArray(data[0]?.PostOffice) &&
+        data[0].PostOffice.length > 0
+      ) {
+        const postOffice = data[0].PostOffice[0];
+        const district = postOffice.District || '';
+        const state = postOffice.State || '';
+        const locationText = district && state ? `${district}, ${state}` : state || district;
+
+        setPincodeLocation(locationText);
+        setPincodeStatus('valid');
+      } else {
+        setPincodeStatus('invalid');
+        setPincodeErrorMessage(`Delivery not available for pincode ${cleanPin}. Please check your code.`);
+        setPincodeLocation('');
+      }
+    } catch {
+      // Offline / network timeout fallback: validate standard Indian postal ranges (1-8 first digit)
+      if (/^[1-8][0-9]{5}$/.test(cleanPin)) {
+        setPincodeLocation('');
+        setPincodeStatus('valid');
+      } else {
+        setPincodeStatus('invalid');
+        setPincodeErrorMessage(`Delivery not available for pincode ${cleanPin}.`);
+        setPincodeLocation('');
+      }
+    }
   };
 
   const handleShare = () => {
@@ -1018,25 +1087,46 @@ export const ProductDetailPage: React.FC = () => {
                     onChange={(e) => {
                       setPincode(e.target.value.replace(/\D/g, ''));
                       setPincodeStatus('idle');
+                      setPincodeLocation('');
+                      setPincodeErrorMessage('');
                     }}
                     className="flex-1 px-3 py-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-mono"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-white border border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#3F3F8F] hover:text-white rounded-[4px] font-semibold text-xs transition-colors"
+                    disabled={pincodeStatus === 'checking' || !pincode}
+                    className="px-4 py-2 bg-white border border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#3F3F8F] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
                   >
-                    CHECK
+                    {pincodeStatus === 'checking' ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>CHECKING...</span>
+                      </>
+                    ) : (
+                      <span>CHECK</span>
+                    )}
                   </button>
                 </form>
 
                 {pincodeStatus === 'valid' && (
-                  <div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-[2px] mt-1 space-y-0.5">
-                    <p className="font-semibold">✓ Delivery Available to {pincode}</p>
-                    <p>Estimated Delivery: 10–15 Business Days | Insured Doorstep Delivery</p>
+                  <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2.5 rounded-[3px] mt-1 space-y-0.5 border border-emerald-200">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Delivery Available to {pincode}
+                        {pincodeLocation && (
+                          <span className="font-normal text-emerald-950"> ({pincodeLocation})</span>
+                        )}
+                      </span>
+                    </p>
+                    <p className="text-emerald-700">Estimated Delivery: 10–15 Business Days | Insured Doorstep Delivery</p>
                   </div>
                 )}
                 {pincodeStatus === 'invalid' && (
-                  <p className="text-[11px] text-red-600 mt-1">Please enter a valid 6-digit postal code.</p>
+                  <div className="text-[11px] text-rose-700 bg-rose-50 p-2.5 rounded-[3px] mt-1 border border-rose-200 flex items-start gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{pincodeErrorMessage || `Delivery not available for pincode ${pincode}. Please enter a valid 6-digit postal code.`}</span>
+                  </div>
                 )}
               </div>
             )}
