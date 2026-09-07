@@ -1793,6 +1793,183 @@ export const api = {
     return sample || null;
   },
 
+  // Public Consignment Tracking with Dual Search & Email/Mobile Verification ("This or that")
+  async trackConsignment(params: {
+    orderNumberOrTracking?: string;
+    contact?: string;
+  }): Promise<{
+    status: 'found_single' | 'found_multiple' | 'verification_failed' | 'not_found' | 'empty_query';
+    order?: any;
+    orders?: any[];
+    matchedContact?: string;
+    verified?: boolean;
+    querySummary?: {
+      orderNumber?: string;
+      contact?: string;
+    };
+    errorMessage?: string;
+  }> {
+    const cleanOrder = (params.orderNumberOrTracking || '').trim();
+    const cleanContact = (params.contact || '').trim();
+
+    if (!cleanOrder && !cleanContact) {
+      return {
+        status: 'empty_query',
+        errorMessage: 'Please enter an Order Number / Consignment Barcode OR your registered Email / Mobile number to track.',
+      };
+    }
+
+    const doesContactMatch = (order: any, contactStr: string): boolean => {
+      if (!order || !contactStr) return false;
+      const target = contactStr.trim().toLowerCase();
+
+      // 1. Email check
+      if (target.includes('@')) {
+        const oEmail = (
+          order.guest_email ||
+          order.guestEmail ||
+          order.formData?.email ||
+          order.shipping_address?.email ||
+          ''
+        ).trim().toLowerCase();
+        if (oEmail && (oEmail === target || oEmail.includes(target) || target.includes(oEmail))) {
+          return true;
+        }
+      }
+
+      // 2. Phone check (match last 10 digits or exact substring)
+      const inputDigits = target.replace(/\D/g, '');
+      if (inputDigits.length >= 7) {
+        const last10Input = inputDigits.slice(-10);
+        const orderPhoneRaw = (
+          order.guest_phone ||
+          order.guestPhone ||
+          order.formData?.phone ||
+          order.shipping_address?.phone ||
+          ''
+        ).replace(/\D/g, '');
+        const last10Order = orderPhoneRaw.slice(-10);
+        if (last10Order && last10Order === last10Input) return true;
+        if (orderPhoneRaw && (orderPhoneRaw.includes(inputDigits) || inputDigits.includes(orderPhoneRaw))) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Case 1: Both Order Number AND Contact provided (Verified lookup)
+    if (cleanOrder && cleanContact) {
+      const order = await this.getOrderByNumber(cleanOrder);
+      if (!order) {
+        return {
+          status: 'not_found',
+          querySummary: { orderNumber: cleanOrder, contact: cleanContact },
+          errorMessage: `No consignment found for order or tracking reference "${cleanOrder}".`,
+        };
+      }
+
+      const isMatch = doesContactMatch(order, cleanContact);
+      if (isMatch) {
+        return {
+          status: 'found_single',
+          order,
+          verified: true,
+          matchedContact: cleanContact,
+          querySummary: { orderNumber: cleanOrder, contact: cleanContact },
+        };
+      } else {
+        return {
+          status: 'verification_failed',
+          querySummary: { orderNumber: cleanOrder, contact: cleanContact },
+          errorMessage: `Order "${cleanOrder}" was located, but the provided Email or Mobile does not match the contact records for this consignment.`,
+        };
+      }
+    }
+
+    // Case 2: Only Order Number / Consignment Barcode provided ("This")
+    if (cleanOrder && !cleanContact) {
+      const order = await this.getOrderByNumber(cleanOrder);
+      if (order) {
+        return {
+          status: 'found_single',
+          order,
+          verified: false,
+          querySummary: { orderNumber: cleanOrder },
+        };
+      } else {
+        return {
+          status: 'not_found',
+          querySummary: { orderNumber: cleanOrder },
+          errorMessage: `No consignment found matching "${cleanOrder}".`,
+        };
+      }
+    }
+
+    // Case 3: Only Contact (Email / Mobile) provided ("That")
+    let remoteOrders: any[] = [];
+    try {
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          items:order_items(*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (cleanContact.includes('@')) {
+        query = query.ilike('guest_email', cleanContact.toLowerCase());
+      } else {
+        const digits = cleanContact.replace(/\D/g, '');
+        const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+        query = query.ilike('guest_phone', `%${last10}%`);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        remoteOrders = data;
+      }
+    } catch {
+      remoteOrders = [];
+    }
+
+    const customOrders = getStoredCustomOrders();
+    const localMatches = customOrders.filter((o) => doesContactMatch(o, cleanContact));
+    const sampleMatches = SAMPLE_ORDERS_DETAILED.filter((o) => doesContactMatch(o, cleanContact));
+
+    const seen = new Set<string>();
+    const allMatches: any[] = [];
+    for (const ord of [...remoteOrders, ...localMatches, ...sampleMatches]) {
+      const key = (ord.order_number || ord.orderNumber || ord.id || '').toUpperCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        allMatches.push(ord);
+      }
+    }
+
+    if (allMatches.length === 0) {
+      return {
+        status: 'not_found',
+        querySummary: { contact: cleanContact },
+        errorMessage: `No active consignments or orders found registered to "${cleanContact}".`,
+      };
+    } else if (allMatches.length === 1) {
+      return {
+        status: 'found_single',
+        order: allMatches[0],
+        verified: true,
+        matchedContact: cleanContact,
+        querySummary: { contact: cleanContact },
+      };
+    } else {
+      return {
+        status: 'found_multiple',
+        orders: allMatches,
+        matchedContact: cleanContact,
+        querySummary: { contact: cleanContact },
+      };
+    }
+  },
+
   // Newsletter Subscription
   async subscribeNewsletter(email: string): Promise<{ success: boolean; message: string }> {
     try {

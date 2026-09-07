@@ -13,6 +13,11 @@ import {
   MessageCircle,
   XCircle,
   MapPin,
+  ShieldCheck,
+  ShieldAlert,
+  ArrowLeft,
+  ChevronRight,
+  Mail,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { api } from '../services/api';
@@ -32,82 +37,131 @@ const STEPS = [
 export const OrderTrackingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialOrder = searchParams.get('order') || '';
+  const initialContact =
+    searchParams.get('contact') ||
+    searchParams.get('email') ||
+    searchParams.get('phone') ||
+    '';
 
   const [orderQuery, setOrderQuery] = useState(initialOrder);
+  const [contactQuery, setContactQuery] = useState(initialContact);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [trackingResult, setTrackingResult] = useState<any | null>(null);
-  const [notFoundQuery, setNotFoundQuery] = useState<string | null>(null);
+  const [multipleOrders, setMultipleOrders] = useState<any[] | null>(null);
+  const [notFoundInfo, setNotFoundInfo] = useState<{ query?: string; message?: string } | null>(null);
+  const [verificationFailedInfo, setVerificationFailedInfo] = useState<{
+    orderNumber?: string;
+    contact?: string;
+    message?: string;
+  } | null>(null);
+  const [formValidationMsg, setFormValidationMsg] = useState<string | null>(null);
 
-  const performLookup = async (queryStr: string) => {
-    const clean = queryStr.trim();
-    if (!clean) return;
+  const formatTrackingData = (order: any, verified?: boolean, matchedContact?: string) => {
+    const rawStatus = (order.status || 'confirmed').toLowerCase();
+    let step = 0;
+    let isCancelled = false;
+    let isPendingPayment = false;
 
+    if (rawStatus === 'cancelled') {
+      isCancelled = true;
+    } else if (rawStatus === 'pending_payment') {
+      isPendingPayment = true;
+    } else if (rawStatus === 'processing' || rawStatus === 'packed') {
+      step = 1;
+    } else if (rawStatus === 'shipped' || rawStatus === 'in_transit') {
+      step = 2;
+    } else if (rawStatus === 'out_for_delivery') {
+      step = 3;
+    } else if (rawStatus === 'delivered') {
+      step = 4;
+    }
+
+    const isExpress = order.shipping_method?.toLowerCase().includes('express');
+    const estDelivery = isExpress
+      ? 'Within 1–2 Business Days (Express Priority)'
+      : 'Within 2–4 Business Days (India Post Speed Post)';
+
+    return {
+      orderNumber: order.order_number || order.orderNumber || 'TANOAH-ORDER',
+      rawStatus,
+      isCancelled,
+      isPendingPayment,
+      currentStep: step,
+      courier: order.courier_name || 'India Post (Speed Post)',
+      trackingId: order.tracking_number || '',
+      estimatedDelivery: estDelivery,
+      grandTotal: order.grand_total,
+      itemsCount: order.items?.length || 1,
+      items: order.items || [],
+      shippingAddress: order.shipping_address,
+      createdAt: order.created_at,
+      verified: Boolean(verified),
+      matchedContact: matchedContact || '',
+    };
+  };
+
+  const performLookup = async (orderVal: string, contactVal: string) => {
+    const cleanOrder = orderVal.trim();
+    const cleanContact = contactVal.trim();
+
+    if (!cleanOrder && !cleanContact) {
+      setFormValidationMsg('Please enter an Order / Consignment Barcode OR your registered Email / Mobile number.');
+      return;
+    }
+
+    setFormValidationMsg(null);
     setIsLoading(true);
-    setNotFoundQuery(null);
+    setNotFoundInfo(null);
+    setVerificationFailedInfo(null);
+    setMultipleOrders(null);
+    setTrackingResult(null);
 
     try {
-      const order = await api.getOrderByNumber(clean);
-      if (order) {
-        const rawStatus = (order.status || 'confirmed').toLowerCase();
-        let step = 0;
-        let isCancelled = false;
-        let isPendingPayment = false;
+      const res = await api.trackConsignment({
+        orderNumberOrTracking: cleanOrder,
+        contact: cleanContact,
+      });
 
-        if (rawStatus === 'cancelled') {
-          isCancelled = true;
-        } else if (rawStatus === 'pending_payment') {
-          isPendingPayment = true;
-        } else if (rawStatus === 'processing' || rawStatus === 'packed') {
-          step = 1;
-        } else if (rawStatus === 'shipped' || rawStatus === 'in_transit') {
-          step = 2;
-        } else if (rawStatus === 'out_for_delivery') {
-          step = 3;
-        } else if (rawStatus === 'delivered') {
-          step = 4;
-        }
-
-        const isExpress = order.shipping_method?.toLowerCase().includes('express');
-        const estDelivery = isExpress
-          ? 'Within 1–2 Business Days (Express Priority)'
-          : 'Within 2–4 Business Days (India Post Speed Post)';
-
-        setTrackingResult({
-          orderNumber: order.order_number || order.orderNumber || clean.toUpperCase(),
-          rawStatus,
-          isCancelled,
-          isPendingPayment,
-          currentStep: step,
-          courier: order.courier_name || 'India Post (Speed Post)',
-          trackingId: order.tracking_number || '',
-          estimatedDelivery: estDelivery,
-          grandTotal: order.grand_total,
-          itemsCount: order.items?.length || 1,
-          items: order.items || [],
-          shippingAddress: order.shipping_address,
-          createdAt: order.created_at,
-        });
-        setNotFoundQuery(null);
-      } else {
+      if (res.status === 'found_single' && res.order) {
+        setMultipleOrders(null);
+        setTrackingResult(formatTrackingData(res.order, res.verified, res.matchedContact));
+      } else if (res.status === 'found_multiple' && res.orders) {
+        setMultipleOrders(res.orders);
         setTrackingResult(null);
-        setNotFoundQuery(clean);
+      } else if (res.status === 'verification_failed') {
+        setMultipleOrders(null);
+        setVerificationFailedInfo({
+          orderNumber: cleanOrder,
+          contact: cleanContact,
+          message: res.errorMessage,
+        });
+      } else {
+        setMultipleOrders(null);
+        setNotFoundInfo({
+          query: cleanOrder || cleanContact,
+          message: res.errorMessage,
+        });
       }
     } catch {
-      setTrackingResult(null);
-      setNotFoundQuery(clean);
+      setMultipleOrders(null);
+      setNotFoundInfo({
+        query: cleanOrder || cleanContact,
+        message: 'Could not connect to consignment database. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Auto-fetch on mount when ?order= is present in URL
+  // Auto-fetch on mount if order or contact is in URL
   useEffect(() => {
-    if (initialOrder.trim()) {
+    if (initialOrder.trim() || initialContact.trim()) {
       setOrderQuery(initialOrder.trim());
-      performLookup(initialOrder.trim());
+      setContactQuery(initialContact.trim());
+      performLookup(initialOrder.trim(), initialContact.trim());
     }
-  }, [initialOrder]);
+  }, [initialOrder, initialContact]);
 
   const handleCopyTracking = (code: string) => {
     if (!code) return;
@@ -118,15 +172,23 @@ export const OrderTrackingPage: React.FC = () => {
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderQuery.trim()) return;
-    await performLookup(orderQuery);
+    await performLookup(orderQuery, contactQuery);
+  };
+
+  const handleSelectFromList = (order: any) => {
+    setTrackingResult(formatTrackingData(order, true, contactQuery.trim()));
+    window.scrollTo({ top: 350, behavior: 'smooth' });
+  };
+
+  const handleBackToList = () => {
+    setTrackingResult(null);
   };
 
   // WhatsApp concierge helper
   const openWhatsAppSupport = (refCode?: string) => {
     const text = encodeURIComponent(
       `Hello TANOAH Concierge, I am inquiring about the consignment status of my order: ${
-        refCode || orderQuery || ''
+        refCode || orderQuery || contactQuery || ''
       }`
     );
     window.open(`https://wa.me/${WHATSAPP_CONCIERGE_NUMBER}?text=${text}`, '_blank');
@@ -148,72 +210,133 @@ export const OrderTrackingPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Tracking Search Form */}
+        {/* Tracking Search Form: "This or That" */}
         <div className="bg-white p-6 sm:p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm mb-8">
           <form onSubmit={handleTrack} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-black uppercase mb-1.5">
-                Order Number or India Post Consignment Number *
-              </label>
-              <div className="relative">
-                <input
-                  required
-                  type="text"
-                  placeholder="E.g., TAN-752278 or ED849201948IN"
-                  value={orderQuery}
-                  onChange={(e) => setOrderQuery(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] uppercase font-mono tracking-wider shadow-2xs"
-                />
-                <Search className="w-4 h-4 text-neutral-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="grid grid-cols-1 md:grid-cols-11 gap-3 items-center">
+              {/* Option 1: Order / Consignment No. */}
+              <div className="md:col-span-5">
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1.5 flex items-center justify-between">
+                  <span>Order or Consignment No.</span>
+                  <span className="text-[10px] font-normal text-neutral-400">TAN-XXXXXX / ED...IN</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="E.g., TAN-752278 or ED849201948IN"
+                    value={orderQuery}
+                    onChange={(e) => {
+                      setOrderQuery(e.target.value);
+                      setFormValidationMsg(null);
+                    }}
+                    className="w-full pl-3.5 pr-8 py-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] uppercase font-mono tracking-wider shadow-2xs"
+                  />
+                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
-              <p className="text-[10px] text-[#888888] mt-1.5">
-                You can search with either your 6-digit TANOAH Order Reference (<code className="font-mono text-black">TAN-XXXXXX</code>) or your Speed Post consignment barcode.
-              </p>
+
+              {/* Visual "OR" Divider */}
+              <div className="md:col-span-1 flex items-center justify-center my-1 md:my-0 md:pt-5">
+                <div className="w-full border-t border-[#E7E7E7] md:hidden"></div>
+                <span className="px-2.5 py-0.5 bg-[#FAF9F6] border border-[#E7E7E7] rounded-full text-[10px] font-bold text-[#3F3F8F] uppercase tracking-wider shrink-0">
+                  OR
+                </span>
+                <div className="w-full border-t border-[#E7E7E7] md:hidden"></div>
+              </div>
+
+              {/* Option 2: Email or Mobile Verification Input */}
+              <div className="md:col-span-5">
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1.5 flex items-center justify-between">
+                  <span>Email or Mobile Number</span>
+                  <span className="text-[10px] font-normal text-neutral-400">Verification</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="E.g., client@example.com or 9876543210"
+                    value={contactQuery}
+                    onChange={(e) => {
+                      setContactQuery(e.target.value);
+                      setFormValidationMsg(null);
+                    }}
+                    className="w-full pl-3.5 pr-8 py-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] font-sans tracking-normal shadow-2xs"
+                  />
+                  <Mail className="w-3.5 h-3.5 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
-            <Button
-              variant="primary"
-              size="md"
-              type="submit"
-              isLoading={isLoading}
-              icon={<Search className="w-4 h-4" />}
-              className="w-full py-3.5 tracking-wider font-semibold text-xs uppercase shadow-sm"
-            >
-              LOCATE CONSIGNMENT
-            </Button>
+            {formValidationMsg && (
+              <p className="text-[11px] text-rose-600 font-medium">
+                {formValidationMsg}
+              </p>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#F2F2F2]">
+              <p className="text-[10px] text-[#888888] leading-relaxed">
+                Track using either your <strong>Order / Consignment Barcode</strong> or your registered <strong>Email / Mobile</strong>. Provide both for authenticated verification.
+              </p>
+              <Button
+                variant="primary"
+                size="md"
+                type="submit"
+                isLoading={isLoading}
+                icon={<Search className="w-4 h-4" />}
+                className="w-full sm:w-auto px-7 py-3 tracking-wider font-semibold text-xs uppercase shadow-sm shrink-0"
+              >
+                LOCATE CONSIGNMENT
+              </Button>
+            </div>
           </form>
         </div>
 
-        {/* Order Not Found State */}
-        {notFoundQuery && (
-          <div className="bg-white p-6 sm:p-8 border border-amber-200 rounded-[4px] shadow-sm space-y-4 animate-in fade-in duration-200">
+        {/* Verification Failed State */}
+        {verificationFailedInfo && (
+          <div className="bg-white p-6 sm:p-8 border border-rose-200 rounded-[4px] shadow-sm space-y-4 animate-in fade-in duration-200">
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
-                <AlertCircle className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200">
+                <ShieldAlert className="w-5 h-5" />
               </div>
               <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded">
+                    Security Verification Failed
+                  </span>
+                </div>
                 <h3 className="font-semibold text-sm text-black">
-                  No Consignment Found for &ldquo;{notFoundQuery}&rdquo;
+                  Contact Details Do Not Match Order {verificationFailedInfo.orderNumber}
                 </h3>
                 <p className="text-xs text-[#666666] leading-relaxed">
-                  We could not locate an active shipment matching this reference code. Please verify the order number from your email confirmation receipt or SMS.
+                  {verificationFailedInfo.message || `The order reference was located in our system, but the provided email or mobile does not match the contact details registered for this consignment.`}
                 </p>
               </div>
             </div>
 
             <div className="p-4 bg-[#FAFAFA] rounded-[4px] border border-[#E7E7E7] text-xs space-y-2">
-              <div className="font-semibold text-neutral-800">Helpful Suggestions:</div>
+              <div className="font-semibold text-neutral-800">Troubleshooting Steps:</div>
               <ul className="list-disc pl-5 text-[11px] text-[#666666] space-y-1">
-                <li>Check for typos in the reference (e.g. ensure format is <code className="font-mono text-black">TAN-XXXXXX</code>).</li>
-                <li>If you just completed checkout, please allow up to 5 minutes for payment gateway synchronization.</li>
-                <li>If your parcel has been dispatched, you can also search using the 13-digit India Post barcode.</li>
+                <li>Verify you entered the same email address or mobile number used during checkout.</li>
+                <li>You can clear the Email/Mobile field to track using your Order ID / Consignment Barcode only.</li>
+                <li>If you recently updated your phone or email, our concierge can assist with instant verification.</li>
               </ul>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => openWhatsAppSupport(notFoundQuery)}
+                onClick={() => {
+                  setContactQuery('');
+                  setVerificationFailedInfo(null);
+                  performLookup(orderQuery, '');
+                }}
+                className="text-xs text-[#3F3F8F] hover:underline font-semibold"
+              >
+                Track with Order Reference only →
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openWhatsAppSupport(verificationFailedInfo.orderNumber)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-[4px] text-xs font-semibold transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
@@ -223,9 +346,139 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         )}
 
+        {/* Order Not Found State */}
+        {notFoundInfo && (
+          <div className="bg-white p-6 sm:p-8 border border-amber-200 rounded-[4px] shadow-sm space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="font-semibold text-sm text-black">
+                  No Consignment Found for &ldquo;{notFoundInfo.query}&rdquo;
+                </h3>
+                <p className="text-xs text-[#666666] leading-relaxed">
+                  {notFoundInfo.message || `We could not locate an active shipment matching this reference code. Please verify the order number from your email confirmation receipt or SMS.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#FAFAFA] rounded-[4px] border border-[#E7E7E7] text-xs space-y-2">
+              <div className="font-semibold text-neutral-800">Helpful Suggestions:</div>
+              <ul className="list-disc pl-5 text-[11px] text-[#666666] space-y-1">
+                <li>Check for typos in the reference (e.g. ensure format is <code className="font-mono text-black">TAN-XXXXXX</code>).</li>
+                <li>If tracking by mobile, ensure you provide your 10-digit Indian mobile number.</li>
+                <li>If you just completed checkout, please allow up to 5 minutes for payment gateway synchronization.</li>
+                <li>If your parcel has been dispatched, you can also search using the 13-digit India Post barcode.</li>
+              </ul>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => openWhatsAppSupport(notFoundInfo.query)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-[4px] text-xs font-semibold transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Ask Concierge on WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Multiple Orders Found View */}
+        {multipleOrders && !trackingResult && (
+          <div className="bg-white p-6 sm:p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-6 animate-in fade-in duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E7E7E7] gap-3">
+              <div>
+                <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-wider uppercase block">
+                  Multiple Consignments Located
+                </span>
+                <h3 className="text-base font-bold text-black">
+                  Consignments Linked to &ldquo;{contactQuery}&rdquo;
+                </h3>
+                <p className="text-xs text-[#666666] mt-0.5">
+                  We found {multipleOrders.length} orders registered under this contact. Select any consignment below to view live transit scans.
+                </p>
+              </div>
+              <span className="px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-xs font-semibold rounded shrink-0 self-start sm:self-center">
+                {multipleOrders.length} Consignments
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {multipleOrders.map((ord) => {
+                const ordNum = ord.order_number || ord.orderNumber || 'TAN-ORDER';
+                const status = (ord.status || 'confirmed').replace('_', ' ');
+                const isDispatched = ord.tracking_number || ord.trackingNumber;
+
+                return (
+                  <div
+                    key={ord.id || ordNum}
+                    className="p-4 rounded-[4px] border border-[#E7E7E7] hover:border-[#3F3F8F] bg-[#FAFAFA] hover:bg-white transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-mono font-bold text-sm text-black">
+                          {ordNum}
+                        </span>
+                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-[#EEEEF8] text-[#3F3F8F]">
+                          {status}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-[#666666] flex flex-wrap items-center gap-x-4 gap-y-1">
+                        {ord.created_at && (
+                          <span>
+                            Date: {new Date(ord.created_at).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        )}
+                        <span>
+                          Total: ₹{Number(ord.grand_total || ord.total || 0).toLocaleString('en-IN')}
+                        </span>
+                        {isDispatched && (
+                          <span className="font-mono font-semibold text-[#3F3F8F]">
+                            Speed Post: {isDispatched}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFromList(ord)}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#3F3F8F] hover:bg-black text-white text-xs font-semibold rounded-[4px] transition-colors shrink-0"
+                    >
+                      <span>Track Consignment</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Milestone Tracker Result */}
         {trackingResult && (
           <div className="bg-white p-6 sm:p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-8 animate-in fade-in duration-200 text-left">
+            {/* Back Button if viewed from multiple orders */}
+            {multipleOrders && multipleOrders.length > 1 && (
+              <div className="pb-4 border-b border-[#E7E7E7]">
+                <button
+                  type="button"
+                  onClick={handleBackToList}
+                  className="inline-flex items-center gap-1.5 text-xs text-[#3F3F8F] hover:underline font-semibold"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to all {multipleOrders.length} consignments for &ldquo;{contactQuery}&rdquo;</span>
+                </button>
+              </div>
+            )}
+
             {/* Header / Order Summary */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E7E7E7] gap-3">
               <div>
@@ -240,6 +493,12 @@ export const OrderTrackingPage: React.FC = () => {
                       year: 'numeric',
                     })}
                   </span>
+                )}
+                {trackingResult.verified && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-[11px] font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Verified Consignment {trackingResult.matchedContact ? `(${trackingResult.matchedContact})` : ''}</span>
+                  </div>
                 )}
               </div>
 
