@@ -452,11 +452,11 @@ export const generateCustomerOrderConfirmationHtml = (order: OrderEmailPayload):
             </td>
           </tr>
 
-          <!-- Concierge Support Footer -->
+          <!-- Customer Support Footer -->
           <tr>
             <td style="background-color: #191846; padding: 28px 32px; text-align: center; color: rgba(255,255,255,0.7); font-size: 12px; line-height: 1.6;">
               <div style="color: #D4AF37; font-weight: 600; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase;">
-                Concierge Assistance
+                Customer Care Assistance
               </div>
               <div>
                 Have inquiries regarding sizing, styling, or delivery tracking?<br/>

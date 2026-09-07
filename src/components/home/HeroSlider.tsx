@@ -104,7 +104,7 @@ export const HeroSlider: React.FC = () => {
         {/* 3. Shop Now Button: order-3 on mobile, order-2 on desktop */}
         <div ref={buttonRef} className="order-3 md:order-2 md:mb-8">
           <Link
-            to="/collections/women"
+            to="/collections/all"
             className="inline-flex items-center gap-2 sm:gap-2.5 px-6 sm:px-7 py-2.5 sm:py-3 rounded-full bg-[#3b3a86] hover:bg-[#2d2c6b] text-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] group"
           >
             <ShoppingBag

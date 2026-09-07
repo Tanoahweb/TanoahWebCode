@@ -61,6 +61,7 @@ import { SeoRedirectsPage } from './pages/admin/SeoRedirectsPage';
 import { BlogAdminPage } from './pages/admin/BlogAdminPage';
 import { BlogListPage } from './pages/Blog/BlogListPage';
 import { BlogPostPage } from './pages/Blog/BlogPostPage';
+import { FormSubmissionsPage } from './pages/admin/FormSubmissionsPage';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -141,6 +142,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin/reviews" element={<ReviewsPage />} />
           <Route path="/admin/seo" element={<SeoDashboardPage />} />
           <Route path="/admin/seo/redirects" element={<SeoRedirectsPage />} />
+          <Route path="/admin/forms" element={<FormSubmissionsPage />} />
           <Route path="/admin/blog" element={<BlogAdminPage />} />
           <Route path="/admin/settings" element={<StoreSettingsPage />} />
 

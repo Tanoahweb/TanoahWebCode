@@ -151,7 +151,7 @@ export const Footer: React.FC = () => {
             <li><Link to="/pages/size-guide" className="hover:text-white underline-offset-4 hover:underline">Fit & Size Guide</Link></li>
             <li><Link to="/pages/shipping-policy" className="hover:text-white underline-offset-4 hover:underline">Shipping Policy</Link></li>
             <li><Link to="/pages/faq" className="hover:text-white underline-offset-4 hover:underline">Frequently Asked Questions</Link></li>
-            <li><Link to="/pages/contact" className="hover:text-white underline-offset-4 hover:underline">Contact Concierge</Link></li>
+            <li><Link to="/pages/contact" className="hover:text-white underline-offset-4 hover:underline">Contact Customer Care</Link></li>
           </ul>
         </div>
 
@@ -169,7 +169,7 @@ export const Footer: React.FC = () => {
 
           <div className="pt-4">
             <span className="text-[11px] font-poppins uppercase tracking-wider font-semibold text-white/90 block mb-2">
-              CONCIERGE DESK
+              CUSTOMER CARE DESK
             </span>
             <p className="text-xs text-white/80 font-poppins">connectus.tanoah@gmail.com</p>
             <p className="text-xs text-white/80 font-poppins mt-0.5">+91 8714141849 (Mon–Sat 10am–7pm)</p>

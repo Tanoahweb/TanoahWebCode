@@ -231,7 +231,7 @@ export const ReturnsQueuePage: React.FC = () => {
                   <th className="p-4">Garment & Defect</th>
                   <th className="p-4">Customer Self-Shipment</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Concierge Actions</th>
+                  <th className="p-4 text-right">Support Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
@@ -325,7 +325,7 @@ export const ReturnsQueuePage: React.FC = () => {
                           {getStatusBadge(t.status)}
                         </td>
 
-                        {/* 6. Concierge Actions */}
+                        {/* 6. Support Actions */}
                         <td className="p-4 text-right space-y-1.5">
                           {/* Awaiting Video State */}
                           {(t.status === 'awaiting_video' || t.status === 'requested') && (

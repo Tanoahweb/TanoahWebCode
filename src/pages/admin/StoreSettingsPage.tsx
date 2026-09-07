@@ -567,7 +567,7 @@ export const StoreSettingsPage: React.FC = () => {
                   <span>Luxury Editorial Template</span>
                 </div>
                 <div className="text-[11px] text-[#666666] pt-1">
-                  Automated dispatch with order details, tracking link & customer concierge
+                  Automated dispatch with order details, tracking link &amp; customer care
                 </div>
               </div>
             </div>

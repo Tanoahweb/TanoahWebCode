@@ -108,7 +108,7 @@ export const PolicyPage: React.FC = () => {
               <span>FREQUENTLY ASKED QUESTIONS</span>
             </span>
             <h1 className="font-wondra text-3xl sm:text-4xl text-black mt-1">
-              CLIENT CONCIERGE HELP
+              CLIENT ASSISTANCE &amp; FAQ
             </h1>
           </div>
 

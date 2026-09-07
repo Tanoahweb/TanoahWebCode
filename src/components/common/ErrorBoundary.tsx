@@ -87,7 +87,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
             {/* Subtitle */}
             <p className="text-xs sm:text-sm text-[#666666] leading-relaxed max-w-md mx-auto">
-              We sincerely apologize for this interruption. Our customer concierge team has been alerted. You may reload this page or return to the main store.
+              We sincerely apologize for this interruption. Our customer support team has been alerted. You may reload this page or return to the main store.
             </p>
 
             {/* Action Buttons */}
@@ -113,18 +113,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </Button>
             </div>
 
-            {/* Direct Concierge Contact */}
+            {/* Direct Support Contact */}
             <div className="pt-2">
               <a
                 href={`https://wa.me/918714141849?text=${encodeURIComponent(
-                  `Hello Tanoah Concierge, I encountered a technical issue on: ${window.location.href}`
+                  `Hello TANOAH Support, I encountered a technical issue on: ${window.location.href}`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-xs text-[#25D366] font-semibold hover:underline"
               >
                 <MessageCircle className="w-4 h-4 fill-current" />
-                <span>Need immediate concierge assistance? Message us on WhatsApp</span>
+                <span>Need immediate assistance? Message us on WhatsApp</span>
               </a>
             </div>
 

@@ -24,7 +24,7 @@ import { api } from '../services/api';
 
 const INDIA_POST_TRACKING_URL =
   'https://www.indiapost.gov.in/_layouts/15/dpt.cpt.tracking/trackconsignment.aspx';
-const WHATSAPP_CONCIERGE_NUMBER = '918714141849';
+const WHATSAPP_SUPPORT_NUMBER = '918714141849';
 
 const STEPS = [
   { key: 'placed', label: 'Order Placed & Confirmed', desc: 'Order verified & entered into atelier schedule' },
@@ -80,7 +80,7 @@ export const OrderTrackingPage: React.FC = () => {
     const isExpress = order.shipping_method?.toLowerCase().includes('express');
     const estDelivery = isExpress
       ? 'Within 1–2 Business Days (Express Priority)'
-      : 'Within 2–4 Business Days (India Post Speed Post)';
+      : '10–15 Days (India Post Speed Post)';
 
     return {
       orderNumber: order.order_number || order.orderNumber || 'TANOAH-ORDER',
@@ -184,23 +184,23 @@ export const OrderTrackingPage: React.FC = () => {
     setTrackingResult(null);
   };
 
-  // WhatsApp concierge helper
+  // WhatsApp support helper
   const openWhatsAppSupport = (refCode?: string) => {
     const text = encodeURIComponent(
-      `Hello TANOAH Concierge, I am inquiring about the consignment status of my order: ${
+      `Hello TANOAH Support, I am inquiring about the consignment status of my order: ${
         refCode || orderQuery || contactQuery || ''
       }`
     );
-    window.open(`https://wa.me/${WHATSAPP_CONCIERGE_NUMBER}?text=${text}`, '_blank');
+    window.open(`https://wa.me/${WHATSAPP_SUPPORT_NUMBER}?text=${text}`, '_blank');
   };
 
   return (
     <div className="w-full bg-[#FAFAFA] font-poppins min-h-screen py-16 text-left">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Page Title & Luxury Subtitle */}
+        {/* Page Title & Subtitle */}
         <div className="text-center mb-10">
           <span className="text-[11px] text-[#3F3F8F] font-semibold tracking-widest uppercase block mb-1">
-            CONCIERGE TRACKING & LOGISTICS
+            ORDER TRACKING & LOGISTICS
           </span>
           <h1 className="font-wondra text-3xl sm:text-4xl text-black">
             TRACK YOUR CONSIGNMENT
@@ -317,7 +317,7 @@ export const OrderTrackingPage: React.FC = () => {
               <ul className="list-disc pl-5 text-[11px] text-[#666666] space-y-1">
                 <li>Verify you entered the same email address or mobile number used during checkout.</li>
                 <li>You can clear the Email/Mobile field to track using your Order ID / Consignment Barcode only.</li>
-                <li>If you recently updated your phone or email, our concierge can assist with instant verification.</li>
+                <li>If you recently updated your phone or email, our customer care team can assist with instant verification.</li>
               </ul>
             </div>
 
@@ -340,7 +340,7 @@ export const OrderTrackingPage: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-[4px] text-xs font-semibold transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
-                <span>Ask Concierge on WhatsApp</span>
+                <span>Contact Customer Care on WhatsApp</span>
               </button>
             </div>
           </div>
@@ -380,7 +380,7 @@ export const OrderTrackingPage: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-[4px] text-xs font-semibold transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
-                <span>Ask Concierge on WhatsApp</span>
+                <span>Contact Customer Care on WhatsApp</span>
               </button>
             </div>
           </div>
@@ -527,14 +527,14 @@ export const OrderTrackingPage: React.FC = () => {
                   <div className="font-semibold text-sm text-rose-950">Consignment Cancelled</div>
                   <p className="text-[11px] text-rose-800 leading-relaxed">
                     This order was marked as cancelled. Any processed refund has been returned to your original payment method.
-                    If you believe this is an error, please reach out to our concierge.
+                    If you believe this is an error, please reach out to our customer care team.
                   </p>
                   <button
                     type="button"
                     onClick={() => openWhatsAppSupport(trackingResult.orderNumber)}
                     className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-rose-900 underline hover:text-black"
                   >
-                    <span>Contact Concierge regarding cancellation</span>
+                    <span>Contact Customer Care regarding cancellation</span>
                   </button>
                 </div>
               </div>
@@ -679,19 +679,27 @@ export const OrderTrackingPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Estimated Delivery & Security Notice */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 bg-[#EEEEF8] rounded-[4px] border border-[#3F3F8F]/20 flex items-center gap-3 text-xs">
-                <Truck className="w-5 h-5 text-[#3F3F8F] shrink-0" />
-                <div>
-                  <strong className="text-black block">
-                    Estimated Delivery: {trackingResult.estimatedDelivery}
-                  </strong>
-                  <span className="text-[#666666] text-[11px]">
-                    Insured postal transit with OTP / signature verification upon delivery.
-                  </span>
+            {/* Estimated Delivery & Security Notice (Hidden once delivered) */}
+            <div
+              className={`grid grid-cols-1 ${
+                trackingResult.rawStatus !== 'delivered' && trackingResult.shippingAddress
+                  ? 'sm:grid-cols-2'
+                  : ''
+              } gap-4`}
+            >
+              {trackingResult.rawStatus !== 'delivered' && (
+                <div className="p-4 bg-[#EEEEF8] rounded-[4px] border border-[#3F3F8F]/20 flex items-center gap-3 text-xs">
+                  <Truck className="w-5 h-5 text-[#3F3F8F] shrink-0" />
+                  <div>
+                    <strong className="text-black block">
+                      Estimated Delivery: {trackingResult.estimatedDelivery}
+                    </strong>
+                    <span className="text-[#666666] text-[11px]">
+                      Insured postal transit with OTP / signature verification upon delivery.
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {trackingResult.shippingAddress && (
                 <div className="p-4 bg-white rounded-[4px] border border-[#E7E7E7] flex items-center gap-3 text-xs">
@@ -709,7 +717,7 @@ export const OrderTrackingPage: React.FC = () => {
               )}
             </div>
 
-            {/* Support Concierge Bar */}
+            {/* Customer Support Bar */}
             <div className="pt-4 border-t border-[#E7E7E7] flex flex-wrap items-center justify-between gap-3 text-xs">
               <span className="text-[#666666]">
                 Need immediate assistance or special delivery instructions?
@@ -720,7 +728,7 @@ export const OrderTrackingPage: React.FC = () => {
                 className="inline-flex items-center gap-1.5 text-[#3F3F8F] hover:underline font-semibold"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span>Chat with TANOAH Concierge</span>
+                <span>Chat with TANOAH Support</span>
               </button>
             </div>
           </div>

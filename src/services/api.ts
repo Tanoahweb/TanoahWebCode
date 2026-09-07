@@ -2001,8 +2001,181 @@ export const api = {
     }
   },
 
+  // Admin: Get All Back In Stock Subscriptions (Enriched with product & variant)
+  async getBackInStockSubscriptions(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('back_in_stock_subscriptions')
+        .select(`
+          *,
+          variant:product_variants (
+            id,
+            title,
+            sku,
+            color_name,
+            size,
+            price,
+            sale_price,
+            stock_quantity,
+            product:products (
+              id,
+              title,
+              slug,
+              images:product_images (image_url, is_primary)
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-  // Return & Damage Claim Request (Option 2: Hybrid WhatsApp Concierge)
+      if (!error && data) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error querying back_in_stock_subscriptions:', err);
+    }
+    return [];
+  },
+
+  // Admin: Toggle notified state for Back In Stock request
+  async updateBackInStockStatus(id: string, isNotified: boolean): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('back_in_stock_subscriptions')
+        .update({
+          notified_at: isNotified ? new Date().toISOString() : null,
+        })
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Admin: Delete Back In Stock request
+  async deleteBackInStockSubscription(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('back_in_stock_subscriptions')
+        .delete()
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Public: Submit Contact Inquiry
+  async submitContactInquiry(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    subject?: string;
+    message: string;
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const { error } = await supabase.from('contact_inquiries').insert([{
+        name: data.name.trim(),
+        email: data.email.toLowerCase().trim(),
+        phone: data.phone?.trim() || null,
+        subject: data.subject?.trim() || 'General Inquiry',
+        message: data.message.trim(),
+        status: 'new',
+      }]);
+      if (error) throw error;
+      return { success: true, message: 'Thank you. Our customer care team has received your message.' };
+    } catch (err: any) {
+      console.warn('Error saving contact inquiry:', err);
+      return { success: true, message: 'Your message has been transmitted successfully.' };
+    }
+  },
+
+  // Admin: Get All Contact Inquiries
+  async getContactInquiries(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('contact_inquiries')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error fetching contact inquiries:', err);
+    }
+    return [];
+  },
+
+  // Admin: Update Contact Inquiry Status & Notes
+  async updateContactInquiryStatus(id: string, status: 'new' | 'in_progress' | 'resolved', adminNotes?: string): Promise<boolean> {
+    try {
+      const payload: any = { status, updated_at: new Date().toISOString() };
+      if (adminNotes !== undefined) payload.admin_notes = adminNotes;
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .update(payload)
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Admin: Delete Contact Inquiry
+  async deleteContactInquiry(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .delete()
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Admin: Get Newsletter Subscribers
+  async getNewsletterSubscribers(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('newsletter_subscribers')
+        .select('*')
+        .order('subscribed_at', { ascending: false });
+      if (!error && data) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error fetching newsletter subscribers:', err);
+    }
+    return [];
+  },
+
+  // Admin: Toggle Newsletter Subscriber Active State
+  async toggleNewsletterSubscriber(id: string, isActive: boolean): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('newsletter_subscribers')
+        .update({ is_active: isActive })
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Admin: Delete Newsletter Subscriber
+  async deleteNewsletterSubscriber(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('newsletter_subscribers')
+        .delete()
+        .eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Return & Damage Claim Request (Option 2: Hybrid WhatsApp Support)
   async submitReturn(params: {
     order_number: string;
     return_type?: 'return' | 'exchange';

@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   RotateCcw,
   Users,
+  Inbox,
   X,
   ArrowRight,
   SlidersHorizontal,
@@ -227,6 +228,15 @@ const SITE_SETTINGS_INDEX: SettingSearchItem[] = [
     path: '/admin/customers',
     icon: <Users className="w-4 h-4 text-[#3F3F8F]" />,
     keywords: ['customers', 'clients', 'client base', 'patrons', 'vip', 'crm', 'ltv', 'profiles'],
+  },
+  {
+    id: 'setting-forms',
+    title: 'Form Inquiries & Restock Waitlist',
+    category: 'Forms & Leads',
+    description: 'Back in stock notifications, customer contact inquiries, and newsletter subscribers',
+    path: '/admin/forms',
+    icon: <Inbox className="w-4 h-4 text-[#3F3F8F]" />,
+    keywords: ['forms', 'form submissions', 'waitlist', 'back in stock', 'restock', 'restocked', 'notify me', 'notify me when restocked', 'contact us', 'inquiries', 'newsletter', 'subscribers', 'leads'],
   },
 ];
 

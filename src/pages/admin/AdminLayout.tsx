@@ -27,6 +27,7 @@ import {
   Globe,
   BookOpen,
   Zap,
+  Inbox,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { AdminOmniSearch } from '../../components/admin/AdminOmniSearch';
@@ -59,6 +60,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Orders & Fulfillment', icon: <ShoppingBag className="w-4 h-4" />, path: '/admin/orders' },
     { label: 'Returns & Exchanges', icon: <RotateCcw className="w-4 h-4" />, path: '/admin/returns' },
     { label: 'Customers CRM', icon: <Users className="w-4 h-4" />, path: '/admin/customers' },
+    { label: 'Form Inquiries & Restocks', icon: <Inbox className="w-4 h-4" />, path: '/admin/forms' },
     { label: 'Collections & Edits', icon: <FolderTree className="w-4 h-4" />, path: '/admin/collections' },
     { label: 'Navigation & Menus', icon: <Compass className="w-4 h-4" />, path: '/admin/navigation' },
     { label: 'Media Library (R2)', icon: <ImageIcon className="w-4 h-4" />, path: '/admin/media' },

@@ -157,7 +157,7 @@ export const ReturnsPage: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Claim Ticket Registered',
-          description: 'Please now send your 360° unboxing video to our WhatsApp concierge.',
+          description: 'Please now send your 360° unboxing video to our WhatsApp support team.',
         });
       } else {
         throw new Error(res.message || 'Submission failed.');
@@ -190,7 +190,7 @@ export const ReturnsPage: React.FC = () => {
       addToast({
         type: 'error',
         title: 'Error Saving Tracking',
-        description: 'Failed to record tracking. Please inform concierge on WhatsApp.',
+        description: 'Failed to record tracking. Please inform support on WhatsApp.',
       });
     } finally {
       setIsSavingConsignment(false);
@@ -198,11 +198,13 @@ export const ReturnsPage: React.FC = () => {
   };
 
   const whatsappNumber =
-    storeSettings?.whatsapp_number || storeSettings?.support_phone?.replace(/\D/g, '') || '918714141849';
+    storeSettings?.support_phone?.replace(/\D/g, '') ||
+    storeSettings?.whatsapp_number?.replace(/\D/g, '') ||
+    '918714141849';
 
   const generateWhatsAppUrl = () => {
     if (!submittedTicket) return `https://wa.me/${whatsappNumber}`;
-    const message = `Hello Tanoah Client Services,\n\nI have registered a Damage Claim for Order #${submittedTicket.order_number}.\n• Ticket ID: ${submittedTicket.id}\n• Product: ${submittedTicket.product_title} (${submittedTicket.variant_info})\n• Reason: ${submittedTicket.reason}\n\nAs required by Tanoah's Refund Policy, I am sharing the mandatory continuous 360° opening video showing the courier package label, parcel opening, intact brand price tag, and product damage.`;
+    const message = `Hello TANOAH Support Team,\n\nI have registered a damage/return claim.\n\n*Ticket ID:* ${submittedTicket.id}\n*Order Number:* ${submittedTicket.order_number}\n*Client Name:* ${submittedTicket.customer_name}\n*Item:* ${submittedTicket.product_title}\n*Reason:* ${submittedTicket.reason}\n\nI am attaching the mandatory 360° unboxing video showing the sealed parcel, shipping label, intact tag, and damaged area.`;
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
   };
 
@@ -253,7 +255,7 @@ export const ReturnsPage: React.FC = () => {
                     Action Required: Send 360° Unboxing Video
                   </h4>
                   <p className="text-[#444444] leading-relaxed">
-                    Tap the button below to open our official WhatsApp concierge. Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
+                    Tap the button below to open our official WhatsApp support. Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
                   </p>
                 </div>
               </div>

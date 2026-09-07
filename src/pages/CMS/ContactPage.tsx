@@ -2,24 +2,50 @@ import React, { useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Send } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
+import { api } from '../../services/api';
 
 export const ContactPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('Product Enquiry');
   const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { addToast } = useUIStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addToast({
-      type: 'success',
-      title: 'Message Transmitted',
-      description: 'Our concierge desk will respond to your enquiry within 4 business hours.',
-    });
-    setName('');
-    setEmail('');
-    setMessage('');
+    if (!name.trim() || !email.trim() || !message.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await api.submitContactInquiry({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+      });
+
+      addToast({
+        type: 'success',
+        title: 'Message Transmitted',
+        description: res.message || 'Our customer care team will respond to your enquiry within 4 business hours.',
+      });
+
+      setName('');
+      setEmail('');
+      setPhone('');
+      setMessage('');
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Transmission Notice',
+        description: 'Unable to submit message at this moment. Please reach us directly via WhatsApp.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -27,7 +53,7 @@ export const ContactPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <span className="text-[11px] text-[#3F3F8F] font-semibold tracking-widest uppercase block mb-1">
-            CLIENT CONCIERGE
+            CLIENT CARE & ASSISTANCE
           </span>
           <h1 className="font-wondra text-4xl text-black">GET IN TOUCH</h1>
           <p className="text-xs text-[#666666] mt-1 max-w-md mx-auto">
@@ -46,7 +72,7 @@ export const ContactPage: React.FC = () => {
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
-                  <h5 className="font-semibold text-black uppercase text-[11px]">Email Concierge</h5>
+                  <h5 className="font-semibold text-black uppercase text-[11px]">Email Support</h5>
                   <p className="text-[#666666]">connectus.tanoah@gmail.com</p>
                 </div>
               </div>
@@ -80,7 +106,7 @@ export const ContactPage: React.FC = () => {
               className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold rounded-[4px] uppercase tracking-wider transition-colors"
             >
               <MessageCircle className="w-4 h-4 fill-current" />
-              <span>Direct WhatsApp Concierge</span>
+              <span>Direct WhatsApp Support</span>
             </a>
           </div>
 
@@ -99,15 +125,27 @@ export const ContactPage: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-black uppercase mb-1">Email Address *</label>
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">Email Address *</label>
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">Phone Number (Optional)</label>
+                  <input
+                    type="tel"
+                    placeholder="E.g., 9876543210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
               </div>
 
               <div>
@@ -135,7 +173,14 @@ export const ContactPage: React.FC = () => {
                 />
               </div>
 
-              <Button variant="primary" size="lg" type="submit" icon={<Send className="w-4 h-4" />} className="w-full py-3.5">
+              <Button
+                variant="primary"
+                size="lg"
+                type="submit"
+                isLoading={isSubmitting}
+                icon={<Send className="w-4 h-4" />}
+                className="w-full py-3.5"
+              >
                 SUBMIT MESSAGE
               </Button>
             </form>
