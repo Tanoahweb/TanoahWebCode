@@ -639,7 +639,7 @@ export const ProductDetailPage: React.FC = () => {
   const combinedJsonLd = productJsonLd && breadcrumbJsonLd ? [productJsonLd, breadcrumbJsonLd] : productJsonLd;
 
   return (
-    <div className="w-full bg-white font-poppins min-h-screen">
+    <div className="w-full bg-white font-poppins min-h-screen pb-20 lg:pb-0">
       {productMeta && (
         <SEOHead
           title={productMeta.title}

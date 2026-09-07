@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 
 interface FloatingWhatsAppProps {
@@ -10,6 +11,14 @@ export const FloatingWhatsApp: React.FC<FloatingWhatsAppProps> = ({
   phoneNumber = '918714141849',
   defaultMessage = 'Hello TANOAH, I would like assistance with an order/product.',
 }) => {
+  const location = useLocation();
+  const isProductPage = location.pathname.startsWith('/products/');
+
+  // Hide on Product Detail Pages to prevent obscuring product title, price, and mobile sticky checkout bar
+  if (isProductPage) {
+    return null;
+  }
+
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(defaultMessage)}`;
 
   return (
