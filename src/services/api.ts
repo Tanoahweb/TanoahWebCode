@@ -1740,13 +1740,18 @@ export const api = {
     }
   },
 
-  // Public Order Tracking (Merged so items and client info are never lost)
-  async getOrderByNumber(orderNumber: string): Promise<any | null> {
-    const cleanNum = orderNumber.trim();
+  // Public Order Tracking (Dual lookup by Order Number or India Post Consignment Number)
+  async getOrderByNumber(orderNumberOrTracking: string): Promise<any | null> {
+    const cleanNum = (orderNumberOrTracking || '').trim();
+    if (!cleanNum) return null;
+    const cleanUpper = cleanNum.toUpperCase();
+
     const customOrders = getStoredCustomOrders();
-    const localMatch = customOrders.find(
-      (o) => o.order_number === cleanNum || o.orderNumber === cleanNum || o.id === cleanNum
-    );
+    const localMatch = customOrders.find((o) => {
+      const oNum = (o.order_number || o.orderNumber || '').toUpperCase();
+      const oTrack = (o.tracking_number || o.trackingNumber || '').toUpperCase();
+      return oNum === cleanUpper || oTrack === cleanUpper || o.id === cleanNum;
+    });
 
     let remoteOrder: any = null;
     try {
@@ -1760,9 +1765,9 @@ export const api = {
       if (isUUID) {
         query = query.eq('id', cleanNum);
       } else {
-        query = query.eq('order_number', cleanNum);
+        query = query.or(`order_number.ilike.${cleanNum},tracking_number.ilike.${cleanNum}`);
       }
-      const { data, error } = await query.single();
+      const { data, error } = await query.limit(1).maybeSingle();
       if (!error && data) {
         remoteOrder = data;
       }
@@ -1780,9 +1785,11 @@ export const api = {
 
     if (localMatch) return localMatch;
 
-    const sample = SAMPLE_ORDERS_DETAILED.find(
-      (o) => o.orderNumber === cleanNum || o.order_number === cleanNum || o.id === cleanNum
-    );
+    const sample = SAMPLE_ORDERS_DETAILED.find((o) => {
+      const oNum = (o.orderNumber || o.order_number || '').toUpperCase();
+      const oTrack = (o.trackingNumber || o.tracking_number || '').toUpperCase();
+      return oNum === cleanUpper || oTrack === cleanUpper || o.id === cleanNum;
+    });
     return sample || null;
   },
 
