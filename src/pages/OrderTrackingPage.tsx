@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search,
@@ -56,6 +56,18 @@ export const OrderTrackingPage: React.FC = () => {
     message?: string;
   } | null>(null);
   const [formValidationMsg, setFormValidationMsg] = useState<string | null>(null);
+
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll down to results when consignment data arrives
+  useEffect(() => {
+    if (trackingResult || multipleOrders || notFoundInfo || verificationFailedInfo) {
+      const timer = setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [trackingResult, multipleOrders, notFoundInfo, verificationFailedInfo]);
 
   const formatTrackingData = (order: any, verified?: boolean, matchedContact?: string) => {
     const rawStatus = (order.status || 'confirmed').toLowerCase();
@@ -290,8 +302,10 @@ export const OrderTrackingPage: React.FC = () => {
           </form>
         </div>
 
-        {/* Verification Failed State */}
-        {verificationFailedInfo && (
+        {/* Results Container with Ref for Auto-Scroll */}
+        <div ref={resultsRef} className="scroll-mt-8 space-y-6">
+          {/* Verification Failed State */}
+          {verificationFailedInfo && (
           <div className="bg-white p-6 sm:p-8 border border-rose-200 rounded-[4px] shadow-sm space-y-4 animate-in fade-in duration-200">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200">
@@ -757,6 +771,7 @@ export const OrderTrackingPage: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

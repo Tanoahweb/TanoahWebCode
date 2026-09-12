@@ -162,7 +162,7 @@ export const ReturnsQueuePage: React.FC = () => {
       (t.customer_consignment_no && t.customer_consignment_no.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return matchesTab && matchesSearch;
-  });
+  }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   const getStatusBadge = (status: string) => {
     switch (status) {

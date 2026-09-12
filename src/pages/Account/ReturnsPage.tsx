@@ -128,6 +128,11 @@ export const ReturnsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [submittedTicket?.order_number, submittedTicket?.status, submittedTicket?.customer_consignment_no, consignmentSaved]);
 
+  // Always scroll smoothly to top when step changes or ticket is loaded so user lands on the step content, never the footer
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [submittedTicket?.id, submittedTicket?.status, submittedTicket?.video_submitted]);
+
   const handleVerifyOrder = async (orderIdToVerify?: string) => {
     const rawId = (orderIdToVerify || orderNumber).trim();
     if (!rawId) {
@@ -213,6 +218,7 @@ export const ReturnsPage: React.FC = () => {
         video_submitted: true,
         status: 'video_submitted',
       }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       addToast({
         type: 'success',
         title: 'Video Submitted for Verification',
@@ -224,6 +230,7 @@ export const ReturnsPage: React.FC = () => {
         video_submitted: true,
         status: 'video_submitted',
       }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsMarkingVideo(false);
     }
@@ -268,6 +275,7 @@ export const ReturnsPage: React.FC = () => {
 
       if (res.success && res.ticket) {
         setSubmittedTicket(res.ticket);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         addToast({
           type: 'success',
           title: 'Claim Ticket Registered',
