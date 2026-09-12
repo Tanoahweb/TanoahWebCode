@@ -8,6 +8,7 @@ import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
 import { safeSetItem, safeGetItem, sanitizeOrderForStorage } from '@/utils/safeStorage';
 import { formatCouponDate, isCouponDateExpired, isCouponNotStarted } from '@/utils/formatters';
+import { validateEmail, validatePhone } from '@/utils/validation';
 
 export type { ProductReview };
 
@@ -2140,6 +2141,17 @@ export const api = {
     grand_total: number;
     items: CartItem[];
   }): Promise<{ success: boolean; order_number?: string; error?: string }> {
+    // Backend Validation Guards
+    const emailValidation = validateEmail(params.guest_email);
+    if (!emailValidation.isValid) {
+      return { success: false, error: emailValidation.error || 'Invalid email address provided.' };
+    }
+
+    const phoneValidation = validatePhone(params.guest_phone);
+    if (!phoneValidation.isValid) {
+      return { success: false, error: phoneValidation.error || 'Invalid phone number. Must be a valid 10-digit mobile number.' };
+    }
+
     const orderNumber = 'TAN-' + Math.floor(100000 + Math.random() * 900000);
 
     const localOrder = {
@@ -2538,8 +2550,13 @@ export const api = {
 
   // Newsletter Subscription
   async subscribeNewsletter(email: string): Promise<{ success: boolean; message: string }> {
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return { success: false, message: emailValidation.error || 'Please enter a valid email address.' };
+    }
+
     try {
-      const { error } = await supabase.from('newsletter_subscribers').insert([{ email: email.toLowerCase().trim() }]);
+      const { error } = await supabase.from('newsletter_subscribers').insert([{ email: emailValidation.normalized }]);
       if (error) {
         if (error.code === '23505') {
           return { success: true, message: 'You are already subscribed to the TANOAH Gazette.' };
@@ -2554,11 +2571,25 @@ export const api = {
 
   // Back in Stock Waitlist
   async subscribeBackInStock(variantId: string, email: string, phone?: string): Promise<{ success: boolean; message: string }> {
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return { success: false, message: emailValidation.error || 'Please enter a valid email address.' };
+    }
+
+    let cleanPhone = null;
+    if (phone && phone.trim()) {
+      const phoneValidation = validatePhone(phone);
+      if (!phoneValidation.isValid) {
+        return { success: false, message: phoneValidation.error || 'Please enter a valid 10-digit mobile number.' };
+      }
+      cleanPhone = phoneValidation.cleanDigits;
+    }
+
     try {
       const { error } = await supabase.from('back_in_stock_subscriptions').insert([{
         variant_id: variantId,
-        email: email.toLowerCase().trim(),
-        phone: phone || null,
+        email: emailValidation.normalized,
+        phone: cleanPhone,
       }]);
       if (error) throw error;
       return { success: true, message: 'Notification confirmed. We will reach out when this piece returns.' };
@@ -2638,11 +2669,25 @@ export const api = {
     subject?: string;
     message: string;
   }): Promise<{ success: boolean; message: string }> {
+    const emailValidation = validateEmail(data.email);
+    if (!emailValidation.isValid) {
+      return { success: false, message: emailValidation.error || 'Please enter a valid email address.' };
+    }
+
+    let cleanPhone = null;
+    if (data.phone && data.phone.trim()) {
+      const phoneValidation = validatePhone(data.phone);
+      if (!phoneValidation.isValid) {
+        return { success: false, message: phoneValidation.error || 'Please enter a valid 10-digit mobile number.' };
+      }
+      cleanPhone = phoneValidation.cleanDigits;
+    }
+
     try {
       const { error } = await supabase.from('contact_inquiries').insert([{
         name: data.name.trim(),
-        email: data.email.toLowerCase().trim(),
-        phone: data.phone?.trim() || null,
+        email: emailValidation.normalized,
+        phone: cleanPhone,
         subject: data.subject?.trim() || 'General Inquiry',
         message: data.message.trim(),
         status: 'new',
@@ -2761,6 +2806,20 @@ export const api = {
     customer_courier_name?: string;
     customer_consignment_no?: string;
   }): Promise<{ success: boolean; message: string; ticket?: any }> {
+    if (params.customer_phone) {
+      const phoneValidation = validatePhone(params.customer_phone);
+      if (!phoneValidation.isValid) {
+        return { success: false, message: phoneValidation.error || 'Please provide a valid 10-digit mobile number for WhatsApp support.' };
+      }
+    }
+
+    if (params.customer_email) {
+      const emailValidation = validateEmail(params.customer_email);
+      if (!emailValidation.isValid) {
+        return { success: false, message: emailValidation.error || 'Please provide a valid email address.' };
+      }
+    }
+
     try {
       const order = await this.getOrderByNumber(params.order_number);
       const ticketId = `ret_${Date.now()}`;
@@ -3986,8 +4045,20 @@ export const api = {
     user_id?: string;
     email?: string;
   }): Promise<SavedAddress> {
+    const phoneValidation = validatePhone(address.phone);
+    if (!phoneValidation.isValid) {
+      throw new Error(phoneValidation.error || 'Invalid phone number. Must be a valid 10-digit mobile number.');
+    }
+
+    if (address.email) {
+      const emailValidation = validateEmail(address.email);
+      if (!emailValidation.isValid) {
+        throw new Error(emailValidation.error || 'Invalid email address.');
+      }
+    }
+
     const userId = address.user_id;
-    const userEmail = address.email;
+    const userEmail = address.email ? validateEmail(address.email).normalized : address.email;
     const existing = await this.getUserAddresses(userId, userEmail);
 
     const isFirst = existing.length === 0;

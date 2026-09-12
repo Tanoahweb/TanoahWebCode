@@ -4,6 +4,7 @@ import { useOfferPopupStore } from '../../store/useOfferPopupStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
+import { validateEmail } from '../../utils/validation';
 import { useLocation } from 'react-router-dom';
 import { getLenis } from '../../animations/smoothScroll';
 
@@ -88,13 +89,27 @@ export const OfferPopup: React.FC = () => {
 
   const handleUnlockOffer = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (config.showEmailInput || email.trim()) {
+      const emailCheck = validateEmail(email);
+      if (!emailCheck.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Email',
+          description: emailCheck.error || 'Please enter a valid email address.',
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       // 1. Subscribe email to newsletter if provided
-      if (email && email.includes('@')) {
+      if (email.trim()) {
         try {
-          await api.subscribeNewsletter(email.trim());
+          const emailCheck = validateEmail(email);
+          await api.subscribeNewsletter(emailCheck.normalized || email.trim());
         } catch (subErr) {
           console.warn('Newsletter subscription notice:', subErr);
         }

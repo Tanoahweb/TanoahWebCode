@@ -5,6 +5,7 @@ import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
+import { validateEmail, validatePhone } from '../../utils/validation';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +48,27 @@ export const RegisterPage: React.FC = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email Address',
+        description: emailValidation.error || 'Please enter a valid email address.',
+      });
+      return;
+    }
+
+    const phoneValidation = validatePhone(formData.phone);
+    if (!phoneValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Mobile Number',
+        description: phoneValidation.error || 'Please enter a valid 10-digit mobile number.',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {

@@ -5,6 +5,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { useNavigationStore } from '../../store/useNavigationStore';
 import { DEFAULT_NAVIGATION_CONFIG } from '../../data/defaultNavigation';
 import { api } from '../../services/api';
+import { validateEmail } from '../../utils/validation';
 
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -34,11 +35,12 @@ export const Footer: React.FC = () => {
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes('@')) {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
       addToast({
         type: 'error',
         title: 'Invalid Email',
-        description: 'Please enter a valid email address.',
+        description: emailCheck.error || 'Please enter a valid email address.',
       });
       return;
     }

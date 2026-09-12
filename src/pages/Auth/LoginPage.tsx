@@ -5,6 +5,7 @@ import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
+import { validateEmail } from '../../utils/validation';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,11 +67,22 @@ export const LoginPage: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email Address',
+        description: emailValidation.error || 'Please enter a valid email address.',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: emailValidation.normalized,
         password,
       });
 
@@ -99,12 +111,17 @@ export const LoginPage: React.FC = () => {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountNotFoundError(null);
-    const cleanEmail = forgotEmail.trim().toLowerCase();
 
-    if (!cleanEmail) {
-      addToast({ type: 'error', title: 'Email Required', description: 'Please enter your registered email address.' });
+    const emailValidation = validateEmail(forgotEmail);
+    if (!emailValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email Address',
+        description: emailValidation.error || 'Please enter a valid email address.',
+      });
       return;
     }
+    const cleanEmail = emailValidation.normalized;
 
     if (resendCooldown > 0) {
       addToast({

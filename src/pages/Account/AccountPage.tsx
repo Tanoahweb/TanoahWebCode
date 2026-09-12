@@ -10,6 +10,7 @@ import { Button } from '../../components/common/Button';
 import { TaxInvoiceModal } from '../../components/checkout/TaxInvoiceModal';
 import { api } from '../../services/api';
 import { SavedAddress } from '../../types';
+import { validatePhone } from '../../utils/validation';
 
 export const AccountPage: React.FC = () => {
   const { user, profile, signOut, initialize } = useAuthStore();
@@ -83,9 +84,16 @@ export const AccountPage: React.FC = () => {
       return;
     }
 
+    const phoneCheck = validatePhone(newAddressForm.phone);
+    if (!phoneCheck.isValid) {
+      addToast({ type: 'error', title: 'Invalid Phone Number', description: phoneCheck.error || 'Please enter a valid 10-digit mobile number.' });
+      return;
+    }
+
     try {
       await api.saveUserAddress({
         ...newAddressForm,
+        phone: phoneCheck.normalized || newAddressForm.phone.trim(),
         user_id: user?.id,
         email: user?.email,
       });
@@ -130,12 +138,22 @@ export const AccountPage: React.FC = () => {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (profilePhone && profilePhone.trim()) {
+      const phoneCheck = validatePhone(profilePhone);
+      if (!phoneCheck.isValid) {
+        addToast({ type: 'error', title: 'Invalid Phone Number', description: phoneCheck.error || 'Please enter a valid 10-digit mobile number.' });
+        return;
+      }
+    }
+
     setIsUpdatingProfile(true);
     try {
+      const formattedPhone = profilePhone && profilePhone.trim() ? (validatePhone(profilePhone).normalized || profilePhone.trim()) : '';
       const { error } = await supabase.auth.updateUser({
         data: {
           full_name: profileName,
-          phone: profilePhone,
+          phone: formattedPhone,
         },
       });
 

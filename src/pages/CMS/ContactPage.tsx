@@ -3,6 +3,7 @@ import { Mail, Phone, MapPin, MessageCircle, Send } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
+import { validateEmail, validatePhone } from '../../utils/validation';
 
 export const ContactPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -17,14 +18,36 @@ export const ContactPage: React.FC = () => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !message.trim()) return;
 
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email',
+        description: emailCheck.error || 'Please enter a valid email address.',
+      });
+      return;
+    }
+
+    if (phone && phone.trim()) {
+      const phoneCheck = validatePhone(phone);
+      if (!phoneCheck.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Phone Number',
+          description: phoneCheck.error || 'Please enter a valid 10-digit mobile number.',
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const res = await api.submitContactInquiry({
-        name,
-        email,
-        phone,
+        name: name.trim(),
+        email: emailCheck.normalized || email.trim(),
+        phone: phone.trim() ? (validatePhone(phone).normalized || phone.trim()) : '',
         subject,
-        message,
+        message: message.trim(),
       });
 
       addToast({

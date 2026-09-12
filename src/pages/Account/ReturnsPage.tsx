@@ -23,6 +23,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
 import { ReturnAddressConfig } from '../../types';
+import { validatePhone, validateEmail } from '../../utils/validation';
 
 export const ReturnsPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -37,6 +38,12 @@ export const ReturnsPage: React.FC = () => {
   const [verifiedOrder, setVerifiedOrder] = useState<any | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [hoursSinceDelivery, setHoursSinceDelivery] = useState<number | null>(null);
+
+  // Logged-in order picker state
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+  const [isLoadingUserOrders, setIsLoadingUserOrders] = useState<boolean>(false);
+  const [selectedPickerOrderId, setSelectedPickerOrderId] = useState<string>('');
+  const [showManualInput, setShowManualInput] = useState<boolean>(false);
 
   // Claim form state
   const [selectedItemIndex, setSelectedItemIndex] = useState(0);
@@ -85,6 +92,60 @@ export const ReturnsPage: React.FC = () => {
       }
     }
   }, [user]);
+
+  // Fetch logged-in user's account orders for instant order picker
+  useEffect(() => {
+    let isMounted = true;
+    if (user) {
+      setIsLoadingUserOrders(true);
+      api.getUserOrders(user.id, user.email)
+        .then((ords) => {
+          if (isMounted && ords) {
+            setUserOrders(ords);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isMounted) setIsLoadingUserOrders(false);
+        });
+    } else {
+      setUserOrders([]);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const handleSelectUserOrder = (ordId: string) => {
+    setSelectedPickerOrderId(ordId);
+    if (!ordId) return;
+
+    const ord = userOrders.find(
+      (o) => (o.order_number || o.orderNumber) === ordId || o.id === ordId
+    );
+    if (!ord) return;
+
+    const chosenNum = ord.order_number || ord.orderNumber || '';
+    setOrderNumber(chosenNum);
+
+    const candidatePhone = (
+      ord.shipping_address?.phone ||
+      ord.guest_phone ||
+      ord.guestPhone ||
+      ord.formData?.phone ||
+      user?.phone ||
+      (user?.user_metadata?.phone as string) ||
+      verificationPhone ||
+      ''
+    ).trim();
+
+    if (candidatePhone) {
+      setVerificationPhone(candidatePhone);
+    }
+
+    // Automatically trigger eligibility check for seamless 1-click experience
+    handleVerifyOrder(chosenNum, candidatePhone);
+  };
 
   // Listen for admin returns update event
   useEffect(() => {
@@ -303,6 +364,18 @@ export const ReturnsPage: React.FC = () => {
         description: 'Please acknowledge all three policy conditions to submit your damage claim.',
       });
       return;
+    }
+
+    if (customerContact) {
+      const phoneValidation = validatePhone(customerContact);
+      if (!phoneValidation.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Contact Phone',
+          description: phoneValidation.error || 'Please enter a valid 10-digit mobile number for WhatsApp support.',
+        });
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -939,62 +1012,151 @@ export const ReturnsPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Order and Phone input row with two-factor verification */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-black uppercase">
-                    Order Number (Guest or Account) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. TAN-849201 or 849201"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleVerifyOrder();
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase h-[42px]"
-                  />
-                  <span className="text-[10px] text-[#888888] block pt-0.5">
-                    Found in your order confirmation email, SMS, or delivery slip.
-                  </span>
-                </div>
+              {/* Logged-In Client Order Picker */}
+              {user && (
+                <div className="p-4 bg-[#F8F8FC] border border-[#D5D5ED] rounded-[4px] space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="text-[11px] font-semibold text-black uppercase flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                      <span>Select From Your Account Orders</span>
+                    </label>
+                    {userOrders.length > 0 && (
+                      <span className="text-[10px] text-[#3F3F8F] font-semibold bg-[#EEEEF8] px-2 py-0.5 rounded">
+                        {userOrders.length} {userOrders.length === 1 ? 'Order' : 'Orders'} on File
+                      </span>
+                    )}
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-black uppercase">
-                    Registered Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. 9876543210 or +91 9876543210"
-                    value={verificationPhone}
-                    onChange={(e) => setVerificationPhone(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleVerifyOrder();
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs h-[42px]"
-                  />
-                  <span className="text-[10px] text-[#888888] block pt-0.5">
-                    The 10-digit mobile number provided during checkout.
-                  </span>
-                </div>
-              </div>
+                  {isLoadingUserOrders ? (
+                    <div className="text-xs text-[#888888] py-1.5 italic flex items-center gap-2">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#3F3F8F]" />
+                      <span>Loading your past orders...</span>
+                    </div>
+                  ) : userOrders.length > 0 ? (
+                    <div className="space-y-2">
+                      <select
+                        value={selectedPickerOrderId}
+                        onChange={(e) => handleSelectUserOrder(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-[#C5C5E5] rounded-[4px] text-xs font-poppins focus:outline-none focus:border-[#3F3F8F] cursor-pointer shadow-sm"
+                      >
+                        <option value="">-- Choose an order from your history --</option>
+                        {userOrders.map((ord) => {
+                          const num = ord.order_number || ord.orderNumber;
+                          const st = (ord.status || 'placed').toUpperCase();
+                          const isDelivered = st === 'DELIVERED';
+                          const dt = ord.created_at
+                            ? new Date(ord.created_at).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : '';
+                          const firstItem =
+                            ord.items?.[0]?.product_title || ord.items?.[0]?.product?.title || 'Garment';
+                          const itemCount = ord.items?.length || 1;
+                          const itemSummary = itemCount > 1 ? `${firstItem} (+${itemCount - 1} more)` : firstItem;
 
-              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-[#F4F4F4]">
-                <p className="text-[11px] text-[#666666] flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#3F3F8F] shrink-0" />
-                  <span>Two-factor validation ensures only the authorized buyer can initiate claims.</span>
-                </p>
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={() => handleVerifyOrder()}
-                  isLoading={isVerifying}
-                  className="sm:w-56 text-xs font-semibold h-[42px] shrink-0"
-                >
-                  CHECK ORDER ELIGIBILITY
-                </Button>
-              </div>
+                          return (
+                            <option key={ord.id || num} value={num}>
+                              {isDelivered ? '✓ ' : ''}{num} · [{st}] · {dt} · {itemSummary}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="flex items-center justify-between text-[10px] text-[#666666]">
+                        <span>Selecting an order automatically verifies eligibility and pre-fills your contact.</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowManualInput(!showManualInput)}
+                          className="text-[#3F3F8F] hover:underline font-medium cursor-pointer"
+                        >
+                          {showManualInput ? 'Hide manual inputs' : 'Enter manually instead'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[#666666] flex items-center justify-between flex-wrap gap-2">
+                      <span>No orders found under {user.email}. Enter your guest order details manually below.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Guest Sign-in prompt */}
+              {!user && (
+                <div className="p-3 bg-[#F9F9F9] border border-[#E7E7E7] rounded-[4px] text-xs flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[#666666] text-[11px]">
+                    Have a Tanoah client account? Sign in to pick from your past orders with 1 click.
+                  </span>
+                  <Link
+                    to="/login?from=/returns"
+                    className="text-[11px] font-semibold text-[#3F3F8F] hover:underline"
+                  >
+                    Sign In →
+                  </Link>
+                </div>
+              )}
+
+              {/* Order and Phone input row with two-factor verification (Shown for guests, or when manual toggle active) */}
+              {(!user || showManualInput || userOrders.length === 0) && (
+                <div className="space-y-4 pt-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-semibold text-black uppercase">
+                        Order Number (Guest or Account) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. TAN-849201 or 849201"
+                        value={orderNumber}
+                        onChange={(e) => setOrderNumber(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleVerifyOrder();
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase h-[42px]"
+                      />
+                      <span className="text-[10px] text-[#888888] block pt-0.5">
+                        Found in your order confirmation email, SMS, or delivery slip.
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-semibold text-black uppercase">
+                        Registered Phone Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="e.g. 9876543210 or +91 9876543210"
+                        value={verificationPhone}
+                        onChange={(e) => setVerificationPhone(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleVerifyOrder();
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs h-[42px]"
+                      />
+                      <span className="text-[10px] text-[#888888] block pt-0.5">
+                        The 10-digit mobile number provided during checkout.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-[#F4F4F4]">
+                    <p className="text-[11px] text-[#666666] flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-[#3F3F8F] shrink-0" />
+                      <span>Two-factor validation ensures only the authorized buyer can initiate claims.</span>
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={() => handleVerifyOrder()}
+                      isLoading={isVerifying}
+                      className="sm:w-56 text-xs font-semibold h-[42px] shrink-0"
+                    >
+                      CHECK ORDER ELIGIBILITY
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {verificationError && (
                 <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-xs flex items-start gap-2.5 leading-relaxed">

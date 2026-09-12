@@ -15,6 +15,7 @@ import { emailService } from '../services/emailService';
 import { SavedAddress, DeliverySpeedTier, Coupon, Collection } from '../types';
 import { DEFAULT_DELIVERY_SPEEDS } from '../data/mockData';
 import { safeSetItem, sanitizeOrderForStorage } from '../utils/safeStorage';
+import { validateEmail, validatePhone } from '../utils/validation';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -456,6 +457,26 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email Address',
+        description: emailValidation.error || 'Please enter a valid email address (e.g. name@example.com).',
+      });
+      return;
+    }
+
+    const phoneValidation = validatePhone(formData.phone);
+    if (!phoneValidation.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Mobile Number',
+        description: phoneValidation.error || 'Please enter a valid 10-digit mobile number.',
+      });
+      return;
+    }
+
     if (!agreedToTerms) {
       addToast({
         type: 'error',
@@ -628,8 +649,17 @@ export const CheckoutPage: React.FC = () => {
                     placeholder="you@domain.com"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                    className={`w-full p-2.5 border rounded-[4px] focus:outline-none ${
+                      formData.email && !validateEmail(formData.email).isValid
+                        ? 'border-red-400 focus:border-red-500 bg-red-50/20'
+                        : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
+                    }`}
                   />
+                  {formData.email && !validateEmail(formData.email).isValid && (
+                    <span className="text-[10px] text-red-600 block mt-1">
+                      {validateEmail(formData.email).error}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-black uppercase mb-1">
@@ -642,8 +672,17 @@ export const CheckoutPage: React.FC = () => {
                     placeholder="+91 8714141849"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                    className={`w-full p-2.5 border rounded-[4px] focus:outline-none ${
+                      formData.phone && !validatePhone(formData.phone).isValid
+                        ? 'border-red-400 focus:border-red-500 bg-red-50/20'
+                        : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
+                    }`}
                   />
+                  {formData.phone && !validatePhone(formData.phone).isValid && (
+                    <span className="text-[10px] text-red-600 block mt-1">
+                      {validatePhone(formData.phone).error}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

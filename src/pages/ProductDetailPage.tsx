@@ -40,6 +40,7 @@ import { api, ProductReview, DEFAULT_SIZE_CHARTS } from '../services/api';
 import { Product, ProductVariant, SizeChart } from '../types';
 import { ProductImage } from '../components/common/ProductImage';
 import { getTransformedImageUrl } from '../utils/imageUtils';
+import { validateEmail, validatePhone } from '../utils/validation';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -847,9 +848,32 @@ export const ProductDetailPage: React.FC = () => {
     e.preventDefault();
     if (!waitlistEmail.trim() || !activeVariant) return;
 
+    const emailCheck = validateEmail(waitlistEmail);
+    if (!emailCheck.isValid) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Email',
+        description: emailCheck.error || 'Please enter a valid email address.',
+      });
+      return;
+    }
+
+    if (waitlistPhone && waitlistPhone.trim()) {
+      const phoneCheck = validatePhone(waitlistPhone);
+      if (!phoneCheck.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Phone Number',
+          description: phoneCheck.error || 'Please enter a valid 10-digit mobile number.',
+        });
+        return;
+      }
+    }
+
     setIsSubmittingWaitlist(true);
     try {
-      const res = await api.subscribeBackInStock(activeVariant.id, waitlistEmail.trim(), waitlistPhone.trim());
+      const formattedPhone = waitlistPhone && waitlistPhone.trim() ? (validatePhone(waitlistPhone).normalized || waitlistPhone.trim()) : '';
+      const res = await api.subscribeBackInStock(activeVariant.id, emailCheck.normalized || waitlistEmail.trim(), formattedPhone);
       addToast({
         type: 'success',
         title: 'Waitlist Registered',
