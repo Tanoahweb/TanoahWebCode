@@ -7,6 +7,7 @@ import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
 import { safeSetItem, safeGetItem, sanitizeOrderForStorage } from '@/utils/safeStorage';
+import { formatCouponDate, isCouponDateExpired, isCouponNotStarted } from '@/utils/formatters';
 
 export type { ProductReview };
 
@@ -1510,28 +1511,16 @@ export const api = {
     try {
       const cleanCode = code.trim().toLowerCase();
       const allCoupons = await this.getCoupons();
-      const match = allCoupons.find((c) => c.code.toLowerCase() === cleanCode && c.is_active !== false);
+      const match = allCoupons.find((c) => c.code.toLowerCase() === cleanCode);
 
       if (!match) {
-        return { valid: false, message: 'Invalid or expired promo code.' };
+        return { valid: false, message: 'Invalid promo code.' };
       }
 
-      // Date Range Validation (Valid Between)
-      const now = new Date();
-      if (match.start_date) {
-        const start = new Date(match.start_date);
-        start.setHours(0, 0, 0, 0);
-        if (now < start) {
-          const dateStr = start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
-          return { valid: false, message: `This coupon is not active yet (Starts ${dateStr}).` };
-        }
-      }
-      if (match.end_date) {
-        const end = new Date(match.end_date);
-        end.setHours(23, 59, 59, 999);
-        if (now > end) {
-          return { valid: false, message: 'This promo code has expired.' };
-        }
+      // Check if expired by date first
+      if (isCouponDateExpired(match)) {
+        const dateStr = formatCouponDate(match.end_date);
+        return { valid: false, message: `The coupon is expired on ${dateStr}.` };
       }
 
       // Total Usage Limit Validation
@@ -1540,6 +1529,17 @@ export const api = {
         if (usageCount >= match.total_usage_limit) {
           return { valid: false, message: 'This promo code has reached its maximum redemption limit.' };
         }
+      }
+
+      // Date Range Validation (Valid Between - start date)
+      if (isCouponNotStarted(match)) {
+        const dateStr = formatCouponDate(match.start_date);
+        return { valid: false, message: `This coupon is not active yet (Starts ${dateStr}).` };
+      }
+
+      // Inactive coupon check
+      if (match.is_active === false) {
+        return { valid: false, message: 'This promo code is currently inactive.' };
       }
 
       // Collection-specific validation

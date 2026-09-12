@@ -2,9 +2,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem, Product, ProductVariant, Coupon } from '../types';
 import { isProductInCollection } from '../services/api';
+import { isCouponExpired, isCouponNotStarted } from '../utils/formatters';
 
 export function isCouponEligible(coupon: Coupon | null, items: CartItem[]): boolean {
   if (!coupon || !items || items.length === 0) return false;
+  if (coupon.is_active === false) return false;
+  if (isCouponExpired(coupon)) return false;
+  if (isCouponNotStarted(coupon)) return false;
 
   const subtotal = items.reduce((total, item) => {
     const effectivePrice =

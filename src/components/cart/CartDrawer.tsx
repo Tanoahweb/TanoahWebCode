@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { X, Trash2, Heart, ArrowRight, ShoppingBag, Tag, Sparkles, Check } from 'lucide-react';
 import { useCartStore } from '../../store/useCartStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useUIStore } from '../../store/useUIStore';
 import { FreeShippingProgressBar } from './FreeShippingProgressBar';
-import { formatPrice } from '../../utils/formatters';
+import { formatPrice, isCouponAvailable } from '../../utils/formatters';
 import { Button } from '../common/Button';
 import { getLenis } from '../../animations/smoothScroll';
 
@@ -155,20 +155,31 @@ export const CartDrawer: React.FC = () => {
       }
     }
 
-    if (isEligible) {
-      if (c.discount_type === 'percentage') {
-        let estSave = (eligibleSubtotal * c.discount_value) / 100;
-        if (c.max_discount && estSave > c.max_discount) estSave = c.max_discount;
+    let discountAmount = 0;
+    const baseAmount = isEligible ? eligibleSubtotal : Math.max(subtotal, c.min_spend || 0);
+
+    if (c.discount_type === 'percentage') {
+      let estSave = (baseAmount * c.discount_value) / 100;
+      if (c.max_discount && estSave > c.max_discount) estSave = c.max_discount;
+      discountAmount = estSave;
+      if (isEligible) {
         savingsText = `Save ₹${Math.round(estSave).toLocaleString('en-IN')}`;
-      } else if (c.discount_type === 'fixed') {
-        const estSave = Math.min(c.discount_value, eligibleSubtotal);
+      }
+    } else if (c.discount_type === 'fixed') {
+      const estSave = Math.min(c.discount_value, baseAmount > 0 ? baseAmount : c.discount_value);
+      discountAmount = estSave;
+      if (isEligible) {
         savingsText = `Save ₹${Math.round(estSave).toLocaleString('en-IN')}`;
-      } else if (c.discount_type === 'free_shipping') {
+      }
+    } else if (c.discount_type === 'free_shipping') {
+      discountAmount = shipping > 0 ? shipping : 150;
+      if (isEligible) {
         savingsText = 'Free Express Delivery';
       }
-      if (!descriptionText) {
-        descriptionText = c.description || (c.min_spend ? `Valid on orders above ₹${c.min_spend.toLocaleString('en-IN')}` : 'Storewide instant offer');
-      }
+    }
+
+    if (isEligible && !descriptionText) {
+      descriptionText = c.description || (c.min_spend ? `Valid on orders above ₹${c.min_spend.toLocaleString('en-IN')}` : 'Storewide instant offer');
     }
 
     return {
@@ -177,10 +188,37 @@ export const CartDrawer: React.FC = () => {
       difference,
       descriptionText,
       savingsText,
+      discountAmount,
       hasCollections,
       colNames,
     };
   };
+
+  const sortedCoupons = useMemo(() => {
+    return availableCoupons
+      .filter((c) => isCouponAvailable(c))
+      .map((c) => ({ coupon: c, evalInfo: getCouponEvaluation(c) }))
+      .sort((a, b) => {
+        const aEligible = a.evalInfo.isApplied || a.evalInfo.isEligible;
+        const bEligible = b.evalInfo.isApplied || b.evalInfo.isEligible;
+
+        if (aEligible && !bEligible) return -1;
+        if (!aEligible && bEligible) return 1;
+
+        if (b.evalInfo.discountAmount !== a.evalInfo.discountAmount) {
+          return b.evalInfo.discountAmount - a.evalInfo.discountAmount;
+        }
+
+        if (b.coupon.discount_value !== a.coupon.discount_value) {
+          return b.coupon.discount_value - a.coupon.discount_value;
+        }
+
+        if (a.evalInfo.isApplied && !b.evalInfo.isApplied) return -1;
+        if (!a.evalInfo.isApplied && b.evalInfo.isApplied) return 1;
+
+        return a.coupon.code.localeCompare(b.coupon.code);
+      });
+  }, [availableCoupons, coupon, subtotal, items, shipping, collections]);
 
   const handleMoveToWishlist = (item: any) => {
     addToWishlist(item.product);
@@ -610,15 +648,12 @@ export const CartDrawer: React.FC = () => {
 
             {/* Active Offers List */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1">
-              {availableCoupons.filter((c) => c.is_active !== false).length === 0 ? (
+              {sortedCoupons.length === 0 ? (
                 <div className="text-center py-8 text-neutral-400 text-xs">
                   No active coupon codes at the moment.
                 </div>
               ) : (
-                availableCoupons
-                  .filter((c) => c.is_active !== false)
-                  .map((c) => {
-                    const evalInfo = getCouponEvaluation(c);
+                sortedCoupons.map(({ coupon: c, evalInfo }) => {
                     return (
                       <div
                         key={c.id || c.code}

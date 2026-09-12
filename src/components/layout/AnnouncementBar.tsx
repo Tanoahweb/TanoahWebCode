@@ -3,6 +3,7 @@ import { ChevronRight, Copy, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
+import { isCouponAvailable } from '../../utils/formatters';
 
 interface AnnouncementItem {
   text: string;
@@ -27,7 +28,7 @@ export const AnnouncementBar: React.FC = () => {
     const loadDynamicCoupons = async () => {
       try {
         const coupons = await api.getCoupons();
-        const activeCoupons = (coupons || []).filter((c) => c.is_active !== false);
+        const activeCoupons = (coupons || []).filter((c) => isCouponAvailable(c));
 
         if (activeCoupons.length > 0 && isMounted) {
           const dynamicItems: AnnouncementItem[] = activeCoupons.map((c) => {
