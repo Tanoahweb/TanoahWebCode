@@ -2661,11 +2661,16 @@ export const api = {
               ...t,
               customer_courier_name: courierName.trim(),
               customer_consignment_no: consignmentNo.trim(),
-              status: t.status === 'awaiting_video' || t.status === 'claim_approved' ? 'in_transit' : t.status,
+              status: 'in_transit',
             }
           : t
       );
       localStorage.setItem('tanoah_custom_returns', JSON.stringify(updated));
+
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(ticketId)) {
+        await supabase.from('returns').update({ status: 'in_transit' }).eq('id', ticketId);
+      }
       return true;
     } catch {
       return false;
@@ -2681,7 +2686,7 @@ export const api = {
               ...t,
               video_submitted: true,
               video_submitted_at: new Date().toISOString(),
-              status: t.status === 'awaiting_video' ? 'claim_approved' : t.status,
+              status: 'video_submitted',
             }
           : t
       );
@@ -2689,7 +2694,7 @@ export const api = {
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(ticketId)) {
-        await supabase.from('returns').update({ status: 'approved' }).eq('id', ticketId);
+        await supabase.from('returns').update({ status: 'video_submitted' }).eq('id', ticketId);
       }
       return true;
     } catch {
@@ -2930,6 +2935,12 @@ export const api = {
         order_number: 'TAN-849201',
         customer_name: 'Aditya Sharma',
         customer_email: 'aditya.sharma@example.com',
+        customer_phone: '+91 98765 43210',
+        product_title: 'Classic Linen Trouser',
+        variant_info: 'Charcoal / 32',
+        reason: 'Transit Damage (Loose Hem & Snagged Weave)',
+        customer_description: 'Outer packing crushed by courier. Video awaiting dispatch.',
+        status: 'awaiting_video',
         customer_consignment_no: '',
         created_at: new Date(Date.now() - 3600000 * 4.5).toISOString(),
       },

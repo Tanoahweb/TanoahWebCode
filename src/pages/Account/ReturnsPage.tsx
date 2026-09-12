@@ -13,6 +13,9 @@ import {
   ArrowRight,
   Send,
   HelpCircle,
+  RefreshCw,
+  Lock,
+  Tag,
 } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -44,7 +47,6 @@ export const ReturnsPage: React.FC = () => {
 
   // Post-submission state
   const [submittedTicket, setSubmittedTicket] = useState<any | null>(null);
-  const [returnStep, setReturnStep] = useState<'send_video' | 'shipment_tracking'>('send_video');
   const [isMarkingVideo, setIsMarkingVideo] = useState(false);
   const [courierName, setCourierName] = useState('');
   const [consignmentNo, setConsignmentNo] = useState('');
@@ -103,15 +105,6 @@ export const ReturnsPage: React.FC = () => {
           setConsignmentSaved(true);
         }
 
-        if (
-          existingTicket.video_submitted ||
-          (existingTicket.status && existingTicket.status !== 'awaiting_video' && existingTicket.status !== 'requested')
-        ) {
-          setReturnStep('shipment_tracking');
-        } else {
-          setReturnStep('send_video');
-        }
-
         addToast({
           type: 'info',
           title: 'Existing Claim Resumed',
@@ -165,16 +158,19 @@ export const ReturnsPage: React.FC = () => {
       setSubmittedTicket((prev: any) => ({
         ...prev,
         video_submitted: true,
-        status: prev.status === 'awaiting_video' ? 'claim_approved' : prev.status,
+        status: 'video_submitted',
       }));
-      setReturnStep('shipment_tracking');
       addToast({
         type: 'success',
-        title: 'Video Submission Recorded',
-        description: 'You may now proceed with customer self-shipment dispatch.',
+        title: 'Video Submitted for Verification',
+        description: 'Our team will review your unboxing video. Please check back within 24 hours.',
       });
     } catch {
-      setReturnStep('shipment_tracking');
+      setSubmittedTicket((prev: any) => ({
+        ...prev,
+        video_submitted: true,
+        status: 'video_submitted',
+      }));
     } finally {
       setIsMarkingVideo(false);
     }
@@ -219,7 +215,6 @@ export const ReturnsPage: React.FC = () => {
 
       if (res.success && res.ticket) {
         setSubmittedTicket(res.ticket);
-        setReturnStep('send_video');
         addToast({
           type: 'success',
           title: 'Claim Ticket Registered',
@@ -245,13 +240,27 @@ export const ReturnsPage: React.FC = () => {
 
     setIsSavingConsignment(true);
     try {
-      await api.updateReturnCustomerShipment(submittedTicket.id, courierName, consignmentNo);
-      setConsignmentSaved(true);
-      addToast({
-        type: 'success',
-        title: 'Dispatch Details Recorded',
-        description: 'Our warehouse team will track and inspect your parcel upon arrival.',
-      });
+      const success = await api.updateReturnCustomerShipment(
+        submittedTicket.id,
+        courierName.trim(),
+        consignmentNo.trim()
+      );
+      if (success) {
+        setConsignmentSaved(true);
+        setSubmittedTicket((prev: any) => ({
+          ...prev,
+          customer_courier_name: courierName.trim(),
+          customer_consignment_no: consignmentNo.trim(),
+          status: 'in_transit',
+        }));
+        addToast({
+          type: 'success',
+          title: 'Return Completed Successfully',
+          description: 'Your courier tracking number has been recorded. 7-Day Refund SLA active.',
+        });
+      } else {
+        throw new Error('Save failed');
+      }
     } catch {
       addToast({
         type: 'error',
@@ -262,6 +271,35 @@ export const ReturnsPage: React.FC = () => {
       setIsSavingConsignment(false);
     }
   };
+
+  const getCurrentStepNumber = () => {
+    if (!submittedTicket) return 1;
+    if (
+      consignmentSaved ||
+      submittedTicket.customer_consignment_no ||
+      submittedTicket.status === 'in_transit' ||
+      submittedTicket.status === 'item_received' ||
+      submittedTicket.status === 'completed'
+    ) {
+      return 4;
+    }
+    if (submittedTicket.status === 'claim_approved' || submittedTicket.status === 'approved') {
+      return 4;
+    }
+    if (submittedTicket.status === 'video_submitted' || submittedTicket.video_submitted) {
+      return 3;
+    }
+    return 2;
+  };
+
+  const currentStep = getCurrentStepNumber();
+  const isAllCompleted = Boolean(
+    consignmentSaved ||
+    submittedTicket?.customer_consignment_no ||
+    submittedTicket?.status === 'in_transit' ||
+    submittedTicket?.status === 'item_received' ||
+    submittedTicket?.status === 'completed'
+  );
 
   const whatsappNumber =
     storeSettings?.support_phone?.replace(/\D/g, '') ||
@@ -292,28 +330,402 @@ export const ReturnsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* STEP 2 & 3: POST-SUBMISSION TICKET CONFIRMATION & STEPPED ACTIONS */}
+        {/* 4-STEP RETURN LIFECYCLE STEPPER */}
+        <div className="w-full bg-white border border-[#E7E7E7] rounded-[4px] p-4 sm:p-5 shadow-xs text-left mb-6">
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            {[
+              { step: 1, label: 'Verify Order' },
+              { step: 2, label: 'Submit Video' },
+              { step: 3, label: 'Admin Review' },
+              { step: 4, label: 'Self-Shipment' },
+            ].map((s) => {
+              const isCompleted = isAllCompleted ? true : currentStep > s.step;
+              const isCurrent = !isAllCompleted && currentStep === s.step;
+              return (
+                <div key={s.step} className="flex flex-col items-center space-y-1 relative">
+                  <div
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCompleted
+                        ? 'bg-emerald-600 text-white'
+                        : isCurrent
+                        ? 'bg-[#3F3F8F] text-white ring-4 ring-[#EEEEF8]'
+                        : 'bg-neutral-100 text-neutral-400'
+                    }`}
+                  >
+                    {isCompleted ? '✓' : s.step}
+                  </div>
+                  <span
+                    className={`text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold ${
+                      isCurrent ? 'text-[#3F3F8F]' : isCompleted ? 'text-black' : 'text-neutral-400'
+                    }`}
+                  >
+                    Step {s.step}
+                  </span>
+                  <span
+                    className={`text-[9px] sm:text-[10px] hidden sm:block ${
+                      isCurrent ? 'text-black font-medium' : 'text-[#888888]'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#666666]">
+            <span className="font-medium">
+              {currentStep === 1 && 'Step 1 of 4: Check order delivery eligibility and submit defect report.'}
+              {currentStep === 2 && 'Step 2 of 4: Send your mandatory 360° unboxing video on WhatsApp.'}
+              {currentStep === 3 && 'Step 3 of 4: Verification pending. Admin inspection team is reviewing your video.'}
+              {currentStep === 4 && !isAllCompleted && 'Step 4 of 4: Dispatch parcel & enter courier tracking. Process is completed only after entering tracking.'}
+              {isAllCompleted && 'All Steps Completed: Return tracking logged. 7-day refund SLA active.'}
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded shrink-0">
+              {isAllCompleted ? 'Completed ✓' : `Step ${currentStep} of 4`}
+            </span>
+          </div>
+        </div>
+
+        {/* POST-SUBMISSION TICKET CONFIRMATION & STEPPED ACTIONS */}
         {submittedTicket ? (
           <div className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 sm:p-8 shadow-sm space-y-6 text-left">
-            {returnStep === 'send_video' ? (
+            {/* REJECTION VIEW */}
+            {submittedTicket.status === 'rejected' ? (
+              <div className="space-y-4 text-center py-4">
+                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <ShieldAlert className="w-7 h-7" />
+                </div>
+                <span className="text-[11px] font-mono uppercase bg-red-100 text-red-800 px-3 py-1 rounded font-semibold">
+                  TICKET #{submittedTicket.id} · CLAIM REJECTED
+                </span>
+                <h2 className="font-wondra text-2xl text-black">
+                  RETURN CLAIM REJECTED / VOIDED
+                </h2>
+                <div className="max-w-md mx-auto p-4 bg-red-50 border border-red-200 rounded text-xs text-red-900 leading-relaxed text-left space-y-2">
+                  <p className="font-semibold">Reason for voiding claim:</p>
+                  <p>
+                    As per Tanoah Return Policy, returns and refunds are strictly eligible only when the original brand price tag is 100% intact, defects are proven via an unedited 360° unboxing video, and reported within 24 hours of delivery.
+                  </p>
+                  <p>
+                    This ticket does not fulfill these conditions and has been marked as void.
+                  </p>
+                </div>
+                <div className="pt-4 flex justify-center gap-3 text-xs">
+                  <Button variant="outline" size="sm" onClick={() => setSubmittedTicket(null)}>
+                    Check Another Order
+                  </Button>
+                  <Link to="/pages/refund-policy">
+                    <Button variant="secondary" size="sm">
+                      Read Refund Policy
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            ) : isAllCompleted ? (
+              /* CASE A: ALL COMPLETED (Tracking submitted) */
               <>
-                {/* STEP 2: SEND VIDEO NOW */}
                 <div className="text-center pb-6 border-b border-[#E7E7E7]">
                   <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
                   <span className="text-[11px] font-mono uppercase bg-emerald-100 text-emerald-800 px-3 py-1 rounded font-semibold">
-                    TICKET #{submittedTicket.id}
+                    TICKET #{submittedTicket.id} · SLA ACTIVE
                   </span>
                   <h2 className="font-wondra text-2xl text-black mt-3">
-                    CLAIM REGISTERED · SEND VIDEO NOW
+                    RETURN REGISTRATION COMPLETE
                   </h2>
                   <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
-                    Your damage claim for Order <strong>{submittedTicket.order_number}</strong> has been logged in our system.
+                    Your return parcel tracking for Order <strong>{submittedTicket.order_number}</strong> has been registered.
                   </p>
                 </div>
 
-                {/* Step 1 on screen: Send WhatsApp Video */}
+                {/* 7-Day Refund Notice Card (Requirement 6) */}
+                <div className="p-5 bg-emerald-50/70 border border-emerald-200 rounded-[4px] space-y-2 text-xs text-neutral-800">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider text-xs">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <span>Refund Processing Timeline (7-Day SLA)</span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-semibold text-emerald-950 leading-relaxed font-poppins">
+                    Your refund amount will credit to your account with in 7 days after product damage test finshed.
+                  </p>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    As soon as our warehouse team physically receives the package and verifies that the brand price tag is intact and matches the unboxing video, your refund will be processed directly to your original payment method.
+                  </p>
+                </div>
+
+                {/* Registered Tracking Details */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-4 bg-[#FAFAFA] space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-[#888888] tracking-wider block">
+                    Registered Return Consignment
+                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-black block">
+                        Courier: <strong>{courierName || submittedTicket.customer_courier_name}</strong>
+                      </span>
+                      <span className="text-xs font-mono text-[#3F3F8F] font-bold">
+                        Tracking #: {consignmentNo || submittedTicket.customer_consignment_no}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase bg-emerald-600 text-white px-2.5 py-1 rounded">
+                      In Transit
+                    </span>
+                  </div>
+                </div>
+
+                {/* Hub Destination Info */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-4 bg-white text-xs space-y-1 font-mono text-neutral-700">
+                  <span className="text-[10px] uppercase font-bold text-[#888888] tracking-wider block font-poppins mb-1">
+                    Shipped To Destination Hub
+                  </span>
+                  <p className="font-bold text-black font-poppins">
+                    {storeSettings?.return_address_config?.hub_name || 'TANOAH RETURNS HUB'}
+                  </p>
+                  <p>{storeSettings?.return_address_config?.recipient_name || 'Tanoah'}</p>
+                  <p>{storeSettings?.return_address_config?.address_line1 || 'Rappal, Pudukkad P O'}</p>
+                  <p>
+                    {storeSettings?.return_address_config?.city || 'Thrissur'}, {storeSettings?.return_address_config?.state || 'Kerala'} {storeSettings?.return_address_config?.postal_code || '680301'}
+                  </p>
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
+                  <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
+                    Read Full Refund Policy →
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                      Continue Shopping
+                    </Button>
+                    {user && (
+                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                        Back to My Account
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : currentStep === 4 ? (
+              /* CASE B: STEP 4 OF 4 - Video verified & approved by admin, awaiting customer shipment & tracking */
+              <>
+                <div className="text-center pb-6 border-b border-[#E7E7E7]">
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <span className="text-[11px] font-mono uppercase bg-emerald-100 text-emerald-900 px-3 py-1 rounded font-semibold">
+                    STEP 4 OF 4 · TICKET #{submittedTicket.id}
+                  </span>
+                  <h2 className="font-wondra text-2xl text-black mt-3">
+                    STEP 4 OF 4: CUSTOMER SELF-SHIPMENT & TRACKING
+                  </h2>
+                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
+                    Your 360° unboxing video has been verified and approved by admin. Please dispatch the parcel to our return address below. The return process is completed only after entering your tracking number.
+                  </p>
+                </div>
+
+                {/* Verification Success Alert */}
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded text-xs flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>Video Verified & Return Approved:</strong> You are authorized to ship the item back. Please keep the original brand price tag intact.
+                  </span>
+                </div>
+
+                {/* Return Shipping Address Card */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-[#FAFAFA]">
+                  <div className="flex items-center gap-2 text-black font-semibold text-xs uppercase tracking-wider">
+                    <Truck className="w-4 h-4 text-[#3F3F8F]" />
+                    <span>Customer Self-Shipment Return Address</span>
+                  </div>
+                  <p className="text-[11px] text-[#666666]">
+                    As per policy, Tanoah does not provide reverse pickup. Please dispatch the package to our warehouse address below:
+                  </p>
+                  <div className="p-3.5 bg-white border border-[#E7E7E7] rounded text-xs space-y-1 font-mono text-neutral-800">
+                    <p className="font-bold text-black font-poppins">
+                      {storeSettings?.return_address_config?.hub_name || 'TANOAH RETURNS HUB'}
+                    </p>
+                    <p>{storeSettings?.return_address_config?.recipient_name || 'Tanoah'}</p>
+                    <p>{storeSettings?.return_address_config?.address_line1 || 'Rappal, Pudukkad P O'}</p>
+                    <p>
+                      {storeSettings?.return_address_config?.city || 'Thrissur'}, {storeSettings?.return_address_config?.state || 'Kerala'} {storeSettings?.return_address_config?.postal_code || '680301'}
+                    </p>
+                    <p className="pt-1 text-[#3F3F8F] font-semibold">
+                      Contact: {storeSettings?.return_address_config?.contact_phone || '+91 8714141849'}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-red-600 font-medium">
+                    ⚠️ {storeSettings?.return_address_config?.instructions || 'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.'}
+                  </p>
+                </div>
+
+                {/* Enter Tracking Form (Requirement 2: 'Complete Return' button) */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-white">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-black text-xs uppercase tracking-wider">
+                      Already Shipped the Parcel? Enter Your Tracking
+                    </h4>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                      Final Action Required
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#666666]">
+                    Provide your return courier name and consignment number so our warehouse team can monitor its transit. The return process is officially completed only after submitting this tracking.
+                  </p>
+
+                  <form onSubmit={handleSaveCustomerConsignment} className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                    <div className="sm:col-span-5">
+                      <input
+                        required
+                        type="text"
+                        placeholder="Courier Name (e.g. India Post / DTDC)"
+                        value={courierName}
+                        onChange={(e) => setCourierName(e.target.value)}
+                        className="w-full h-[42px] px-3.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <input
+                        required
+                        type="text"
+                        placeholder="Consignment / Tracking Number"
+                        value={consignmentNo}
+                        onChange={(e) => setConsignmentNo(e.target.value)}
+                        className="w-full h-[42px] px-3.5 border border-[#E7E7E7] rounded font-mono focus:outline-none focus:border-[#3F3F8F]"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        type="submit"
+                        isLoading={isSavingConsignment}
+                        className="w-full h-[42px] text-xs font-semibold uppercase tracking-wider bg-[#3F3F8F] hover:bg-[#343476]"
+                      >
+                        Complete Return
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
+                  <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
+                    Read Full Refund Policy →
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                      Continue Shopping
+                    </Button>
+                    {user && (
+                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                        Back to My Account
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : currentStep === 3 ? (
+              /* CASE C: STEP 3 OF 4 - Video submitted, verification pending by admin */
+              <>
+                <div className="text-center pb-6 border-b border-[#E7E7E7]">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Clock className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase bg-blue-100 text-blue-900 px-3 py-1 rounded font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                    STEP 3 OF 4 · STATUS: VERIFICATION PENDING
+                  </span>
+                  <h2 className="font-wondra text-2xl text-black mt-3">
+                    STEP 3 OF 4: RETURN REQUEST IS UNDER PROCESS
+                  </h2>
+                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
+                    Your 360° unboxing video has been submitted for Order <strong>{submittedTicket.order_number}</strong>.
+                  </p>
+                </div>
+
+                {/* 24-Hour Review Notice (Requirement 1) */}
+                <div className="bg-amber-50 border border-amber-200 rounded-[4px] p-5 space-y-3 text-left">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold uppercase tracking-wider text-xs">
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Video Under Review · Check Back in 24 Hours</span>
+                  </div>
+                  <p className="text-xs text-amber-950 leading-relaxed font-medium">
+                    Your unboxing video has been submitted and is currently being verified by our inspection team on WhatsApp. Return request is under process — please check back in 24 hours.
+                  </p>
+                  <div className="p-3 bg-white/80 border border-amber-200 rounded text-[11px] text-neutral-700 leading-relaxed">
+                    <strong>Next Steps:</strong> Once our admin verifies and approves your unboxing video, your return authorization, Customer Self-Shipment Return Address, and courier tracking form will unlock here automatically.
+                  </div>
+                </div>
+
+                {/* Locked Next Steps Indicator */}
+                <div className="border border-dashed border-[#CCCCCC] rounded-[4px] p-5 space-y-2 bg-[#FBFBFB] text-neutral-500">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-600">
+                    <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>Step 4: Self-Shipment Return Address & Tracking (Locked)</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500">
+                    The return warehouse address and courier consignment input will be available once your unboxing video is approved by our team.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() => handleVerifyOrder(submittedTicket.order_number)}
+                    isLoading={isVerifying}
+                    className="flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-2 bg-[#3F3F8F] hover:bg-[#343476]"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>CHECK / REFRESH STATUS</span>
+                  </Button>
+
+                  <a
+                    href={generateWhatsAppUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold text-xs tracking-wider uppercase rounded-[4px] transition-all"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                    <span>CHAT ON WHATSAPP</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
+                  <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
+                    Read Full Refund Policy →
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                      Continue Shopping
+                    </Button>
+                    {user && (
+                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                        Back to My Account
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* CASE D: STEP 2 OF 4 - Awaiting unboxing video submission on WhatsApp */
+              <>
+                <div className="text-center pb-6 border-b border-[#E7E7E7]">
+                  <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <MessageCircle className="w-8 h-8" />
+                  </div>
+                  <span className="text-[11px] font-mono uppercase bg-amber-100 text-amber-900 px-3 py-1 rounded font-semibold">
+                    STEP 2 OF 4 · TICKET #{submittedTicket.id}
+                  </span>
+                  <h2 className="font-wondra text-2xl text-black mt-3">
+                    STEP 2 OF 4: SEND 360° UNBOXING VIDEO
+                  </h2>
+                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
+                    Your damage claim for Order <strong>{submittedTicket.order_number}</strong> is registered. Send your unboxing video to WhatsApp for verification.
+                  </p>
+                </div>
+
+                {/* WhatsApp Video Instruction Card */}
                 <div className="bg-[#25D366]/10 border border-[#25D366]/30 rounded-[4px] p-5 space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 bg-[#25D366] text-white rounded-full flex items-center justify-center shrink-0 mt-0.5">
@@ -350,10 +762,10 @@ export const ReturnsPage: React.FC = () => {
                     isLoading={isMarkingVideo}
                     className="w-full py-4 text-xs font-semibold tracking-wider uppercase bg-[#3F3F8F] hover:bg-[#343476]"
                   >
-                    <span>VIDEO SENT SUCCESSFULLY · PROCEED TO RETURN ADDRESS →</span>
+                    <span>VIDEO SENT SUCCESSFULLY · SUBMIT FOR REVIEW →</span>
                   </Button>
                   <p className="text-center text-[11px] text-[#666666] font-poppins">
-                    Tap &ldquo;Video Sent Successfully&rdquo; once you have dispatched your 360° unboxing video to WhatsApp.
+                    Tap &ldquo;Video Sent Successfully&rdquo; once you have dispatched your unboxing video to WhatsApp. Our team will review it within 24 hours.
                   </p>
                 </div>
 
@@ -373,133 +785,6 @@ export const ReturnsPage: React.FC = () => {
                   </div>
                 </div>
               </>
-            ) : (
-              <>
-                {/* STEP 3: RETURN ADDRESS & CONSIGNMENT TRACKING */}
-                <div className="text-center pb-6 border-b border-[#E7E7E7]">
-                  <div className="w-16 h-16 bg-[#EEEEF8] text-[#3F3F8F] rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Truck className="w-8 h-8" />
-                  </div>
-                  <span className="text-[11px] font-mono uppercase bg-indigo-100 text-indigo-900 px-3 py-1 rounded font-semibold">
-                    TICKET #{submittedTicket.id} · AWAITING DISPATCH
-                  </span>
-                  <h2 className="font-wondra text-2xl text-black mt-3">
-                    CUSTOMER SELF-SHIPMENT & TRACKING
-                  </h2>
-                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
-                    Your 360° unboxing video has been recorded for Order <strong>{submittedTicket.order_number}</strong>. Please dispatch the package to our returns address below and log your tracking number.
-                  </p>
-                </div>
-
-                {/* Step 2 on screen: Return Shipping Address */}
-                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-[#FAFAFA]">
-                  <div className="flex items-center gap-2 text-black font-semibold text-xs uppercase tracking-wider">
-                    <Truck className="w-4 h-4 text-[#3F3F8F]" />
-                    <span>Customer Self-Shipment Return Address</span>
-                  </div>
-                  <p className="text-[11px] text-[#666666]">
-                    As per policy, Tanoah does not provide reverse pickup. Once your video is approved on WhatsApp, please dispatch the parcel to our return address:
-                  </p>
-                  <div className="p-3.5 bg-white border border-[#E7E7E7] rounded text-xs space-y-1 font-mono text-neutral-800">
-                    <p className="font-bold text-black font-poppins">
-                      {storeSettings?.return_address_config?.hub_name || 'TANOAH RETURNS HUB'}
-                    </p>
-                    <p>
-                      {storeSettings?.return_address_config?.recipient_name || 'Tanoah'}
-                    </p>
-                    <p>
-                      {storeSettings?.return_address_config?.address_line1 || 'Rappal, Pudukkad P O'}
-                    </p>
-                    <p>
-                      {storeSettings?.return_address_config?.city || 'Thrissur'}, {storeSettings?.return_address_config?.state || 'Kerala'} {storeSettings?.return_address_config?.postal_code || '680301'}
-                    </p>
-                    <p className="pt-1 text-[#3F3F8F] font-semibold">
-                      Contact: {storeSettings?.return_address_config?.contact_phone || '+91 8714141849'}
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-red-600 font-medium">
-                    ⚠️ {storeSettings?.return_address_config?.instructions || 'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.'}
-                  </p>
-                </div>
-
-                {/* Step 3 on screen: Log Customer's Return Consignment */}
-                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-white">
-                  <h4 className="font-semibold text-black text-xs uppercase tracking-wider">
-                    Already Shipped the Parcel? Enter Your Tracking
-                  </h4>
-                  <p className="text-[11px] text-[#666666]">
-                    Provide your return courier name and consignment number so our warehouse team can monitor its transit.
-                  </p>
-
-                  {consignmentSaved ? (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>
-                          Return tracking registered: <strong>{courierName}</strong> - <strong>{consignmentNo}</strong>
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
-                        In Transit
-                      </span>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleSaveCustomerConsignment} className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
-                      <div className="sm:col-span-5">
-                        <input
-                          required
-                          type="text"
-                          placeholder="Courier Name (e.g. India Post / DTDC)"
-                          value={courierName}
-                          onChange={(e) => setCourierName(e.target.value)}
-                          className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
-                        />
-                      </div>
-                      <div className="sm:col-span-5">
-                        <input
-                          required
-                          type="text"
-                          placeholder="Consignment / Tracking Number"
-                          value={consignmentNo}
-                          onChange={(e) => setConsignmentNo(e.target.value)}
-                          className="w-full p-2.5 border border-[#E7E7E7] rounded font-mono focus:outline-none focus:border-[#3F3F8F]"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          type="submit"
-                          isLoading={isSavingConsignment}
-                          className="w-full h-full py-2.5 text-[11px]"
-                        >
-                          SAVE
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-
-                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
-                  <button
-                    type="button"
-                    onClick={() => setReturnStep('send_video')}
-                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
-                  >
-                    ← View WhatsApp Video Instructions
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
-                      Continue Shopping
-                    </Button>
-                    {user && (
-                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
-                        Back to My Account
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </>
             )}
           </div>
         ) : (
@@ -507,39 +792,38 @@ export const ReturnsPage: React.FC = () => {
             {/* STEP 1: ORDER LOOKUP CARD */}
             <div className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 shadow-sm space-y-4 text-left">
               <div className="flex items-center justify-between pb-3 border-b border-[#E7E7E7]">
-                <h3 className="font-wondra text-xl text-black">1. VERIFY ORDER ELIGIBILITY</h3>
-                <span className="text-[10px] uppercase font-semibold text-neutral-500">
+                <h3 className="font-wondra text-xl text-black">STEP 1 OF 4: VERIFY ORDER ELIGIBILITY</h3>
+                <span className="text-[10px] uppercase font-semibold text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded">
                   24-Hour Policy Check
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-7">
-                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                    Order Number (Guest or Account) *
-                  </label>
+              {/* Order input row with perfect alignment (Screenshot 2 fix) */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-black uppercase">
+                  Order Number (Guest or Account) *
+                </label>
+                <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
                   <input
                     type="text"
                     placeholder="e.g. TAN-849201 or 849201"
                     value={orderNumber}
                     onChange={(e) => setOrderNumber(e.target.value)}
-                    className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase"
+                    className="flex-1 px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase h-[42px]"
                   />
-                  <span className="text-[10px] text-[#888888] mt-1 block">
-                    Found in your order confirmation email, SMS, or delivery slip.
-                  </span>
-                </div>
-                <div className="sm:col-span-5 flex items-end">
                   <Button
                     variant="primary"
                     size="md"
                     onClick={() => handleVerifyOrder()}
                     isLoading={isVerifying}
-                    className="w-full py-2.5 text-xs font-semibold"
+                    className="sm:w-48 text-xs font-semibold h-[42px] shrink-0"
                   >
                     CHECK ORDER
                   </Button>
                 </div>
+                <span className="text-[10px] text-[#888888] block pt-0.5">
+                  Found in your order confirmation email, SMS, or delivery slip.
+                </span>
               </div>
 
               {verificationError && (
@@ -598,7 +882,7 @@ export const ReturnsPage: React.FC = () => {
             {verifiedOrder && !isWindowExpired && (
               <form onSubmit={handleSubmitClaim} className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 shadow-sm space-y-6 text-left">
                 <div className="pb-3 border-b border-[#E7E7E7]">
-                  <h3 className="font-wondra text-xl text-black">2. DAMAGE DETAILS & POLICY AGREEMENT</h3>
+                  <h3 className="font-wondra text-xl text-black">STEP 1 (CONTINUED): REPORT DAMAGE & CONFIRM POLICY</h3>
                   <p className="text-[11px] text-[#666666] mt-0.5">
                     Select the damaged garment and confirm policy compliance.
                   </p>
@@ -743,9 +1027,9 @@ export const ReturnsPage: React.FC = () => {
                   type="submit"
                   isLoading={isSubmitting}
                   icon={<Send className="w-4 h-4" />}
-                  className="w-full py-4 text-xs font-semibold tracking-wider uppercase"
+                  className="w-full py-4 text-xs font-semibold tracking-wider uppercase bg-[#3F3F8F] hover:bg-[#343476]"
                 >
-                  REGISTER CLAIM & CONNECT TO WHATSAPP
+                  REGISTER CLAIM · PROCEED TO STEP 2 (SEND VIDEO) →
                 </Button>
               </form>
             )}

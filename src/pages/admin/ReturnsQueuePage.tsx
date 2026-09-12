@@ -37,11 +37,22 @@ interface ReturnTicket {
   customer_description?: string;
   product_title: string;
   variant_info: string;
-  status: 'awaiting_video' | 'claim_approved' | 'in_transit' | 'item_received' | 'completed' | 'rejected' | 'requested' | 'approved';
+  status:
+    | 'awaiting_video'
+    | 'video_submitted'
+    | 'claim_approved'
+    | 'in_transit'
+    | 'item_received'
+    | 'completed'
+    | 'rejected'
+    | 'requested'
+    | 'approved';
   delivered_at?: string;
   hours_since_delivery?: number;
   tag_intact_confirmed?: boolean;
   unboxing_video_confirmed?: boolean;
+  video_submitted?: boolean;
+  video_submitted_at?: string;
   self_ship_confirmed?: boolean;
   customer_courier_name?: string;
   customer_consignment_no?: string;
@@ -130,8 +141,12 @@ export const ReturnsQueuePage: React.FC = () => {
     let matchesTab = true;
     if (activeTab === 'awaiting_video') {
       matchesTab = status === 'awaiting_video' || status === 'requested';
+    } else if (activeTab === 'video_submitted') {
+      matchesTab = status === 'video_submitted';
+    } else if (activeTab === 'claim_approved') {
+      matchesTab = status === 'claim_approved' || status === 'approved';
     } else if (activeTab === 'in_transit') {
-      matchesTab = status === 'claim_approved' || status === 'in_transit' || status === 'approved';
+      matchesTab = status === 'in_transit';
     } else if (activeTab === 'item_received') {
       matchesTab = status === 'item_received';
     } else if (activeTab === 'completed') {
@@ -154,11 +169,18 @@ export const ReturnsQueuePage: React.FC = () => {
       case 'awaiting_video':
       case 'requested':
         return <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Awaiting 360° Video</span>;
+      case 'video_submitted':
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-900 border border-blue-200 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+            Video Under Review
+          </span>
+        );
       case 'claim_approved':
       case 'approved':
         return <span className="bg-indigo-100 text-indigo-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Approved · Awaiting Dispatch</span>;
       case 'in_transit':
-        return <span className="bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">In Transit by Client</span>;
+        return <span className="bg-sky-100 text-sky-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">In Transit by Client</span>;
       case 'item_received':
         return <span className="bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Parcel Received · 7D Refund SLA</span>;
       case 'completed':
@@ -246,7 +268,9 @@ export const ReturnsQueuePage: React.FC = () => {
             {[
               { id: 'all', label: 'All Claims' },
               { id: 'awaiting_video', label: 'Awaiting Video' },
-              { id: 'in_transit', label: 'Approved / In Transit' },
+              { id: 'video_submitted', label: 'Video Under Review' },
+              { id: 'claim_approved', label: 'Awaiting Dispatch' },
+              { id: 'in_transit', label: 'In Transit' },
               { id: 'item_received', label: 'Received (Inspect Tag)' },
               { id: 'completed', label: 'Refunded' },
               { id: 'rejected', label: 'Rejected' },
@@ -384,8 +408,8 @@ export const ReturnsQueuePage: React.FC = () => {
 
                         {/* 6. Support Actions */}
                         <td className="p-4 text-right space-y-1.5">
-                          {/* Awaiting Video State */}
-                          {(t.status === 'awaiting_video' || t.status === 'requested') && (
+                          {/* Video Under Review / Awaiting Video */}
+                          {(t.status === 'video_submitted' || t.status === 'awaiting_video' || t.status === 'requested') && (
                             <div className="flex flex-col items-end gap-1.5">
                               {whatsAppChatUrl && (
                                 <a
@@ -395,7 +419,7 @@ export const ReturnsQueuePage: React.FC = () => {
                                   className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded text-[10px] font-semibold tracking-wider uppercase shadow-xs"
                                 >
                                   <MessageCircle className="w-3 h-3 fill-current" />
-                                  <span>REVIEW VIDEO</span>
+                                  <span>REVIEW ON WHATSAPP</span>
                                 </a>
                               )}
                               <div className="flex gap-1">
@@ -403,9 +427,9 @@ export const ReturnsQueuePage: React.FC = () => {
                                   variant="primary"
                                   size="sm"
                                   onClick={() => handleUpdateStatus(t.id, 'claim_approved')}
-                                  className="text-[10px] py-1 px-2 bg-emerald-700 hover:bg-emerald-800"
+                                  className="text-[10px] py-1 px-2.5 bg-emerald-700 hover:bg-emerald-800 font-semibold"
                                 >
-                                  APPROVE CLAIM
+                                  VERIFY & APPROVE VIDEO
                                 </Button>
                                 <Button
                                   variant="secondary"
@@ -419,13 +443,22 @@ export const ReturnsQueuePage: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Claim Approved / In Transit */}
-                          {(t.status === 'claim_approved' || t.status === 'in_transit' || t.status === 'approved') && (
+                          {/* Claim Approved / Awaiting Client Dispatch */}
+                          {(t.status === 'claim_approved' || t.status === 'approved') && (
+                            <div className="text-right">
+                              <span className="text-[10px] text-neutral-500 italic block">
+                                Awaiting customer parcel dispatch & tracking
+                              </span>
+                            </div>
+                          )}
+
+                          {/* In Transit - Customer Entered Courier Tracking */}
+                          {t.status === 'in_transit' && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setTagInspectionModal(t)}
-                              className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8]"
+                              className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8] font-medium"
                             >
                               VERIFY TAG & RECEIVE
                             </Button>
