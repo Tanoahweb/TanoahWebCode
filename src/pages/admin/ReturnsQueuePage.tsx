@@ -17,6 +17,7 @@ import {
   Tag,
   AlertTriangle,
   MapPin,
+  Edit2,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -66,6 +67,12 @@ export const ReturnsQueuePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [tagInspectionModal, setTagInspectionModal] = useState<ReturnTicket | null>(null);
 
+  // Manual Tracking Management
+  const [trackingModalTicket, setTrackingModalTicket] = useState<ReturnTicket | null>(null);
+  const [courierInput, setCourierInput] = useState('India Post');
+  const [consignmentInput, setConsignmentInput] = useState('');
+  const [isSavingTracking, setIsSavingTracking] = useState(false);
+
   // Return Address Management
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -94,6 +101,18 @@ export const ReturnsQueuePage: React.FC = () => {
         setReturnAddress(s.return_address_config);
       }
     });
+
+    const handleUpdate = () => {
+      loadTickets();
+    };
+
+    window.addEventListener('tanoah_returns_updated', handleUpdate);
+    const interval = setInterval(loadTickets, 10000);
+
+    return () => {
+      window.removeEventListener('tanoah_returns_updated', handleUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleSaveReturnAddress = async (e: React.FormEvent) => {
@@ -134,6 +153,55 @@ export const ReturnsQueuePage: React.FC = () => {
       title: 'Status Updated',
       description: `Claim ticket status updated to ${newStatus.replace('_', ' ').toUpperCase()}.`,
     });
+  };
+
+  const openTrackingModal = (ticket: ReturnTicket) => {
+    setTrackingModalTicket(ticket);
+    setCourierInput(ticket.customer_courier_name || 'India Post');
+    setConsignmentInput(ticket.customer_consignment_no || '');
+  };
+
+  const handleSaveCustomerShipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trackingModalTicket || !consignmentInput.trim()) return;
+    setIsSavingTracking(true);
+    try {
+      const success = await api.updateReturnCustomerShipment(
+        trackingModalTicket.id,
+        courierInput.trim() || 'India Post',
+        consignmentInput.trim()
+      );
+      if (success) {
+        addToast({
+          type: 'success',
+          title: 'Shipment Tracking Saved',
+          description: `Tracking recorded. Order ${trackingModalTicket.order_number} marked as In Transit.`,
+        });
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === trackingModalTicket.id
+              ? {
+                  ...t,
+                  customer_courier_name: courierInput.trim() || 'India Post',
+                  customer_consignment_no: consignmentInput.trim(),
+                  status: 'in_transit',
+                }
+              : t
+          )
+        );
+        setTrackingModalTicket(null);
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Failed to Save Tracking',
+        description: err.message || 'Could not save tracking.',
+      });
+    } finally {
+      setIsSavingTracking(false);
+    }
   };
 
   const filteredTickets = tickets.filter((t) => {
@@ -386,18 +454,38 @@ export const ReturnsQueuePage: React.FC = () => {
                         {/* 4. Customer Self-Shipment */}
                         <td className="p-4">
                           {t.customer_consignment_no ? (
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded block w-fit">
-                                {t.customer_courier_name || 'Courier'}
-                              </span>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded block w-fit">
+                                  {t.customer_courier_name || 'Courier'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openTrackingModal(t)}
+                                  className="text-[10px] text-neutral-400 hover:text-[#3F3F8F] inline-flex items-center gap-0.5 underline cursor-pointer"
+                                  title="Edit tracking consignment"
+                                >
+                                  <Edit2 className="w-2.5 h-2.5" />
+                                  <span>Edit</span>
+                                </button>
+                              </div>
                               <div className="font-mono text-xs font-semibold text-black">
                                 {t.customer_consignment_no}
                               </div>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-neutral-400 italic">
-                              Awaiting dispatch details
-                            </span>
+                            <div className="space-y-1">
+                              <span className="text-[11px] text-neutral-400 italic block">
+                                Awaiting dispatch details
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openTrackingModal(t)}
+                                className="text-[10px] font-semibold text-[#3F3F8F] hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>+ Add Tracking</span>
+                              </button>
+                            </div>
                           )}
                         </td>
 
@@ -445,23 +533,53 @@ export const ReturnsQueuePage: React.FC = () => {
 
                           {/* Claim Approved / Awaiting Client Dispatch */}
                           {(t.status === 'claim_approved' || t.status === 'approved') && (
-                            <div className="text-right">
-                              <span className="text-[10px] text-neutral-500 italic block">
-                                Awaiting customer parcel dispatch & tracking
-                              </span>
+                            <div className="flex flex-col items-end gap-1.5">
+                              {!t.customer_consignment_no && (
+                                <span className="text-[10px] text-neutral-500 italic block">
+                                  Awaiting customer parcel dispatch
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setTagInspectionModal(t)}
+                                  className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8] font-medium"
+                                >
+                                  VERIFY TAG & RECEIVE
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleUpdateStatus(t.id, 'completed')}
+                                  className="text-[10px] py-1 px-2.5 bg-emerald-700 hover:bg-emerald-800 font-semibold text-white"
+                                >
+                                  PROCESS REFUND
+                                </Button>
+                              </div>
                             </div>
                           )}
 
                           {/* In Transit - Customer Entered Courier Tracking */}
                           {t.status === 'in_transit' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setTagInspectionModal(t)}
-                              className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8] font-medium"
-                            >
-                              VERIFY TAG & RECEIVE
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setTagInspectionModal(t)}
+                                className="text-[10px] py-1 px-2.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8] font-medium"
+                              >
+                                VERIFY TAG & RECEIVE
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleUpdateStatus(t.id, 'completed')}
+                                className="text-[10px] py-1 px-2.5 bg-emerald-700 hover:bg-emerald-800 font-semibold text-white"
+                              >
+                                PROCESS REFUND
+                              </Button>
+                            </div>
                           )}
 
                           {/* Item Received (7-Day SLA active) */}
@@ -508,7 +626,14 @@ export const ReturnsQueuePage: React.FC = () => {
         {/* Tag Inspection Verification Modal */}
         {tagInspectionModal && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white max-w-md w-full rounded-[4px] p-6 shadow-2xl space-y-4 text-left">
+            <div className="bg-white max-w-lg w-full rounded-[4px] p-6 shadow-2xl space-y-4 text-left relative">
+              <button
+                type="button"
+                onClick={() => setTagInspectionModal(null)}
+                className="absolute top-4 right-4 text-neutral-400 hover:text-black text-sm font-bold"
+              >
+                ✕
+              </button>
               <div className="flex items-center gap-2 text-black font-semibold text-sm uppercase">
                 <Tag className="w-4 h-4 text-[#3F3F8F]" />
                 <span>Physical Warehouse Tag Inspection</span>
@@ -524,7 +649,7 @@ export const ReturnsQueuePage: React.FC = () => {
                 <p>• Does the defect match the 360° unboxing video provided?</p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#E7E7E7]">
                 <Button
                   variant="outline"
                   size="sm"
@@ -532,25 +657,108 @@ export const ReturnsQueuePage: React.FC = () => {
                     handleUpdateStatus(tagInspectionModal.id, 'rejected');
                     setTagInspectionModal(null);
                   }}
-                  className="text-red-600 hover:text-red-700 text-xs"
+                  className="text-red-600 hover:text-red-700 text-xs border-red-200 hover:bg-red-50"
                 >
-                  TAG MISSING · REJECT REFUND
+                  TAG MISSING · REJECT
                 </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    handleUpdateStatus(tagInspectionModal.id, 'item_received');
-                    setTagInspectionModal(null);
-                  }}
-                  className="text-xs bg-emerald-700 hover:bg-emerald-800"
-                >
-                  TAG VERIFIED INTACT · ACCEPT
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      handleUpdateStatus(tagInspectionModal.id, 'item_received');
+                      setTagInspectionModal(null);
+                    }}
+                    className="text-xs border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8]"
+                  >
+                    TAG INTACT · MARK RECEIVED
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      handleUpdateStatus(tagInspectionModal.id, 'completed');
+                      setTagInspectionModal(null);
+                    }}
+                    className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
+                  >
+                    TAG INTACT · COMPLETE REFUND NOW
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Enter / Edit Customer Shipment Tracking Modal */}
+        <Modal
+          isOpen={Boolean(trackingModalTicket)}
+          onClose={() => setTrackingModalTicket(null)}
+          title={`Customer Return Tracking · Order ${trackingModalTicket?.order_number || ''}`}
+          maxWidth="md"
+        >
+          <form onSubmit={handleSaveCustomerShipment} className="space-y-4 text-left font-poppins text-xs">
+            <p className="text-[#666666] leading-relaxed">
+              Enter or update the customer's self-shipment courier tracking details. Saving will record the consignment and automatically mark this claim as <strong>In Transit</strong>.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Courier Service / Carrier *
+                </label>
+                <select
+                  value={courierInput}
+                  onChange={(e) => setCourierInput(e.target.value)}
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F] bg-white text-xs"
+                >
+                  <option value="India Post">India Post (Speed Post / Regd. Parcel)</option>
+                  <option value="DTDC Express">DTDC Express</option>
+                  <option value="Blue Dart">Blue Dart</option>
+                  <option value="Delhivery">Delhivery</option>
+                  <option value="Professional Couriers">The Professional Couriers</option>
+                  <option value="Trackon">Trackon</option>
+                  <option value="Other">Other Courier Service</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Tracking / Consignment Number *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={consignmentInput}
+                  onChange={(e) => setConsignmentInput(e.target.value)}
+                  placeholder="e.g. ED123456789IN or DTDC123456"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E7E7E7]">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => setTrackingModalTicket(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={isSavingTracking || !consignmentInput.trim()}
+                className="text-xs bg-[#3F3F8F] hover:bg-[#333377] text-white"
+              >
+                {isSavingTracking ? 'Saving...' : 'Save & Mark In Transit'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
 
         {/* Edit Customer Self-Shipment Return Address Modal */}
         <Modal

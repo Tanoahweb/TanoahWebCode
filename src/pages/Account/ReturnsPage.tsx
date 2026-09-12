@@ -493,29 +493,50 @@ export const ReturnsPage: React.FC = () => {
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
                   <span className="text-[11px] font-mono uppercase bg-emerald-100 text-emerald-800 px-3 py-1 rounded font-semibold">
-                    TICKET #{submittedTicket.id} · SLA ACTIVE
+                    {submittedTicket.status === 'completed'
+                      ? `TICKET #${submittedTicket.id} · REFUND COMPLETED`
+                      : `TICKET #${submittedTicket.id} · SLA ACTIVE`}
                   </span>
                   <h2 className="font-wondra text-2xl text-black mt-3">
-                    RETURN REGISTRATION COMPLETE
+                    {submittedTicket.status === 'completed'
+                      ? 'REFUND PROCESSED SUCCESSFULLY'
+                      : 'RETURN REGISTRATION COMPLETE'}
                   </h2>
                   <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
-                    Your return parcel tracking for Order <strong>{submittedTicket.order_number}</strong> has been registered.
+                    {submittedTicket.status === 'completed'
+                      ? `Your return for Order ${submittedTicket.order_number} has been inspected and approved. The refund has been successfully initiated.`
+                      : `Your return parcel tracking for Order ${submittedTicket.order_number} has been registered.`}
                   </p>
                 </div>
 
-                {/* 7-Day Refund Notice Card (Requirement 6) */}
-                <div className="p-5 bg-emerald-50/70 border border-emerald-200 rounded-[4px] space-y-2 text-xs text-neutral-800">
-                  <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider text-xs">
-                    <Clock className="w-4 h-4 text-emerald-600" />
-                    <span>Refund Processing Timeline (7-Day SLA)</span>
+                {/* Refund Status Notice Card */}
+                {submittedTicket.status === 'completed' ? (
+                  <div className="p-5 bg-emerald-50 border border-emerald-300 rounded-[4px] space-y-2 text-xs text-neutral-800">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold uppercase tracking-wider text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Refund Initiated & Claim Settled</span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-emerald-950 leading-relaxed font-poppins">
+                      The inspection test has finished and your refund has been processed.
+                    </p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Your refund has been disbursed to your original payment method. Depending on your bank's clearance cycle, funds will credit to your account within 2-4 business days.
+                    </p>
                   </div>
-                  <p className="text-xs sm:text-sm font-semibold text-emerald-950 leading-relaxed font-poppins">
-                    Your refund amount will credit to your account with in 7 days after product damage test finshed.
-                  </p>
-                  <p className="text-[11px] text-emerald-800 leading-relaxed">
-                    As soon as our warehouse team physically receives the package and verifies that the brand price tag is intact and matches the unboxing video, your refund will be processed directly to your original payment method.
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-5 bg-emerald-50/70 border border-emerald-200 rounded-[4px] space-y-2 text-xs text-neutral-800">
+                    <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider text-xs">
+                      <Clock className="w-4 h-4 text-emerald-600" />
+                      <span>Refund Processing Timeline (7-Day SLA)</span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-emerald-950 leading-relaxed font-poppins">
+                      Your refund amount will credit to your account with in 7 days after product damage test finshed.
+                    </p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      As soon as our warehouse team physically receives the package and verifies that the brand price tag is intact and matches the unboxing video, your refund will be processed directly to your original payment method.
+                    </p>
+                  </div>
+                )}
 
                 {/* Registered Tracking Details */}
                 <div className="border border-[#E7E7E7] rounded-[4px] p-4 bg-[#FAFAFA] space-y-2">

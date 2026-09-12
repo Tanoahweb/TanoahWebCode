@@ -2707,6 +2707,15 @@ export const api = {
           }
         }
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tanoah_returns_updated', {
+            detail: { ticketId, status: 'in_transit', customer_consignment_no: consignmentNo },
+          })
+        );
+      }
+
       return true;
     } catch {
       return false;
@@ -3134,6 +3143,24 @@ export const api = {
               .from('returns')
               .update({ status, updated_at: new Date().toISOString() })
               .eq('order_id', order.id);
+          }
+        }
+      }
+
+      // When return is completed / refunded, sync order payment_status to 'refunded'
+      if (status === 'completed') {
+        const ticket = tickets.find((t) => t.id === ticketId);
+        const orderNum = ticket?.order_number;
+        if (orderNum) {
+          let order = await this.getOrderByNumber(orderNum);
+          if (!order && !orderNum.startsWith('TAN-') && /^\d+$/.test(orderNum)) {
+            order = await this.getOrderByNumber(`TAN-${orderNum}`);
+          }
+          if (order?.id) {
+            await supabase
+              .from('orders')
+              .update({ payment_status: 'refunded', updated_at: new Date().toISOString() })
+              .eq('id', order.id);
           }
         }
       }
