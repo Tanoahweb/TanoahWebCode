@@ -211,7 +211,7 @@ export const Footer: React.FC = () => {
       {/* Bottom Sub-footer */}
       <div className="border-t border-white/10 py-6 px-4 sm:px-6 lg:px-8 text-center md:flex md:justify-between md:items-center max-w-7xl mx-auto text-[11px] text-white/60 font-poppins">
         <div>
-          © {new Date().getFullYear()} TANOAH MAISON INC. ALL RIGHTS RESERVED.
+          © {new Date().getFullYear()} TANOAH. ALL RIGHTS RESERVED.
         </div>
         <div className="mt-4 md:mt-0 flex flex-wrap items-center justify-center gap-6">
           {bottomLinks.map((link) => {

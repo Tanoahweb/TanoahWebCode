@@ -36,8 +36,8 @@ import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { SEOHead } from '../components/common/SEOHead';
 import { getProductMeta, generateProductJsonLd, generateBreadcrumbJsonLd } from '../services/seoEngine';
-import { api, ProductReview } from '../services/api';
-import { Product, ProductVariant } from '../types';
+import { api, ProductReview, DEFAULT_SIZE_CHARTS } from '../services/api';
+import { Product, ProductVariant, SizeChart } from '../types';
 import { ProductImage } from '../components/common/ProductImage';
 import { getTransformedImageUrl } from '../utils/imageUtils';
 
@@ -105,6 +105,58 @@ export const ProductDetailPage: React.FC = () => {
   const [pincodeLocation, setPincodeLocation] = useState<string>('');
   const [pincodeErrorMessage, setPincodeErrorMessage] = useState<string>('');
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+  const [activeSizeChart, setActiveSizeChart] = useState<SizeChart | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!product) {
+      setActiveSizeChart(null);
+      return;
+    }
+
+    const chartId = product.size_chart_id || (product.structured_attributes as any)?.size_chart_id;
+
+    if (chartId === 'none') {
+      setActiveSizeChart(null);
+      return;
+    }
+
+    const loadChart = async () => {
+      try {
+        const charts = await api.getSizeCharts();
+        if (!isMounted) return;
+
+        if (chartId) {
+          const specific = charts.find((c) => c.id === chartId);
+          if (specific) {
+            setActiveSizeChart(specific);
+            return;
+          }
+        }
+
+        const fallback = charts.find((c) => c.is_default) || charts[0] || DEFAULT_SIZE_CHARTS[0];
+        setActiveSizeChart(fallback);
+      } catch (err) {
+        if (isMounted) {
+          setActiveSizeChart(DEFAULT_SIZE_CHARTS[0] || null);
+        }
+      }
+    };
+
+    loadChart();
+
+    const handleChartUpdate = () => {
+      loadChart();
+    };
+    window.addEventListener('tanoah_size_charts_updated', handleChartUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('tanoah_size_charts_updated', handleChartUpdate);
+    };
+  }, [product?.id, product?.size_chart_id, (product?.structured_attributes as any)?.size_chart_id]);
+
+  const hasSizeChart = Boolean(activeSizeChart && activeSizeChart.columns && activeSizeChart.columns.length > 0);
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
   const [addedAnimation, setAddedAnimation] = useState(false);
 
@@ -1038,12 +1090,14 @@ export const ProductDetailPage: React.FC = () => {
                   <label className="text-xs font-semibold text-black uppercase tracking-wider">
                     SIZE: <span className="font-normal text-[#666666]">{activeSizeName}</span>
                   </label>
-                  <button
-                    onClick={() => setIsSizeGuideOpen(true)}
-                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
-                  >
-                    Size & Fit Guide
-                  </button>
+                  {hasSizeChart && (
+                    <button
+                      onClick={() => setIsSizeGuideOpen(true)}
+                      className="text-xs text-[#3F3F8F] hover:underline font-medium"
+                    >
+                      Size & Fit Guide
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-4 gap-2">
@@ -1073,15 +1127,19 @@ export const ProductDetailPage: React.FC = () => {
                 )}
 
                 <p className="text-[10px] text-[#666666] pt-1">
-                  ⓘ No size or colour exchanges. Please consult our{' '}
-                  <button
-                    type="button"
-                    onClick={() => setIsSizeGuideOpen(true)}
-                    className="text-[#3F3F8F] underline font-medium"
-                  >
-                    Size & Fit Guide
-                  </button>{' '}
-                  prior to placing your order.
+                  ⓘ No size or colour exchanges.{hasSizeChart ? (
+                    <>
+                      {' '}Please consult our{' '}
+                      <button
+                        type="button"
+                        onClick={() => setIsSizeGuideOpen(true)}
+                        className="text-[#3F3F8F] underline font-medium"
+                      >
+                        Size & Fit Guide
+                      </button>{' '}
+                      prior to placing your order.
+                    </>
+                  ) : null}
                 </p>
               </div>
             ) : isSingleStandardSize ? (
@@ -1105,12 +1163,14 @@ export const ProductDetailPage: React.FC = () => {
                   <label className="text-xs font-semibold text-black uppercase tracking-wider">
                     SIZE: <span className="font-normal text-[#666666]">{sizes[0]?.size}</span>
                   </label>
-                  <button
-                    onClick={() => setIsSizeGuideOpen(true)}
-                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
-                  >
-                    Size & Fit Guide
-                  </button>
+                  {hasSizeChart && (
+                    <button
+                      onClick={() => setIsSizeGuideOpen(true)}
+                      className="text-xs text-[#3F3F8F] hover:underline font-medium"
+                    >
+                      Size & Fit Guide
+                    </button>
+                  )}
                 </div>
                 <div className="inline-flex">
                   <span className="px-4 py-2 text-xs font-semibold uppercase rounded-[4px] border border-[#3F3F8F] bg-[#3F3F8F] text-white">
@@ -1700,30 +1760,40 @@ export const ProductDetailPage: React.FC = () => {
 
       {/* Size Guide Modal */}
       <Modal
-        isOpen={isSizeGuideOpen}
+        isOpen={isSizeGuideOpen && Boolean(activeSizeChart)}
         onClose={() => setIsSizeGuideOpen(false)}
-        title="TANOAH SIZE GUIDE"
+        title={activeSizeChart?.name ? `TANOAH SIZE GUIDE · ${activeSizeChart.name.toUpperCase()}` : 'TANOAH SIZE GUIDE'}
         maxWidth="lg"
       >
         <div className="space-y-4 text-xs font-poppins">
           <p className="text-[#666666]">
-            All measurements are tailored in inches. If you are between sizes, we recommend sizing up for a relaxed luxury drape.
+            {activeSizeChart?.description ||
+              'All measurements are tailored in inches. If you are between sizes, we recommend sizing up for a relaxed luxury drape.'}
           </p>
           <div className="overflow-x-auto border border-[#E7E7E7] rounded-[4px]">
             <table className="w-full text-left">
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[11px] font-semibold uppercase">
                 <tr>
-                  <th className="p-3">Size</th>
-                  <th className="p-3">Chest (in)</th>
-                  <th className="p-3">Shoulder (in)</th>
-                  <th className="p-3">Length (in)</th>
+                  {activeSizeChart?.columns?.map((col, idx) => (
+                    <th key={idx} className="p-3">
+                      {col}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
-                <tr><td className="p-3 font-semibold">S</td><td className="p-3">38 - 40</td><td className="p-3">18.5</td><td className="p-3">28.0</td></tr>
-                <tr><td className="p-3 font-semibold">M</td><td className="p-3">41 - 43</td><td className="p-3">19.5</td><td className="p-3">29.0</td></tr>
-                <tr><td className="p-3 font-semibold">L</td><td className="p-3">44 - 46</td><td className="p-3">20.5</td><td className="p-3">30.0</td></tr>
-                <tr><td className="p-3 font-semibold">XL</td><td className="p-3">47 - 49</td><td className="p-3">21.5</td><td className="p-3">31.0</td></tr>
+                {activeSizeChart?.rows?.map((row, rIdx) => (
+                  <tr key={rIdx}>
+                    {row.map((val, cIdx) => (
+                      <td
+                        key={cIdx}
+                        className={`p-3 ${cIdx === 0 ? 'font-semibold' : ''}`}
+                      >
+                        {val}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

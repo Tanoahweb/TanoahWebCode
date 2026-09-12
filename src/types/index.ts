@@ -39,6 +39,17 @@ export interface ProductDetailSection {
   content: string; // Content / specifications points
 }
 
+export interface SizeChart {
+  id: string;
+  name: string;
+  description?: string;
+  columns: string[]; // e.g. ["Size", "Chest (in)", "Shoulder (in)", "Length (in)"]
+  rows: string[][];  // e.g. [ ["S", "38 - 40", "18.5", "28.0"], ... ]
+  is_default?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ProductVariant {
   id: string;
   product_id: string;
@@ -94,6 +105,7 @@ export interface Product {
   images: ProductImage[];
   variants: ProductVariant[];
   custom_sections?: ProductDetailSection[];
+  size_chart_id?: string;
   similar_product_ids?: string[];
   similar_category_ids?: string[];
   created_at?: string;

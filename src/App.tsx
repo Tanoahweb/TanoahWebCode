@@ -62,6 +62,7 @@ import { BlogAdminPage } from './pages/admin/BlogAdminPage';
 import { BlogListPage } from './pages/Blog/BlogListPage';
 import { BlogPostPage } from './pages/Blog/BlogPostPage';
 import { FormSubmissionsPage } from './pages/admin/FormSubmissionsPage';
+import { SizeChartsPage } from './pages/admin/SizeChartsPage';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -133,6 +134,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin/products/new" element={<ProductEditPage />} />
           <Route path="/admin/products/:id" element={<ProductEditPage />} />
           <Route path="/admin/inventory" element={<InventoryPage />} />
+          <Route path="/admin/size-charts" element={<SizeChartsPage />} />
           <Route path="/admin/orders" element={<OrderListPage />} />
           <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
           <Route path="/admin/returns" element={<ReturnsQueuePage />} />

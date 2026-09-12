@@ -22,6 +22,7 @@ import {
   Package,
   Sparkles,
   Copy,
+  Ruler,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -30,7 +31,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { SAMPLE_CATEGORIES } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
-import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category } from '../../types';
+import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category, SizeChart } from '../../types';
 import { MediaUploader } from '../../components/admin/MediaUploader';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 import { ProductSeoSection } from '../../components/admin/ProductSeoSection';
@@ -224,6 +225,10 @@ export const ProductEditPage: React.FC = () => {
   const [isSimilarProductDropdownOpen, setIsSimilarProductDropdownOpen] = useState<boolean>(false);
   const similarPickerRef = useRef<HTMLDivElement>(null);
 
+  // Size Charts State
+  const [availableSizeCharts, setAvailableSizeCharts] = useState<SizeChart[]>([]);
+  const [selectedSizeChartId, setSelectedSizeChartId] = useState<string>('');
+
   // Options System (Matches user's screenshots 1 & 2)
   const [options, setOptions] = useState<ProductOption[]>([
     {
@@ -411,6 +416,13 @@ export const ProductEditPage: React.FC = () => {
       }
     });
 
+    // Load available size charts
+    api.getSizeCharts().then((sc) => {
+      if (isMounted && sc) {
+        setAvailableSizeCharts(sc);
+      }
+    });
+
     if (isEditing && id) {
       setIsLoading(true);
       api.getProductById(id).then(async (match) => {
@@ -418,6 +430,7 @@ export const ProductEditPage: React.FC = () => {
         setIsLoading(false);
         if (match) {
           try {
+            setSelectedSizeChartId(match.size_chart_id || (match.structured_attributes as any)?.size_chart_id || '');
             setTitle(match.title || '');
             setSlug(match.slug || '');
             setBrand(match.brand || 'TANOAH');
@@ -1154,7 +1167,11 @@ export const ProductEditPage: React.FC = () => {
       social_image_url: socialImageUrl.trim() || undefined,
       canonical_url_override: canonicalUrlOverride.trim() || undefined,
       is_noindex: isNoindex,
-      structured_attributes: structuredAttributes,
+      structured_attributes: {
+        ...structuredAttributes,
+        size_chart_id: selectedSizeChartId || '',
+      },
+      size_chart_id: selectedSizeChartId || undefined,
       similar_product_ids: similarProductIds,
       similar_category_ids: similarCategoryIds,
       created_at: new Date().toISOString(),
@@ -2514,6 +2531,90 @@ export const ProductEditPage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Size Chart & Fit Guide Card */}
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
+                <div>
+                  <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <Ruler className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                    <span>SIZE CHART & FIT GUIDE</span>
+                  </h3>
+                  <p className="text-[10px] text-[#666666] mt-0.5">
+                    Select which size guide table appears for this product.
+                  </p>
+                </div>
+                <Link
+                  to="/admin/size-charts"
+                  target="_blank"
+                  className="text-[10px] text-[#3F3F8F] hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>Manage</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
+                  Assigned Size Chart
+                </label>
+                <select
+                  value={selectedSizeChartId}
+                  onChange={(e) => setSelectedSizeChartId(e.target.value)}
+                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer"
+                >
+                  <option value="">Default Size Chart (Automatic fallback)</option>
+                  {availableSizeCharts.map((sc) => (
+                    <option key={sc.id} value={sc.id}>
+                      {sc.name} {sc.is_default ? '(Default)' : ''}
+                    </option>
+                  ))}
+                  <option value="none">None (Hide Size & Fit button)</option>
+                </select>
+              </div>
+
+              {/* Quick Info / Preview of chosen size chart */}
+              {(() => {
+                if (selectedSizeChartId === 'none') {
+                  return (
+                    <div className="p-2.5 bg-[#FFF8F0] border border-[#FFE8D6] rounded-[3px] text-[11px] text-[#A05A00]">
+                      The "Size & Fit Guide" button will be hidden for this product.
+                    </div>
+                  );
+                }
+
+                const activeChart = selectedSizeChartId
+                  ? availableSizeCharts.find((c) => c.id === selectedSizeChartId)
+                  : availableSizeCharts.find((c) => c.is_default) || availableSizeCharts[0];
+
+                if (activeChart) {
+                  return (
+                    <div className="p-3 bg-[#F9F9FB] border border-[#E7E7E7] rounded-[3px] space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-black uppercase truncate pr-2">
+                          Active: {activeChart.name}
+                        </span>
+                        <span className="text-[10px] text-[#888888] whitespace-nowrap">
+                          {activeChart.rows.length} Sizes · {activeChart.columns.length} Cols
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {activeChart.columns.map((col, idx) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 bg-white border border-[#E0E0E0] rounded text-[10px] text-neutral-600 uppercase font-medium"
+                          >
+                            {col}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
             </div>
 
             {/* Similar Products & Categories Card */}

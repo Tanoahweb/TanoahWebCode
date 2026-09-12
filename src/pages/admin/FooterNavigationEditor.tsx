@@ -517,7 +517,7 @@ export const FooterNavigationEditor: React.FC<FooterNavigationEditorProps> = ({
 
           {/* Bottom Row Preview */}
           <div className="border-t border-white/10 mt-8 pt-4 flex flex-col sm:flex-row justify-between items-center text-[10px] text-white/60 gap-3">
-            <div>© {new Date().getFullYear()} TANOAH MAISON INC. ALL RIGHTS RESERVED.</div>
+            <div>© {new Date().getFullYear()} TANOAH. ALL RIGHTS RESERVED.</div>
             <div className="flex flex-wrap items-center gap-4">
               {activePreviewBottomLinks.map((l) => (
                 <span key={l.id} className="hover:text-white uppercase flex items-center gap-1">

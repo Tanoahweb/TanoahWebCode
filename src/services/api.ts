@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, ProductDetailSection, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
+import { Product, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
 import { BlogArticle, SEORedirect, SEO404Log, SEOAuditSummary, SEOAuditIssue } from '@/types/seo';
 import { recordRedirectIfSlugChanged } from './seoEngine';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
@@ -47,6 +47,49 @@ export interface PaginatedProductsResult {
   currentPage: number;
   limit: number;
 }
+
+export const DEFAULT_SIZE_CHARTS: SizeChart[] = [
+  {
+    id: 'sc_standard_tops',
+    name: 'Standard Tops, Shirts & Kurtas',
+    description: 'All measurements are tailored in inches. If you are between sizes, we recommend sizing up for a relaxed luxury drape.',
+    columns: ['Size', 'Chest (in)', 'Shoulder (in)', 'Length (in)'],
+    rows: [
+      ['S', '38 - 40', '18.5', '28.0'],
+      ['M', '41 - 43', '19.5', '29.0'],
+      ['L', '44 - 46', '20.5', '30.0'],
+      ['XL', '47 - 49', '21.5', '31.0'],
+    ],
+    is_default: true,
+  },
+  {
+    id: 'sc_trousers_bottoms',
+    name: 'Trousers, Pants & Chinos',
+    description: 'All measurements are tailored in inches. Measure around your natural waistline where you normally wear your trousers.',
+    columns: ['Size', 'Waist (in)', 'Hip (in)', 'Length (in)'],
+    rows: [
+      ['30', '30 - 31', '38.0', '40.0'],
+      ['32', '32 - 33', '40.0', '41.0'],
+      ['34', '34 - 35', '42.0', '42.0'],
+      ['36', '36 - 37', '44.0', '42.5'],
+    ],
+    is_default: false,
+  },
+  {
+    id: 'sc_dresses_coords',
+    name: 'Dresses, Gowns & Co-ords',
+    description: 'All measurements are tailored in inches. For fitted silhouettes, prioritize your bust and waist measurements.',
+    columns: ['Size', 'Bust (in)', 'Waist (in)', 'Hip (in)', 'Length (in)'],
+    rows: [
+      ['XS', '32 - 34', '26 - 27', '36.0', '46.0'],
+      ['S', '35 - 37', '28 - 29', '38.0', '47.0'],
+      ['M', '38 - 40', '30 - 32', '40.0', '48.0'],
+      ['L', '41 - 43', '33 - 35', '42.0', '49.0'],
+      ['XL', '44 - 46', '36 - 38', '45.0', '50.0'],
+    ],
+    is_default: false,
+  },
+];
 
 const PLACEHOLDER_PRODUCT_IMAGE = '/Assets/products/placeholder-product.svg';
 
@@ -141,8 +184,14 @@ const sanitizeProduct = (p: Product): Product => {
         ? (() => { try { return JSON.parse((p.structured_attributes as any).similar_category_ids); } catch { return []; } })()
         : []));
 
+  const sizeChartId =
+    p.size_chart_id ||
+    (p.structured_attributes as any)?.size_chart_id ||
+    '';
+
   return {
     ...p,
+    size_chart_id: sizeChartId,
     custom_sections: cleanSections,
     images: validImgs,
     variants: sanitizedVariants,
@@ -702,6 +751,123 @@ export const api = {
     }
   },
 
+  // Size Charts Management (Direct Supabase with local cache fallback)
+  async getSizeCharts(): Promise<SizeChart[]> {
+    let localCharts: SizeChart[] = [];
+    try {
+      const stored = localStorage.getItem('tanoah_size_charts');
+      if (stored) localCharts = JSON.parse(stored);
+    } catch {}
+
+    try {
+      const { data, error } = await supabase
+        .from('size_charts')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const remoteCharts: SizeChart[] = data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          description: d.description || '',
+          columns: Array.isArray(d.columns) ? d.columns : [],
+          rows: Array.isArray(d.rows) ? d.rows : [],
+          is_default: Boolean(d.is_default),
+          created_at: d.created_at,
+          updated_at: d.updated_at,
+        }));
+        try {
+          localStorage.setItem('tanoah_size_charts', JSON.stringify(remoteCharts));
+        } catch {}
+        return remoteCharts;
+      }
+    } catch (e) {
+      console.warn('Error fetching size charts from Supabase:', e);
+    }
+
+    if (localCharts.length > 0) return localCharts;
+
+    return DEFAULT_SIZE_CHARTS;
+  },
+
+  async getSizeChartById(id: string): Promise<SizeChart | null> {
+    if (!id || id === 'none') return null;
+    const charts = await this.getSizeCharts();
+    return charts.find((c) => c.id === id) || null;
+  },
+
+  async saveSizeChart(chart: SizeChart): Promise<boolean> {
+    try {
+      const id = chart.id || `sc_${Date.now()}`;
+      const payload = {
+        id,
+        name: chart.name.trim(),
+        description: chart.description || '',
+        columns: chart.columns,
+        rows: chart.rows,
+        is_default: Boolean(chart.is_default),
+        updated_at: new Date().toISOString(),
+      };
+
+      // If this chart is marked default, unmark other charts
+      if (payload.is_default) {
+        await supabase
+          .from('size_charts')
+          .update({ is_default: false })
+          .neq('id', id);
+      }
+
+      const { error } = await supabase.from('size_charts').upsert(payload, { onConflict: 'id' });
+      if (error) {
+        console.error('Failed to save size chart to Supabase:', error);
+      }
+
+      // Update local storage cache
+      try {
+        const raw = localStorage.getItem('tanoah_size_charts');
+        let list: SizeChart[] = raw ? JSON.parse(raw) : [];
+        if (payload.is_default) {
+          list = list.map((c) => ({ ...c, is_default: false }));
+        }
+        list = list.filter((c) => c.id !== id);
+        list.push({ ...chart, id });
+        localStorage.setItem('tanoah_size_charts', JSON.stringify(list));
+      } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_size_charts_updated', { detail: { chart: { ...chart, id } } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving size chart:', err);
+      return false;
+    }
+  },
+
+  async deleteSizeChart(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('size_charts').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete size chart from Supabase:', error);
+      }
+      try {
+        const raw = localStorage.getItem('tanoah_size_charts');
+        if (raw) {
+          const list = JSON.parse(raw).filter((c: any) => c.id !== id);
+          localStorage.setItem('tanoah_size_charts', JSON.stringify(list));
+        }
+      } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_size_charts_updated', { detail: { deletedId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting size chart:', err);
+      return false;
+    }
+  },
+
   // Product Types (Persisted in Supabase store_settings.custom_product_types)
   async getProductTypes(): Promise<string[]> {
     const DEFAULT_TYPES = [
@@ -887,9 +1053,10 @@ export const api = {
       seo_description: sanitized.seo_description || null,
       social_image_url: sanitized.social_image_url || null,
       canonical_url_override: sanitized.canonical_url_override || null,
-      is_noindex: !!sanitized.is_noindex,
+      size_chart_id: sanitized.size_chart_id || null,
       structured_attributes: {
         ...(sanitized.structured_attributes || {}),
+        size_chart_id: sanitized.size_chart_id || '',
         similar_product_ids: sanitized.similar_product_ids || [],
         similar_category_ids: sanitized.similar_category_ids || [],
       },

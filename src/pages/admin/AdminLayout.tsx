@@ -10,6 +10,7 @@ import {
   FolderTree,
   Compass,
   Tag,
+  Ruler,
   Settings,
   Image as ImageIcon,
   LogOut,
@@ -64,6 +65,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const NAV_ITEMS = [
     { label: 'Overview Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, path: '/admin' },
     { label: 'Products & Variants', icon: <Package className="w-4 h-4" />, path: '/admin/products' },
+    { label: 'Size Charts & Guides', icon: <Ruler className="w-4 h-4" />, path: '/admin/size-charts' },
     { label: 'Inventory & Alerts', icon: <Boxes className="w-4 h-4" />, path: '/admin/inventory' },
     { label: 'Orders & Fulfillment', icon: <ShoppingBag className="w-4 h-4" />, path: '/admin/orders' },
     { label: 'Returns & Exchanges', icon: <RotateCcw className="w-4 h-4" />, path: '/admin/returns' },

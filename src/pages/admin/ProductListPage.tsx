@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown, Copy } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown, Copy, Ruler } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
@@ -93,11 +93,18 @@ export const ProductListPage: React.FC = () => {
             </p>
           </div>
 
-          <Link to="/admin/products/new">
-            <Button variant="primary" size="md" icon={<Plus className="w-4 h-4" />}>
-              ADD PRODUCT
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/admin/size-charts">
+              <Button variant="outline" size="md" icon={<Ruler className="w-4 h-4" />}>
+                SIZE CHARTS
+              </Button>
+            </Link>
+            <Link to="/admin/products/new">
+              <Button variant="primary" size="md" icon={<Plus className="w-4 h-4" />}>
+                ADD PRODUCT
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Filter Controls */}
