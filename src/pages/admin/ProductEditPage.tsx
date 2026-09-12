@@ -34,6 +34,7 @@ import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection
 import { MediaUploader } from '../../components/admin/MediaUploader';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 import { ProductSeoSection } from '../../components/admin/ProductSeoSection';
+import { truncateDescription } from '../../services/seoEngine';
 
 const DEFAULT_PRODUCT_TYPES = [
   'Sarees',
@@ -442,8 +443,13 @@ export const ProductEditPage: React.FC = () => {
             setIsFeatured(Boolean(match.is_featured));
             setIsBestSeller(Boolean(match.is_best_seller));
             setIsNewArrival(Boolean(match.is_new_arrival));
-            setSeoTitle(match.seo_title || '');
-            setSeoDescription(match.seo_description || '');
+            const defaultSeoTitle = match.seo_title || (match.title ? `${match.title.trim()} | TANOAH` : '');
+            setSeoTitle(defaultSeoTitle);
+            const defaultSeoDesc =
+              match.seo_description ||
+              match.short_description ||
+              (match.description ? truncateDescription(match.description, 155) : '');
+            setSeoDescription(defaultSeoDesc);
             setSocialImageUrl(match.social_image_url || '');
             setCanonicalUrlOverride(match.canonical_url_override || '');
             setIsNoindex(Boolean(match.is_noindex));
@@ -595,9 +601,13 @@ export const ProductEditPage: React.FC = () => {
   }, []);
 
   const handleTitleChange = (val: string) => {
+    const prevPattern = title ? `${title.trim()} | TANOAH` : '';
     setTitle(val);
     if (!isEditing) {
       setSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+      if (!seoTitle || seoTitle === prevPattern) {
+        setSeoTitle(val ? `${val.trim()} | TANOAH` : '');
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Globe,
   Smartphone,
@@ -78,6 +78,25 @@ export const ProductSeoSection: React.FC<ProductSeoSectionProps> = ({
 
   const titleLength = seoTitle.length;
   const descLength = seoDescription.length;
+
+  // Ensure current SEO Page Title and Meta Description are in editable format inside input boxes
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      if (!seoTitle && title?.trim()) {
+        onSeoTitleChange(`${title.trim()} | TANOAH`);
+      }
+      if (!seoDescription && (shortDescription?.trim() || description?.trim())) {
+        const defaultDesc = shortDescription?.trim() || truncateDescription(description?.trim() || '', 155);
+        if (defaultDesc) {
+          onSeoDescriptionChange(defaultDesc);
+        }
+      }
+      if (title?.trim() || shortDescription?.trim() || description?.trim()) {
+        initializedRef.current = true;
+      }
+    }
+  }, [title, shortDescription, description, seoTitle, seoDescription, onSeoTitleChange, onSeoDescriptionChange]);
 
   const handleAttrChange = (key: string, val: string) => {
     onStructuredAttributesChange({
@@ -180,17 +199,30 @@ export const ProductSeoSection: React.FC<ProductSeoSectionProps> = ({
             <label className="text-[11px] font-semibold text-black uppercase">
               SEO Page Title
             </label>
-            <span
-              className={`text-[10px] font-mono ${
-                titleLength === 0
-                  ? 'text-[#888888]'
-                  : titleLength >= 40 && titleLength <= 60
-                  ? 'text-emerald-600 font-semibold'
-                  : 'text-amber-600'
-              }`}
-            >
-              {titleLength} / 60 characters {titleLength === 0 ? '(Using Brand Fallback)' : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              {seoTitle !== fallbackTitle && (
+                <button
+                  type="button"
+                  onClick={() => onSeoTitleChange(fallbackTitle)}
+                  className="text-[10px] text-[#3F3F8F] hover:underline font-medium flex items-center gap-1 cursor-pointer"
+                  title="Reset to default brand pattern"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Use Pattern</span>
+                </button>
+              )}
+              <span
+                className={`text-[10px] font-mono ${
+                  titleLength === 0
+                    ? 'text-[#888888]'
+                    : titleLength >= 40 && titleLength <= 60
+                    ? 'text-emerald-600 font-semibold'
+                    : 'text-amber-600'
+                }`}
+              >
+                {titleLength} / 60 characters
+              </span>
+            </div>
           </div>
           <input
             type="text"
@@ -199,8 +231,17 @@ export const ProductSeoSection: React.FC<ProductSeoSectionProps> = ({
             placeholder={fallbackTitle}
             className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
           />
-          <p className="text-[10px] text-[#888888] mt-1">
-            Leave blank to automatically use the default pattern: <code className="font-mono text-black">{fallbackTitle}</code>
+          <p className="text-[10px] text-[#888888] mt-1 flex items-center justify-between">
+            <span>Directly editable. Default pattern: <code className="font-mono text-black">{fallbackTitle}</code></span>
+            {seoTitle !== fallbackTitle && (
+              <button
+                type="button"
+                onClick={() => onSeoTitleChange(fallbackTitle)}
+                className="text-[#3F3F8F] hover:underline font-semibold ml-2 cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
           </p>
         </div>
 
@@ -210,17 +251,30 @@ export const ProductSeoSection: React.FC<ProductSeoSectionProps> = ({
             <label className="text-[11px] font-semibold text-black uppercase">
               Meta Description
             </label>
-            <span
-              className={`text-[10px] font-mono ${
-                descLength === 0
-                  ? 'text-[#888888]'
-                  : descLength >= 130 && descLength <= 160
-                  ? 'text-emerald-600 font-semibold'
-                  : 'text-amber-600'
-              }`}
-            >
-              {descLength} / 160 characters {descLength === 0 ? '(Using Auto-Extracted Snippet)' : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              {seoDescription !== fallbackDescription && (
+                <button
+                  type="button"
+                  onClick={() => onSeoDescriptionChange(fallbackDescription)}
+                  className="text-[10px] text-[#3F3F8F] hover:underline font-medium flex items-center gap-1 cursor-pointer"
+                  title="Reset to auto-extracted snippet"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Use Snippet</span>
+                </button>
+              )}
+              <span
+                className={`text-[10px] font-mono ${
+                  descLength === 0
+                    ? 'text-[#888888]'
+                    : descLength >= 130 && descLength <= 160
+                    ? 'text-emerald-600 font-semibold'
+                    : 'text-amber-600'
+                }`}
+              >
+                {descLength} / 160 characters
+              </span>
+            </div>
           </div>
           <textarea
             rows={3}
@@ -229,8 +283,17 @@ export const ProductSeoSection: React.FC<ProductSeoSectionProps> = ({
             placeholder={fallbackDescription}
             className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] leading-relaxed"
           />
-          <p className="text-[10px] text-[#888888] mt-1">
-            Recommended length: 140–160 characters. Highlight fabric, silhouette, and craftsmanship.
+          <p className="text-[10px] text-[#888888] mt-1 flex items-center justify-between">
+            <span>Recommended length: 140–160 characters. Highlight fabric, silhouette, and craftsmanship.</span>
+            {seoDescription !== fallbackDescription && (
+              <button
+                type="button"
+                onClick={() => onSeoDescriptionChange(fallbackDescription)}
+                className="text-[#3F3F8F] hover:underline font-semibold ml-2 cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
           </p>
         </div>
 

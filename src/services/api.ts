@@ -1092,7 +1092,9 @@ export const api = {
       id: newProductId,
       title: newTitle,
       slug: candidateSlug,
-      status: 'draft', // Safe initial state
+      status: source.status || 'active', // Active so duplicated products show immediately in storefront
+      seo_title: source.seo_title ? `${source.seo_title} (Copy)` : `${newTitle} | TANOAH`,
+      seo_description: source.seo_description || source.short_description || source.description || '',
       images: newImages,
       variants: newVariants,
       custom_sections: newCustomSections,
