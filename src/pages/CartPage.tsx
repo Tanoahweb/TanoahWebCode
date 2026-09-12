@@ -102,7 +102,7 @@ export const CartPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {/* Items List (Col 8) */}
           <div className="lg:col-span-8 space-y-6">
-            <FreeShippingProgressBar subtotal={subtotal} threshold={freeShippingThreshold} />
+            <FreeShippingProgressBar subtotal={subtotal} threshold={freeShippingThreshold} items={items} />
 
             <div className="border border-[#E7E7E7] rounded-[4px] divide-y divide-[#E7E7E7]">
               {items.map((item) => {

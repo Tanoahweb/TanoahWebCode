@@ -276,7 +276,13 @@ export const CartDrawer: React.FC = () => {
         {/* Free Shipping Progress */}
         {items.length > 0 && (
           <div className="px-5 pt-4">
-            <FreeShippingProgressBar subtotal={subtotal} threshold={freeShippingThreshold} />
+            <FreeShippingProgressBar
+              subtotal={subtotal}
+              threshold={freeShippingThreshold}
+              coupons={availableCoupons}
+              items={items}
+              collections={collections}
+            />
           </div>
         )}
 
