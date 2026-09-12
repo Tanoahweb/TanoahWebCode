@@ -1,6 +1,19 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
-import { Filter, SlidersHorizontal, ChevronDown, X, Grid3X3, Grid2X2, Square, Check, Sparkles } from 'lucide-react';
+import {
+  Filter,
+  SlidersHorizontal,
+  ChevronDown,
+  X,
+  Grid3X3,
+  Grid2X2,
+  Square,
+  Check,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from 'lucide-react';
 import { ProductCard } from '../components/product/ProductCard';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS } from '../data/mockData';
 import { formatPrice } from '../utils/formatters';
@@ -10,15 +23,61 @@ import { Product, Collection } from '../types';
 import { SEOHead } from '../components/common/SEOHead';
 import { generateCollectionJsonLd, normalizeCanonicalUrl } from '../services/seoEngine';
 
+const DEFAULT_PRODUCT_TYPES = [
+  'T-Shirt',
+  'Oversized Tee',
+  'Shirt',
+  'Trousers',
+  'Dress',
+  'Sarees',
+  'Kurtas',
+  'A-Line top',
+  'Co-ord Set',
+  'Jacket',
+];
+
+const DEFAULT_CATALOG_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
+
+const DEFAULT_CATALOG_COLORS = [
+  { name: 'Black', hex: '#111111' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Beige', hex: '#D4C4A8' },
+  { name: 'Navy', hex: '#1E293B' },
+  { name: 'Olive', hex: '#4A5D4E' },
+  { name: 'Grey', hex: '#6B7280' },
+  { name: 'Brown', hex: '#5D4037' },
+  { name: 'Rust', hex: '#9C4124' },
+  { name: 'Gold', hex: '#D4AF37' },
+  { name: 'Lavender', hex: '#967BB6' },
+];
+
+const getPaginationPages = (currentPage: number, total: number): (number | string)[] => {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, '...', total];
+  }
+  if (currentPage >= total - 3) {
+    return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', total];
+};
+
 export const CatalogPage: React.FC = () => {
   const { collection: routeCollection } = useParams<{ collection: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentCollection = (routeCollection || searchParams.get('collection') || 'all').toLowerCase();
   const typeParam = searchParams.get('type') || '';
   const searchParam = searchParams.get('search') || '';
+  const pageParam = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
 
-  const [productsList, setProductsList] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [collectionsList, setCollectionsList] = useState<Collection[]>(SAMPLE_COLLECTIONS);
+  const [refreshNonce, setRefreshNonce] = useState<number>(0);
 
   const [selectedGender, setSelectedGender] = useState<string>('all');
   const [selectedTypes, setSelectedTypes] = useState<string[]>(typeParam ? [typeParam] : []);
@@ -31,27 +90,30 @@ export const CatalogPage: React.FC = () => {
   const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(3);
   const [mobileColumns, setMobileColumns] = useState<1 | 2>(2);
 
+  const catalogTopRef = useRef<HTMLDivElement>(null);
   const containerRef = useGsapReveal({ stagger: 0.06 });
 
+  // Collections & Realtime Updates
   useEffect(() => {
     let isMounted = true;
-    const fetchCatalogData = () => {
-      api.getProducts().then((data) => {
-        if (isMounted && data) setProductsList(data);
-      });
+    api.getCollections().then((cols) => {
+      if (isMounted && cols && cols.length > 0) setCollectionsList(cols);
+    });
+
+    const handleProductsUpdated = () => setRefreshNonce((n) => n + 1);
+    const handleCollectionsUpdated = () => {
       api.getCollections().then((cols) => {
         if (isMounted && cols && cols.length > 0) setCollectionsList(cols);
       });
     };
 
-    fetchCatalogData();
-    window.addEventListener('tanoah_products_updated', fetchCatalogData);
-    window.addEventListener('tanoah_collections_updated', fetchCatalogData);
+    window.addEventListener('tanoah_products_updated', handleProductsUpdated);
+    window.addEventListener('tanoah_collections_updated', handleCollectionsUpdated);
 
     return () => {
       isMounted = false;
-      window.removeEventListener('tanoah_products_updated', fetchCatalogData);
-      window.removeEventListener('tanoah_collections_updated', fetchCatalogData);
+      window.removeEventListener('tanoah_products_updated', handleProductsUpdated);
+      window.removeEventListener('tanoah_collections_updated', handleCollectionsUpdated);
     };
   }, []);
 
@@ -60,6 +122,67 @@ export const CatalogPage: React.FC = () => {
       setSelectedTypes([typeParam]);
     }
   }, [typeParam]);
+
+  // Paginated Product Loading (12 per batch, reducing unwanted API calls)
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    api
+      .getPaginatedProducts({
+        page: pageParam,
+        limit: 12,
+        collection: currentCollection,
+        types: selectedTypes.length > 0 ? selectedTypes : undefined,
+        gender: selectedGender !== 'all' ? selectedGender : undefined,
+        search: searchParam || undefined,
+        maxPrice: priceRange < 10000 ? priceRange : undefined,
+        sizes: selectedSizes.length > 0 ? selectedSizes : undefined,
+        colors: selectedColors.length > 0 ? selectedColors : undefined,
+        inStockOnly,
+        sortBy,
+        statusFilter: 'active',
+      })
+      .then((res) => {
+        if (isMounted) {
+          setProductsList(res.products);
+          setTotalCount(res.totalCount);
+          setTotalPages(res.totalPages);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching paginated catalog products:', err);
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    currentCollection,
+    pageParam,
+    selectedGender,
+    selectedTypes,
+    priceRange,
+    inStockOnly,
+    selectedSizes,
+    selectedColors,
+    sortBy,
+    searchParam,
+    refreshNonce,
+  ]);
+
+  // Keep page URL parameter valid if total pages shrinks
+  useEffect(() => {
+    if (!isLoading && totalPages > 0 && pageParam > totalPages) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('page', '1');
+        return next;
+      });
+    }
+  }, [isLoading, totalPages, pageParam, setSearchParams]);
 
   const activeCollection = collectionsList.find(
     (c) => c.slug.toLowerCase() === currentCollection
@@ -95,120 +218,49 @@ export const CatalogPage: React.FC = () => {
     }
   );
 
-  // Extract all available filters from dataset
-  const allProductTypes = Array.from(new Set(productsList.map((p) => p.product_type)));
-  const allSizes = Array.from(
-    new Set(productsList.flatMap((p) => p.variants.map((v) => v.size)))
-  );
-  const allColors = Array.from(
-    new Map(
-      productsList.flatMap((p) => p.variants).map((v) => [v.color_name, { name: v.color_name, hex: v.color_hex }])
-    ).values()
-  );
+  // Available filter choices (curated defaults combined with live loaded product traits)
+  const allProductTypes = useMemo(() => {
+    const fromLoaded = productsList.map((p) => p.product_type).filter(Boolean);
+    return Array.from(new Set([...DEFAULT_PRODUCT_TYPES, ...fromLoaded]));
+  }, [productsList]);
 
-  const filteredProducts = useMemo(() => {
-    return productsList.filter((product) => {
-      // Collection filter (Route Param)
-      if (currentCollection !== 'all') {
-        if (currentCollection === 'men') {
-          const isMen = product.gender === 'men' || product.gender === 'unisex' || product.category_name?.toLowerCase().includes('men');
-          if (!isMen) return false;
-        } else if (currentCollection === 'women') {
-          const isWomen = product.gender === 'women' || product.gender === 'unisex' || product.category_name?.toLowerCase().includes('women');
-          if (!isWomen) return false;
-        } else if (currentCollection === 'sale') {
-          const isSale = Boolean(product.sale_price) || (product.compare_at_price && product.compare_at_price > product.base_price) || product.tags?.some((t) => t.toLowerCase() === 'sale');
-          if (!isSale) return false;
-        } else if (currentCollection === 'new-arrivals') {
-          const isNew = product.is_new_arrival || product.tags?.some((t) => t.toLowerCase().includes('new'));
-          if (!isNew) return false;
-        } else if (currentCollection === 'best-sellers') {
-          const isBest = product.is_best_seller || product.tags?.some((t) => t.toLowerCase().includes('best'));
-          if (!isBest) return false;
-        } else {
-          // Custom Collection matching by collections array, slug, tag, or category
-          const matchesCollection =
-            product.collections?.some((c) => c.toLowerCase() === currentCollection) ||
-            product.category_name?.toLowerCase() === currentCollection ||
-            product.tags?.some((t) => t.toLowerCase() === currentCollection || t.toLowerCase().includes(currentCollection));
-          if (!matchesCollection) return false;
-        }
-      }
+  const allSizes = useMemo(() => {
+    const fromLoaded = productsList.flatMap((p) => p.variants.map((v) => v.size)).filter(Boolean);
+    return Array.from(new Set([...DEFAULT_CATALOG_SIZES, ...fromLoaded]));
+  }, [productsList]);
 
-      // Search query filter
-      if (searchParam) {
-        const q = searchParam.toLowerCase();
-        const matches =
-          product.title.toLowerCase().includes(q) ||
-          product.brand.toLowerCase().includes(q) ||
-          product.tags?.some((t) => t.toLowerCase().includes(q));
-        if (!matches) return false;
+  const allColors = useMemo(() => {
+    const map = new Map<string, { name: string; hex: string }>();
+    DEFAULT_CATALOG_COLORS.forEach((c) => map.set(c.name.toLowerCase(), c));
+    productsList.flatMap((p) => p.variants).forEach((v) => {
+      if (v.color_name) {
+        map.set(v.color_name.toLowerCase(), { name: v.color_name, hex: v.color_hex || '#000000' });
       }
-
-      // Gender filter
-      if (selectedGender !== 'all' && product.gender && product.gender !== selectedGender && product.gender !== 'unisex') {
-        return false;
-      }
-
-      // Product type filter
-      if (selectedTypes.length > 0 && !selectedTypes.includes(product.product_type)) {
-        return false;
-      }
-
-      // In stock only filter
-      if (inStockOnly) {
-        const hasStock = product.variants.some((v) => v.stock_quantity > 0);
-        if (!hasStock) return false;
-      }
-
-      // Price filter
-      const minPrice = Math.min(...product.variants.map((v) => v.sale_price ?? v.price));
-      if (minPrice > priceRange) {
-        return false;
-      }
-
-      // Size filter
-      if (selectedSizes.length > 0) {
-        const hasSize = product.variants.some(
-          (v) => selectedSizes.includes(v.size) && v.stock_quantity > 0
-        );
-        if (!hasSize) return false;
-      }
-
-      // Color filter
-      if (selectedColors.length > 0) {
-        const hasColor = product.variants.some((v) => selectedColors.includes(v.color_name));
-        if (!hasColor) return false;
-      }
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === 'price-low') {
-        return (a.sale_price ?? a.base_price) - (b.sale_price ?? b.base_price);
-      }
-      if (sortBy === 'price-high') {
-        return (b.sale_price ?? b.base_price) - (a.sale_price ?? a.base_price);
-      }
-      if (sortBy === 'newest') {
-        return (b.is_new_arrival ? 1 : 0) - (a.is_new_arrival ? 1 : 0);
-      }
-      if (sortBy === 'bestseller') {
-        return (b.is_best_seller ? 1 : 0) - (a.is_best_seller ? 1 : 0);
-      }
-      if (sortBy === 'discount') {
-        const discA = a.compare_at_price ? (a.compare_at_price - a.base_price) / a.compare_at_price : 0;
-        const discB = b.compare_at_price ? (b.compare_at_price - b.base_price) / b.compare_at_price : 0;
-        return discB - discA;
-      }
-      if (sortBy === 'alpha-asc') {
-        return a.title.localeCompare(b.title);
-      }
-      if (sortBy === 'alpha-desc') {
-        return b.title.localeCompare(a.title);
-      }
-      return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
     });
-  }, [productsList, currentCollection, searchParam, selectedGender, selectedTypes, inStockOnly, priceRange, selectedSizes, selectedColors, sortBy]);
+    return Array.from(map.values());
+  }, [productsList]);
+
+  const resetPageParam = () => {
+    if (searchParams.get('page') && searchParams.get('page') !== '1') {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('page', '1');
+        return next;
+      });
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages || newPage === pageParam) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('page', String(newPage));
+      return next;
+    });
+    if (catalogTopRef.current) {
+      catalogTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   const clearAllFilters = () => {
     setSelectedGender('all');
@@ -229,6 +281,10 @@ export const CatalogPage: React.FC = () => {
     priceRange < 10000 ||
     Boolean(searchParam);
 
+  const startItem = totalCount === 0 ? 0 : (pageParam - 1) * 12 + 1;
+  const endItem = Math.min(totalCount, pageParam * 12);
+  const paginationPages = useMemo(() => getPaginationPages(pageParam, totalPages), [pageParam, totalPages]);
+
   return (
     <div className="w-full bg-white font-poppins min-h-screen">
       <SEOHead
@@ -236,7 +292,7 @@ export const CatalogPage: React.FC = () => {
         description={activeCollection.description}
         canonical={normalizeCanonicalUrl(`/collections/${currentCollection}`)}
         type="website"
-        jsonLd={generateCollectionJsonLd(activeCollection.title, filteredProducts, `/collections/${currentCollection}`)}
+        jsonLd={generateCollectionJsonLd(activeCollection.title, productsList, `/collections/${currentCollection}`)}
       />
       {/* Editorial Collection Header Banner */}
       <div className="relative bg-[#F8F8F8] py-16 sm:py-24 border-b border-[#E7E7E7] overflow-hidden">
@@ -259,13 +315,13 @@ export const CatalogPage: React.FC = () => {
           </p>
 
           <div className="mt-4 text-[11px] text-[#888888] tracking-wider uppercase font-medium">
-            Showing {filteredProducts.length} Items
+            Showing {totalCount} Items
           </div>
         </div>
       </div>
 
       {/* Main Catalog Body */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div ref={catalogTopRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Top Filter and Sorting Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-[#E7E7E7] text-xs">
           {/* Mobile Actions: Filter Button + Mobile Grid Switcher */}
@@ -329,13 +385,13 @@ export const CatalogPage: React.FC = () => {
               {selectedGender !== 'all' && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
                   {selectedGender}
-                  <button onClick={() => setSelectedGender('all')}><X className="w-3 h-3" /></button>
+                  <button onClick={() => { setSelectedGender('all'); resetPageParam(); }}><X className="w-3 h-3" /></button>
                 </span>
               )}
               {selectedTypes.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
                   {t}
-                  <button onClick={() => setSelectedTypes(selectedTypes.filter((x) => x !== t))}><X className="w-3 h-3" /></button>
+                  <button onClick={() => { setSelectedTypes(selectedTypes.filter((x) => x !== t)); resetPageParam(); }}><X className="w-3 h-3" /></button>
                 </span>
               ))}
               <button
@@ -355,7 +411,10 @@ export const CatalogPage: React.FC = () => {
             <div className="relative">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  resetPageParam();
+                }}
                 className="appearance-none bg-white border border-[#E7E7E7] rounded-[4px] px-3 py-2 pr-8 text-xs font-medium text-black focus:outline-none focus:border-[#3F3F8F] uppercase cursor-pointer"
               >
                 <option value="featured">Featured Releases</option>
@@ -385,7 +444,10 @@ export const CatalogPage: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={inStockOnly}
-                  onChange={(e) => setInStockOnly(e.target.checked)}
+                  onChange={(e) => {
+                    setInStockOnly(e.target.checked);
+                    resetPageParam();
+                  }}
                   className="accent-[#3F3F8F] rounded"
                 />
                 <span className="font-medium">In-Stock Only</span>
@@ -404,7 +466,10 @@ export const CatalogPage: React.FC = () => {
                       type="radio"
                       name="gender"
                       checked={selectedGender === g}
-                      onChange={() => setSelectedGender(g)}
+                      onChange={() => {
+                        setSelectedGender(g);
+                        resetPageParam();
+                      }}
                       className="accent-[#3F3F8F]"
                     />
                     <span className="uppercase">{g === 'all' ? 'All Collections' : g}</span>
@@ -430,6 +495,7 @@ export const CatalogPage: React.FC = () => {
                         } else {
                           setSelectedTypes(selectedTypes.filter((t) => t !== type));
                         }
+                        resetPageParam();
                       }}
                       className="accent-[#3F3F8F]"
                     />
@@ -450,10 +516,13 @@ export const CatalogPage: React.FC = () => {
               <input
                 type="range"
                 min="1000"
-                max="6000"
+                max="10000"
                 step="500"
                 value={priceRange}
-                onChange={(e) => setPriceRange(Number(e.target.value))}
+                onChange={(e) => {
+                  setPriceRange(Number(e.target.value));
+                  resetPageParam();
+                }}
                 className="w-full accent-[#3F3F8F] cursor-pointer"
               />
             </div>
@@ -475,6 +544,7 @@ export const CatalogPage: React.FC = () => {
                         } else {
                           setSelectedSizes([...selectedSizes, size]);
                         }
+                        resetPageParam();
                       }}
                       className={`py-2 text-xs font-medium uppercase rounded-[4px] border transition-all ${
                         isSelected
@@ -506,6 +576,7 @@ export const CatalogPage: React.FC = () => {
                         } else {
                           setSelectedColors([...selectedColors, color.name]);
                         }
+                        resetPageParam();
                       }}
                       className={`w-6 h-6 rounded-full border transition-all ${
                         isSelected
@@ -523,22 +594,8 @@ export const CatalogPage: React.FC = () => {
 
           {/* Product Grid Area (Col 9) */}
           <div className="lg:col-span-9">
-            {filteredProducts.length === 0 ? (
-              <div className="py-24 text-center space-y-4 bg-[#F8F8F8] rounded-[4px] border border-[#E7E7E7]">
-                <h3 className="font-wondra text-2xl text-black">NO SILHOUETTES FOUND</h3>
-                <p className="text-xs text-[#666666] max-w-sm mx-auto">
-                  No products match your active filter criteria. Try adjusting your filters or price range.
-                </p>
-                <button
-                  onClick={clearAllFilters}
-                  className="px-6 py-2.5 bg-[#3F3F8F] text-white text-xs font-semibold rounded-[4px] uppercase tracking-wider"
-                >
-                  Reset Filters
-                </button>
-              </div>
-            ) : (
+            {isLoading ? (
               <div
-                ref={containerRef}
                 className={`grid ${
                   mobileColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'
                 } ${
@@ -549,10 +606,104 @@ export const CatalogPage: React.FC = () => {
                     : 'lg:grid-cols-4'
                 } gap-4 sm:gap-6 lg:gap-8`}
               >
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={`skel-${idx}`} className="animate-pulse space-y-3">
+                    <div className="bg-[#F0F0F0] rounded-[4px] aspect-3/4 w-full" />
+                    <div className="h-3 bg-[#F0F0F0] rounded w-3/4" />
+                    <div className="h-3 bg-[#F0F0F0] rounded w-1/3" />
+                  </div>
                 ))}
               </div>
+            ) : productsList.length === 0 ? (
+              <div className="py-24 text-center space-y-4 bg-[#F8F8F8] rounded-[4px] border border-[#E7E7E7]">
+                <h3 className="font-wondra text-2xl text-black">NO SILHOUETTES FOUND</h3>
+                <p className="text-xs text-[#666666] max-w-sm mx-auto">
+                  No products match your active filter criteria. Try adjusting your filters or price range.
+                </p>
+                <button
+                  onClick={clearAllFilters}
+                  className="px-6 py-2.5 bg-[#3F3F8F] text-white text-xs font-semibold rounded-[4px] uppercase tracking-wider hover:bg-[#343476] transition-colors"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            ) : (
+              <>
+                <div
+                  ref={containerRef}
+                  className={`grid ${
+                    mobileColumns === 1 ? 'grid-cols-1' : 'grid-cols-2'
+                  } ${
+                    gridColumns === 2
+                      ? 'lg:grid-cols-2'
+                      : gridColumns === 3
+                      ? 'lg:grid-cols-3'
+                      : 'lg:grid-cols-4'
+                  } gap-4 sm:gap-6 lg:gap-8`}
+                >
+                  {productsList.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Luxury Pagination Bar */}
+                {totalPages > 1 && (
+                  <div className="mt-12 pt-8 border-t border-[#E7E7E7] flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-xs text-[#666666] tracking-wider uppercase font-medium">
+                      Showing <span className="font-semibold text-black">{startItem}</span>–<span className="font-semibold text-black">{endItem}</span> of <span className="font-semibold text-black">{totalCount}</span> pieces
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handlePageChange(pageParam - 1)}
+                        disabled={pageParam <= 1 || isLoading}
+                        aria-label="Previous Page"
+                        className="inline-flex items-center justify-center px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-[4px] border border-[#E7E7E7] text-black bg-white hover:border-black disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#E7E7E7] transition-colors"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                        Prev
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {paginationPages.map((p, idx) => {
+                          if (typeof p === 'string') {
+                            return (
+                              <span key={`dots-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs text-[#888888] select-none">
+                                …
+                              </span>
+                            );
+                          }
+                          const isActive = p === pageParam;
+                          return (
+                            <button
+                              key={`page-${p}`}
+                              onClick={() => handlePageChange(p)}
+                              disabled={isLoading}
+                              className={`w-8 h-8 flex items-center justify-center text-xs font-semibold rounded-[4px] border transition-colors ${
+                                isActive
+                                  ? 'bg-[#3F3F8F] text-white border-[#3F3F8F] shadow-xs'
+                                  : 'bg-white text-black border-[#E7E7E7] hover:border-black'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => handlePageChange(pageParam + 1)}
+                        disabled={pageParam >= totalPages || isLoading}
+                        aria-label="Next Page"
+                        className="inline-flex items-center justify-center px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-[4px] border border-[#E7E7E7] text-black bg-white hover:border-black disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#E7E7E7] transition-colors"
+                      >
+                        Next
+                        <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -600,7 +751,10 @@ export const CatalogPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={inStockOnly}
-                    onChange={(e) => setInStockOnly(e.target.checked)}
+                    onChange={(e) => {
+                      setInStockOnly(e.target.checked);
+                      resetPageParam();
+                    }}
                     className="accent-[#3F3F8F] w-4 h-4 rounded"
                   />
                   <span className="font-medium text-xs">In-Stock Pieces Only</span>
@@ -619,7 +773,10 @@ export const CatalogPage: React.FC = () => {
                         type="radio"
                         name="mobile_gender"
                         checked={selectedGender === g}
-                        onChange={() => setSelectedGender(g)}
+                        onChange={() => {
+                          setSelectedGender(g);
+                          resetPageParam();
+                        }}
                         className="accent-[#3F3F8F] w-4 h-4"
                       />
                       <span className="uppercase text-xs">{g === 'all' ? 'All Collections' : g}</span>
@@ -645,6 +802,7 @@ export const CatalogPage: React.FC = () => {
                           } else {
                             setSelectedTypes(selectedTypes.filter((t) => t !== type));
                           }
+                          resetPageParam();
                         }}
                         className="accent-[#3F3F8F] w-4 h-4 rounded"
                       />
@@ -670,7 +828,10 @@ export const CatalogPage: React.FC = () => {
                   max={10000}
                   step={250}
                   value={priceRange}
-                  onChange={(e) => setPriceRange(Number(e.target.value))}
+                  onChange={(e) => {
+                    setPriceRange(Number(e.target.value));
+                    resetPageParam();
+                  }}
                   className="w-full accent-[#3F3F8F] cursor-pointer"
                 />
               </div>
@@ -692,6 +853,7 @@ export const CatalogPage: React.FC = () => {
                           } else {
                             setSelectedSizes([...selectedSizes, size]);
                           }
+                          resetPageParam();
                         }}
                         className={`py-2 text-xs font-medium uppercase rounded-[4px] border transition-all ${
                           isSelected
@@ -723,6 +885,7 @@ export const CatalogPage: React.FC = () => {
                           } else {
                             setSelectedColors([...selectedColors, color.name]);
                           }
+                          resetPageParam();
                         }}
                         className={`w-7 h-7 rounded-full border transition-all ${
                           isSelected
@@ -750,7 +913,7 @@ export const CatalogPage: React.FC = () => {
                 onClick={() => setIsFilterDrawerOpen(false)}
                 className="flex-1 py-3 bg-[#3F3F8F] hover:bg-[#343476] text-white font-semibold text-xs uppercase tracking-wider rounded-[4px] transition-colors shadow-sm"
               >
-                Show ({filteredProducts.length})
+                Show ({totalCount})
               </button>
             </div>
           </div>

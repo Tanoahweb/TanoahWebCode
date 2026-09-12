@@ -21,6 +21,7 @@ import {
   FolderTree,
   Package,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -138,6 +139,7 @@ export const ProductEditPage: React.FC = () => {
   const { addToast } = useUIStore();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -1172,6 +1174,30 @@ export const ProductEditPage: React.FC = () => {
     }
   };
 
+  const handleDuplicateProduct = async () => {
+    if (!id || id === 'new') return;
+    setIsDuplicating(true);
+    try {
+      const res = await api.duplicateProduct(id);
+      if (res.success) {
+        addToast({
+          type: 'success',
+          title: 'Product Duplicated',
+          description: `"${res.product.title}" has been created as draft with unique SKU & slug.`,
+        });
+        navigate(`/admin/products/${res.product.id}`);
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Duplication Failed',
+        description: err.message || 'Could not duplicate product.',
+      });
+    } finally {
+      setIsDuplicating(false);
+    }
+  };
+
   const profitPerItem = basePrice - costPrice;
   const marginPercent = basePrice > 0 ? ((profitPerItem / basePrice) * 100).toFixed(1) : 0;
 
@@ -1203,6 +1229,19 @@ export const ProductEditPage: React.FC = () => {
                 CANCEL
               </Button>
             </Link>
+            {isEditing && (
+              <Button
+                variant="outline"
+                size="md"
+                type="button"
+                onClick={handleDuplicateProduct}
+                isLoading={isDuplicating}
+                icon={<Copy className="w-4 h-4" />}
+                title="Duplicate Product (Handles unique IDs, slug, & variant SKUs)"
+              >
+                DUPLICATE
+              </Button>
+            )}
             <Button
               variant="primary"
               size="md"

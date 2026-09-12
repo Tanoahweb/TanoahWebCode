@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown, Copy } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
@@ -16,6 +16,7 @@ export const ProductListPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const loadProducts = () => {
     api.getProducts().then((data) => {
@@ -42,6 +43,29 @@ export const ProductListPage: React.FC = () => {
         title: 'Product Deleted',
         description: `${product.title} has been deleted from catalog.`,
       });
+    }
+  };
+
+  const handleDuplicateProduct = async (product: Product) => {
+    setDuplicatingId(product.id);
+    try {
+      const res = await api.duplicateProduct(product);
+      if (res.success) {
+        loadProducts();
+        addToast({
+          type: 'success',
+          title: 'Product Duplicated',
+          description: `"${res.product.title}" created as draft with unique SKU & slug.`,
+        });
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Duplication Failed',
+        description: err.message || 'Failed to duplicate product.',
+      });
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -186,6 +210,15 @@ export const ProductListPage: React.FC = () => {
                         >
                           <Edit className="w-4 h-4" />
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateProduct(product)}
+                          disabled={duplicatingId === product.id}
+                          className="inline-block p-1 text-neutral-500 hover:text-[#3F3F8F] transition-colors disabled:opacity-40"
+                          title="Duplicate Product (Handles unique IDs, slug, & variant SKUs)"
+                        >
+                          <Copy className={`w-4 h-4 ${duplicatingId === product.id ? 'animate-pulse text-[#3F3F8F]' : ''}`} />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteProduct(product)}

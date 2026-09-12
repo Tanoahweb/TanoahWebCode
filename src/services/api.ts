@@ -23,6 +23,31 @@ export interface Banner {
   sort_order: number;
 }
 
+export interface PaginatedProductsOptions {
+  page?: number;
+  limit?: number;
+  collection?: string;
+  type?: string;
+  types?: string[];
+  search?: string;
+  gender?: string;
+  sortBy?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  inStockOnly?: boolean;
+  sizes?: string[];
+  colors?: string[];
+  statusFilter?: string;
+}
+
+export interface PaginatedProductsResult {
+  products: Product[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  limit: number;
+}
+
 const PLACEHOLDER_PRODUCT_IMAGE = '/Assets/products/placeholder-product.svg';
 
 // Local custom product persistence helpers with automatic image self-healing
@@ -953,6 +978,293 @@ export const api = {
       console.error('Error deleting product from Supabase:', err);
       return false;
     }
+  },
+
+  // Duplicate Product with guaranteed unique IDs, unique slug, and unique variant SKUs
+  async duplicateProduct(productIdOrProduct: string | Product): Promise<{ success: boolean; product: Product }> {
+    let source: Product | null = null;
+    if (typeof productIdOrProduct === 'string') {
+      source = await this.getProductById(productIdOrProduct);
+    } else {
+      source = productIdOrProduct;
+    }
+
+    if (!source) {
+      throw new Error('Source product to duplicate was not found.');
+    }
+
+    // 1. Calculate guaranteed unique Title
+    const rawTitle = source.title || 'Untitled Product';
+    let newTitle = `${rawTitle} (Copy)`;
+    const copyMatch = rawTitle.match(/^(.*?)(?: \(Copy(?: (\d+))?\))?$/);
+    if (copyMatch && rawTitle.includes('(Copy')) {
+      const baseTitle = copyMatch[1];
+      const count = copyMatch[2] ? parseInt(copyMatch[2], 10) + 1 : 2;
+      newTitle = `${baseTitle} (Copy ${count})`;
+    }
+
+    // 2. Calculate guaranteed unique URL Slug
+    const baseSlug = (source.slug || 'product').replace(/-copy(-\d+)?$/, '');
+    let candidateSlug = `${baseSlug}-copy`;
+    try {
+      const { data: existingSlugRows } = await supabase
+        .from('products')
+        .select('slug')
+        .like('slug', `${baseSlug}-copy%`);
+      const existingSlugs = new Set((existingSlugRows || []).map((p) => p.slug));
+      if (existingSlugs.has(candidateSlug)) {
+        let counter = 2;
+        while (existingSlugs.has(`${baseSlug}-copy-${counter}`)) {
+          counter++;
+        }
+        candidateSlug = `${baseSlug}-copy-${counter}`;
+      }
+    } catch {
+      candidateSlug = `${baseSlug}-copy-${Date.now().toString().slice(-4)}`;
+    }
+
+    // 3. Generate new product UUID
+    const newProductId = crypto.randomUUID();
+
+    // 4. Duplicate Images with new UUIDs
+    const newImages = (source.images || []).map((img, idx) => ({
+      id: crypto.randomUUID(),
+      product_id: newProductId,
+      image_url: img.image_url,
+      media_id: img.media_id || undefined,
+      alt_text: img.alt_text ? `${img.alt_text} (Copy)` : newTitle,
+      sort_order: img.sort_order ?? idx,
+      is_primary: img.is_primary ?? idx === 0,
+      color_name: img.color_name || '',
+      position: idx,
+    }));
+
+    // 5. Calculate guaranteed unique Variant SKUs
+    let existingSkus = new Set<string>();
+    try {
+      const { data: existingSkuRows } = await supabase
+        .from('product_variants')
+        .select('sku');
+      existingSkus = new Set((existingSkuRows || []).map((v) => v.sku));
+    } catch {}
+
+    const newVariants = (source.variants || []).map((v, idx) => {
+      const baseSku = (v.sku || `SKU-${idx + 1}`).replace(/-COPY(-\d+)?$/i, '');
+      let candidateSku = `${baseSku}-COPY`;
+      if (existingSkus.has(candidateSku)) {
+        let counter = 2;
+        while (existingSkus.has(`${baseSku}-COPY-${counter}`)) {
+          counter++;
+        }
+        candidateSku = `${baseSku}-COPY-${counter}`;
+      }
+      existingSkus.add(candidateSku);
+
+      return {
+        id: crypto.randomUUID(),
+        product_id: newProductId,
+        title: v.title,
+        sku: candidateSku,
+        barcode: undefined,
+        color_name: v.color_name || '',
+        color_hex: v.color_hex || '#000000',
+        size: v.size || 'Free Size',
+        price: v.price || source!.base_price,
+        sale_price: v.sale_price || source!.sale_price || undefined,
+        compare_at_price: v.compare_at_price || source!.compare_at_price || undefined,
+        stock_quantity: v.stock_quantity ?? 0,
+        low_stock_threshold: v.low_stock_threshold ?? 3,
+        color_image_url: v.color_image_url,
+        is_active: v.is_active !== false,
+      };
+    });
+
+    // 6. Duplicate Custom Sections
+    const newCustomSections = (source.custom_sections || []).map((sec, idx) => ({
+      id: `sec_${Date.now()}_${idx}`,
+      title: sec.title,
+      content: sec.content,
+    }));
+
+    // 7. Assemble Complete Duplicated Product Object
+    const duplicatedProduct: Product = {
+      ...source,
+      id: newProductId,
+      title: newTitle,
+      slug: candidateSlug,
+      status: 'draft', // Safe initial state
+      images: newImages,
+      variants: newVariants,
+      custom_sections: newCustomSections,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // 8. Persist to Supabase
+    return await this.saveProduct(duplicatedProduct);
+  },
+
+  // Paginated Products Query (12 per batch) to minimize payload and unwanted API calls
+  async getPaginatedProducts(options: PaginatedProductsOptions = {}): Promise<PaginatedProductsResult> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.max(1, options.limit || 12);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    try {
+      const hasVariantFilter = Boolean(
+        (options.sizes && options.sizes.length > 0) ||
+        (options.colors && options.colors.length > 0) ||
+        options.inStockOnly
+      );
+
+      const variantsJoin = hasVariantFilter ? 'variants:product_variants!inner(*)' : 'variants:product_variants(*)';
+
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          images:product_images(*),
+          ${variantsJoin}
+        `, { count: 'exact' });
+
+      // Status filter
+      if (options.statusFilter && options.statusFilter !== 'all') {
+        query = query.eq('status', options.statusFilter);
+      } else if (!options.statusFilter) {
+        query = query.eq('status', 'active');
+      }
+
+      // Collection filter
+      const coll = (options.collection || 'all').toLowerCase();
+      if (coll !== 'all') {
+        if (coll === 'men') {
+          query = query.in('gender', ['men', 'unisex']);
+        } else if (coll === 'women') {
+          query = query.in('gender', ['women', 'unisex']);
+        } else if (coll === 'sale') {
+          query = query.not('sale_price', 'is', null);
+        } else if (coll === 'new-arrivals') {
+          query = query.eq('is_new_arrival', true);
+        } else if (coll === 'best-sellers') {
+          query = query.or('is_best_seller.eq.true,tags.cs.{"best-sellers"}');
+        } else {
+          // Custom collection: check tags contains collection slug or product_type matches
+          query = query.or(`tags.cs.{"${coll}"},product_type.ilike.%${coll}%`);
+        }
+      }
+
+      // Gender filter
+      if (options.gender && options.gender !== 'all') {
+        query = query.in('gender', [options.gender, 'unisex']);
+      }
+
+      // Product Type filter
+      if (options.types && options.types.length > 0) {
+        query = query.in('product_type', options.types);
+      } else if (options.type && options.type !== 'all') {
+        query = query.eq('product_type', options.type);
+      }
+
+      // Variant filters (Sizes, Colors, In-Stock)
+      if (options.sizes && options.sizes.length > 0) {
+        query = query.in('variants.size', options.sizes);
+      }
+      if (options.colors && options.colors.length > 0) {
+        query = query.in('variants.color_name', options.colors);
+      }
+      if (options.inStockOnly) {
+        query = query.gt('variants.stock_quantity', 0);
+      }
+
+      // Search term
+      if (options.search && options.search.trim()) {
+        const q = options.search.trim();
+        query = query.or(`title.ilike.%${q}%,brand.ilike.%${q}%`);
+      }
+
+      // Price filter
+      if (options.maxPrice && options.maxPrice < 10000) {
+        query = query.lte('base_price', options.maxPrice);
+      }
+      if (options.minPrice) {
+        query = query.gte('base_price', options.minPrice);
+      }
+
+      // Sorting
+      const sortBy = options.sortBy || 'featured';
+      if (sortBy === 'price-low') {
+        query = query.order('base_price', { ascending: true });
+      } else if (sortBy === 'price-high') {
+        query = query.order('base_price', { ascending: false });
+      } else if (sortBy === 'newest') {
+        query = query.order('created_at', { ascending: false });
+      } else if (sortBy === 'bestseller') {
+        query = query.order('is_best_seller', { ascending: false }).order('created_at', { ascending: false });
+      } else if (sortBy === 'alpha-asc') {
+        query = query.order('title', { ascending: true });
+      } else if (sortBy === 'alpha-desc') {
+        query = query.order('title', { ascending: false });
+      } else {
+        query = query.order('is_featured', { ascending: false }).order('created_at', { ascending: false });
+      }
+
+      // Range (Pagination)
+      query = query.range(from, to);
+
+      const { data, count, error } = await query;
+
+      if (!error && data) {
+        const sanitized = (data as unknown as Product[]).map(sanitizeProduct);
+        const total = typeof count === 'number' ? count : sanitized.length;
+        return {
+          products: sanitized,
+          totalCount: total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+          currentPage: page,
+          limit,
+        };
+      }
+      if (error) {
+        console.warn('Supabase getPaginatedProducts query error, falling back to local slice:', error);
+      }
+    } catch (err) {
+      console.warn('Network error in getPaginatedProducts:', err);
+    }
+
+    // Fallback: slice filtered products
+    const sample = await this.getProducts(options.statusFilter || 'active');
+    const coll = (options.collection || 'all').toLowerCase();
+    let filtered = sample.filter((p) => {
+      if (coll !== 'all') {
+        if (coll === 'men' && p.gender !== 'men' && p.gender !== 'unisex') return false;
+        if (coll === 'women' && p.gender !== 'women' && p.gender !== 'unisex') return false;
+        if (coll === 'sale' && !p.sale_price && (!p.compare_at_price || p.compare_at_price <= p.base_price)) return false;
+        if (coll === 'new-arrivals' && !p.is_new_arrival) return false;
+        if (coll === 'best-sellers' && !p.is_best_seller) return false;
+      }
+      if (options.gender && options.gender !== 'all' && p.gender !== options.gender && p.gender !== 'unisex') return false;
+      if (options.types && options.types.length > 0 && !options.types.includes(p.product_type)) return false;
+      if (options.type && options.type !== 'all' && p.product_type !== options.type) return false;
+      if (options.search && !p.title.toLowerCase().includes(options.search.toLowerCase())) return false;
+      if (options.maxPrice && options.maxPrice < 10000 && p.base_price > options.maxPrice) return false;
+      if (options.sizes && options.sizes.length > 0 && !p.variants.some((v) => options.sizes!.includes(v.size))) return false;
+      if (options.colors && options.colors.length > 0 && !p.variants.some((v) => options.colors!.includes(v.color_name))) return false;
+      if (options.inStockOnly && !p.variants.some((v) => v.stock_quantity > 0)) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    const paginatedSlice = filtered.slice(from, to + 1);
+
+    return {
+      products: paginatedSlice,
+      totalCount: total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      currentPage: page,
+      limit,
+    };
   },
 
   // Banners
