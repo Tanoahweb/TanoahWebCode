@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Sparkles,
   Accessibility,
+  ArrowRight,
 } from 'lucide-react';
 
 export const PolicyPage: React.FC = () => {
@@ -600,6 +601,20 @@ export const PolicyPage: React.FC = () => {
               <p>
                 Return and Refund Policies do not apply to Wholesale selling partners.
               </p>
+            </div>
+
+            <div className="pt-4 border-t border-[#E7E7E7] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#FAF9F6] p-4 rounded-[4px]">
+              <div>
+                <h4 className="font-semibold text-black text-xs uppercase tracking-wider">Need to report damage or request a return?</h4>
+                <p className="text-[11px] text-[#666666] mt-0.5">Submit your claim within 24 hours of delivery. Open to guests and account holders.</p>
+              </div>
+              <Link
+                to="/return-request"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#3F3F8F] hover:bg-black text-white rounded-[4px] font-semibold text-xs tracking-wider uppercase transition-colors shrink-0"
+              >
+                <span>Initiate Return Request</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
         </div>

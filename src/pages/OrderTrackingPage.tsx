@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search,
   CheckCircle2,
@@ -716,6 +716,30 @@ export const OrderTrackingPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Delivered Status: Return & Damage Claim Option */}
+            {trackingResult.rawStatus === 'delivered' && (
+              <div className="p-4 bg-white border border-[#E7E7E7] rounded-[4px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <strong className="text-black block font-medium">Delivered by India Post</strong>
+                    <span className="text-[#666666] text-[11px]">
+                      Need to report transit damage or initiate a return request within the 24-hour window?
+                    </span>
+                  </div>
+                </div>
+                <Link
+                  to={`/return-request?order=${encodeURIComponent(trackingResult.orderNumber)}`}
+                  className="inline-flex items-center justify-center gap-1 px-3.5 py-2 bg-[#3F3F8F] hover:bg-black text-white font-semibold text-xs rounded-[4px] transition-colors shrink-0"
+                >
+                  <span>Return Request</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            )}
 
             {/* Customer Support Bar */}
             <div className="pt-4 border-t border-[#E7E7E7] flex flex-wrap items-center justify-between gap-3 text-xs">

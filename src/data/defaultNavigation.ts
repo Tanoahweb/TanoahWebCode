@@ -236,11 +236,12 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
       is_active: true,
       links: [
         { id: 'fl_s1', label: 'Track Your Order', url: '/tracking', sort_order: 0, is_active: true },
-        { id: 'fl_s2', label: 'Refund Policy', url: '/pages/refund-policy', sort_order: 1, is_active: true },
-        { id: 'fl_s3', label: 'Fit & Size Guide', url: '/pages/size-guide', sort_order: 2, is_active: true },
-        { id: 'fl_s4', label: 'Shipping Policy', url: '/pages/shipping-policy', sort_order: 3, is_active: true },
-        { id: 'fl_s5', label: 'Frequently Asked Questions', url: '/pages/faq', sort_order: 4, is_active: true },
-        { id: 'fl_s6', label: 'Contact Customer Care', url: '/pages/contact', sort_order: 5, is_active: true },
+        { id: 'fl_s_return', label: 'Return Request', url: '/return-request', sort_order: 1, is_active: true },
+        { id: 'fl_s2', label: 'Refund Policy', url: '/pages/refund-policy', sort_order: 2, is_active: true },
+        { id: 'fl_s3', label: 'Fit & Size Guide', url: '/pages/size-guide', sort_order: 3, is_active: true },
+        { id: 'fl_s4', label: 'Shipping Policy', url: '/pages/shipping-policy', sort_order: 4, is_active: true },
+        { id: 'fl_s5', label: 'Frequently Asked Questions', url: '/pages/faq', sort_order: 5, is_active: true },
+        { id: 'fl_s6', label: 'Contact Customer Care', url: '/pages/contact', sort_order: 6, is_active: true },
       ],
     },
     {

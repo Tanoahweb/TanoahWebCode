@@ -15,10 +15,12 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
 
 export const ReturnsPage: React.FC = () => {
+  const { user } = useAuthStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialOrder = searchParams.get('order') || '';
@@ -69,8 +71,8 @@ export const ReturnsPage: React.FC = () => {
   }, [initialOrder]);
 
   const handleVerifyOrder = async (orderIdToVerify?: string) => {
-    const idToLookup = (orderIdToVerify || orderNumber).trim();
-    if (!idToLookup) {
+    const rawId = (orderIdToVerify || orderNumber).trim();
+    if (!rawId) {
       setVerificationError('Please enter your Order Number to check eligibility.');
       return;
     }
@@ -81,9 +83,12 @@ export const ReturnsPage: React.FC = () => {
     setHoursSinceDelivery(null);
 
     try {
-      const order = await api.getOrderByNumber(idToLookup);
+      let order = await api.getOrderByNumber(rawId);
+      if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
+        order = await api.getOrderByNumber(`TAN-${rawId}`);
+      }
       if (!order) {
-        setVerificationError('Order not found. Please verify the order number on your invoice.');
+        setVerificationError('Order not found. Please verify the order number from your confirmation email or invoice.');
         return;
       }
 
@@ -216,13 +221,13 @@ export const ReturnsPage: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <span className="text-[10px] text-[#3F3F8F] font-semibold tracking-widest uppercase block mb-1">
-            CLIENT SERVICES & CLAIMS
+            CLIENT SERVICES & CLAIMS · GUEST & REGISTERED PATRONS
           </span>
           <h1 className="font-wondra text-3xl sm:text-4xl text-black">
-            DAMAGE & DEFECT CLAIM PORTAL
+            RETURN & DAMAGE CLAIM PORTAL
           </h1>
           <p className="text-xs text-[#666666] max-w-xl mx-auto mt-2 leading-relaxed">
-            We accept returns and refunds <strong>strictly for transit damage or defective items</strong> reported within <strong>24 hours</strong> of delivery with a mandatory <strong>360° unboxing video</strong>. Size and colour exchanges are not supported.
+            Guests and account holders can submit return and damage claims directly with their Order Number. We accept returns and refunds <strong>strictly for transit damage or defective items</strong> reported within <strong>24 hours</strong> of delivery with a mandatory <strong>360° unboxing video</strong>. Size and colour exchanges are not supported.
           </p>
         </div>
 
@@ -346,13 +351,20 @@ export const ReturnsPage: React.FC = () => {
               )}
             </div>
 
-            <div className="pt-4 flex justify-between items-center text-xs">
+            <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs">
               <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
                 Read Full Refund Policy →
               </Link>
-              <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
-                Back to My Account
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                  Continue Shopping
+                </Button>
+                {user && (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                    Back to My Account
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -369,15 +381,18 @@ export const ReturnsPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                 <div className="sm:col-span-7">
                   <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                    Order Number *
+                    Order Number (Guest or Account) *
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. TAN-849201"
+                    placeholder="e.g. TAN-849201 or 849201"
                     value={orderNumber}
                     onChange={(e) => setOrderNumber(e.target.value)}
                     className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase"
                   />
+                  <span className="text-[10px] text-[#888888] mt-1 block">
+                    Found in your order confirmation email, SMS, or delivery slip.
+                  </span>
                 </div>
                 <div className="sm:col-span-5 flex items-end">
                   <Button

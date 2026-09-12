@@ -108,6 +108,8 @@ const AppContent: React.FC = () => {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
           <Route path="/tracking" element={<OrderTrackingPage />} />
+          <Route path="/returns" element={<ReturnsPage />} />
+          <Route path="/return-request" element={<ReturnsPage />} />
           <Route path="/lookbook" element={<LookbookPage />} />
           <Route path="/blog" element={<BlogListPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />

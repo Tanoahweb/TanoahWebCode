@@ -315,7 +315,7 @@ export const CatalogPage: React.FC = () => {
           </p>
 
           <div className="mt-4 text-[11px] text-[#888888] tracking-wider uppercase font-medium">
-            Showing {totalCount} Items
+            Showing {productsList.length} {productsList.length === 1 ? 'Item' : 'Items'}
           </div>
         </div>
       </div>
