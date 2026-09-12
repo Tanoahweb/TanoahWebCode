@@ -227,6 +227,130 @@ export const ProductDetailPage: React.FC = () => {
     }
   }, [searchParams, user, product]);
 
+  // 1. Recently viewed state & synchronization (Must be at top-level before early returns)
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
+    try {
+      const raw = safeGetItem('tanoah_recently_viewed');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((id: unknown) => typeof id === 'string');
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      if (e.detail?.ids && Array.isArray(e.detail.ids)) {
+        setRecentlyViewedIds(e.detail.ids);
+      }
+    };
+    window.addEventListener('tanoah_recently_viewed_updated', handleUpdate);
+    return () => window.removeEventListener('tanoah_recently_viewed_updated', handleUpdate);
+  }, []);
+
+  // Track recently viewed products in safe storage
+  useEffect(() => {
+    if (!product?.id) return;
+    try {
+      const raw = safeGetItem('tanoah_recently_viewed');
+      let ids: string[] = [];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          ids = parsed.filter((item: unknown) => typeof item === 'string' && item !== product.id);
+        }
+      }
+      const updated = [product.id, ...ids].slice(0, 12);
+      safeSetItem('tanoah_recently_viewed', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('tanoah_recently_viewed_updated', { detail: { ids: updated } }));
+    } catch (e) {
+      console.warn('Error saving recently viewed product:', e);
+    }
+  }, [product?.id]);
+
+  // Compute Similar Products
+  const similarProducts = useMemo(() => {
+    if (!product) return [];
+    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
+    const candidates = all.filter((p) => p.id !== product.id && p.slug !== product.slug);
+
+    const result: Product[] = [];
+    const addedIds = new Set<string>();
+
+    // 1. Curated similar products specified by admin
+    if (Array.isArray(product.similar_product_ids) && product.similar_product_ids.length > 0) {
+      for (const pid of product.similar_product_ids) {
+        const found = candidates.find((p) => p.id === pid || p.slug === pid);
+        if (found && !addedIds.has(found.id)) {
+          result.push(found);
+          addedIds.add(found.id);
+        }
+      }
+    }
+
+    // 2. Curated similar categories specified by admin
+    if (result.length < 4 && Array.isArray(product.similar_category_ids) && product.similar_category_ids.length > 0) {
+      for (const catId of product.similar_category_ids) {
+        const matching = candidates.filter(
+          (p) => !addedIds.has(p.id) && (p.category_id === catId || (p as any).category?.id === catId)
+        );
+        for (const p of matching) {
+          if (result.length >= 4) break;
+          result.push(p);
+          addedIds.add(p.id);
+        }
+        if (result.length >= 4) break;
+      }
+    }
+
+    // 3. Fallback: products in same category or product type
+    if (result.length < 4) {
+      const sameCategoryOrType = candidates.filter(
+        (p) =>
+          !addedIds.has(p.id) &&
+          ((product.category_id && p.category_id === product.category_id) ||
+            (product.product_type && p.product_type && p.product_type.toLowerCase() === product.product_type.toLowerCase()))
+      );
+      for (const p of sameCategoryOrType) {
+        if (result.length >= 4) break;
+        result.push(p);
+        addedIds.add(p.id);
+      }
+    }
+
+    // 4. Fallback: general catalog products
+    if (result.length < 4) {
+      for (const p of candidates) {
+        if (result.length >= 4) break;
+        if (!addedIds.has(p.id)) {
+          result.push(p);
+          addedIds.add(p.id);
+        }
+      }
+    }
+
+    return result.slice(0, 4);
+  }, [product, catalogProducts]);
+
+  // Compute Recently Viewed Products (excluding current product)
+  const recentlyViewedProducts = useMemo(() => {
+    if (!product) return [];
+    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
+    const otherIds = recentlyViewedIds.filter((id) => id !== product.id && id !== product.slug);
+    if (otherIds.length === 0) return [];
+
+    const matched: Product[] = [];
+    for (const id of otherIds) {
+      const found = all.find((p) => p.id === id || p.slug === id);
+      if (found && !matched.some((m) => m.id === found.id)) {
+        matched.push(found);
+      }
+      if (matched.length >= 4) break;
+    }
+    return matched;
+  }, [product, recentlyViewedIds, catalogProducts]);
+
   if (isLoading) {
     return (
       <div className="w-full bg-white font-poppins min-h-screen">
@@ -692,129 +816,6 @@ export const ProductDetailPage: React.FC = () => {
       setIsSubmittingWaitlist(false);
     }
   };
-
-  // Track recently viewed products in safe storage
-  useEffect(() => {
-    if (!product?.id) return;
-    try {
-      const raw = safeGetItem('tanoah_recently_viewed');
-      let ids: string[] = [];
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          ids = parsed.filter((item: unknown) => typeof item === 'string' && item !== product.id);
-        }
-      }
-      const updated = [product.id, ...ids].slice(0, 12);
-      safeSetItem('tanoah_recently_viewed', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('tanoah_recently_viewed_updated', { detail: { ids: updated } }));
-    } catch (e) {
-      console.warn('Error saving recently viewed product:', e);
-    }
-  }, [product?.id]);
-
-  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
-    try {
-      const raw = safeGetItem('tanoah_recently_viewed');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed.filter((id: unknown) => typeof id === 'string');
-      }
-    } catch {}
-    return [];
-  });
-
-  useEffect(() => {
-    const handleUpdate = (e: any) => {
-      if (e.detail?.ids && Array.isArray(e.detail.ids)) {
-        setRecentlyViewedIds(e.detail.ids);
-      }
-    };
-    window.addEventListener('tanoah_recently_viewed_updated', handleUpdate);
-    return () => window.removeEventListener('tanoah_recently_viewed_updated', handleUpdate);
-  }, []);
-
-  // Compute Similar Products
-  const similarProducts = useMemo(() => {
-    if (!product) return [];
-    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
-    const candidates = all.filter((p) => p.id !== product.id && p.slug !== product.slug);
-
-    const result: Product[] = [];
-    const addedIds = new Set<string>();
-
-    // 1. Curated similar products specified by admin
-    if (Array.isArray(product.similar_product_ids) && product.similar_product_ids.length > 0) {
-      for (const pid of product.similar_product_ids) {
-        const found = candidates.find((p) => p.id === pid || p.slug === pid);
-        if (found && !addedIds.has(found.id)) {
-          result.push(found);
-          addedIds.add(found.id);
-        }
-      }
-    }
-
-    // 2. Curated similar categories specified by admin
-    if (result.length < 4 && Array.isArray(product.similar_category_ids) && product.similar_category_ids.length > 0) {
-      for (const catId of product.similar_category_ids) {
-        const matching = candidates.filter(
-          (p) => !addedIds.has(p.id) && (p.category_id === catId || (p as any).category?.id === catId)
-        );
-        for (const p of matching) {
-          if (result.length >= 4) break;
-          result.push(p);
-          addedIds.add(p.id);
-        }
-        if (result.length >= 4) break;
-      }
-    }
-
-    // 3. Fallback: products in same category or product type
-    if (result.length < 4) {
-      const sameCategoryOrType = candidates.filter(
-        (p) =>
-          !addedIds.has(p.id) &&
-          ((product.category_id && p.category_id === product.category_id) ||
-            (product.product_type && p.product_type && p.product_type.toLowerCase() === product.product_type.toLowerCase()))
-      );
-      for (const p of sameCategoryOrType) {
-        if (result.length >= 4) break;
-        result.push(p);
-        addedIds.add(p.id);
-      }
-    }
-
-    // 4. Fallback: general catalog products
-    if (result.length < 4) {
-      for (const p of candidates) {
-        if (result.length >= 4) break;
-        if (!addedIds.has(p.id)) {
-          result.push(p);
-          addedIds.add(p.id);
-        }
-      }
-    }
-
-    return result.slice(0, 4);
-  }, [product, catalogProducts]);
-
-  // Compute Recently Viewed Products (excluding current product)
-  const recentlyViewedProducts = useMemo(() => {
-    if (!product) return [];
-    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
-    const otherIds = recentlyViewedIds.filter((id) => id !== product.id && id !== product.slug);
-    if (otherIds.length === 0) return [];
-
-    const matched: Product[] = [];
-    for (const id of otherIds) {
-      const found = all.find((p) => p.id === id || p.slug === id);
-      if (found && !matched.some((m) => m.id === found.id)) {
-        matched.push(found);
-      }
-      if (matched.length >= 4) break;
-    }
-    return matched;
-  }, [product, recentlyViewedIds, catalogProducts]);
 
   const productMeta = product ? getProductMeta(product) : null;
   const productJsonLd = product ? generateProductJsonLd(product, reviews) : undefined;
