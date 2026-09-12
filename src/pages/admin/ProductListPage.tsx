@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown, Copy } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
@@ -12,6 +12,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { Product } from '../../types';
 
 export const ProductListPage: React.FC = () => {
+  const navigate = useNavigate();
   const { addToast } = useUIStore();
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,13 +51,13 @@ export const ProductListPage: React.FC = () => {
     setDuplicatingId(product.id);
     try {
       const res = await api.duplicateProduct(product);
-      if (res.success) {
-        loadProducts();
+      if (res.success && res.product?.id) {
         addToast({
           type: 'success',
           title: 'Product Duplicated',
-          description: `"${res.product.title}" created as draft with unique SKU & slug.`,
+          description: `"${res.product.title}" created as draft. Redirecting to edit...`,
         });
+        navigate(`/admin/products/${res.product.id}`);
       }
     } catch (err: any) {
       addToast({
