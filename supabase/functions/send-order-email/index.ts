@@ -54,6 +54,23 @@ Deno.serve(async (req: Request) => {
               <div style="color: #D4AF37; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">TANOAH &bull; CLAIMS NOTIFICATION</div>
               <h2 style="margin-top: 0; color: #191846;">🔄 Return Request Email Pipeline Active</h2>
               <p>Your automatic return notification system via <strong>Resend</strong> is operational and delivering properly.</p>
+              
+              <!-- Sample Product Item Preview -->
+              <div style="margin: 16px 0; padding: 12px; background: #FAFAFB; border: 1px solid #EEEEEE; border-radius: 6px;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td style="width: 56px; vertical-align: top; padding-right: 12px;">
+                      <img src="https://pub-b84a76f2249d43fa80197c7320ff268e.r2.dev/banners/910265e23f99fc4f-IMG_4214.webp" alt="SIENNA GRACE" width="52" height="65" style="border-radius: 4px; object-fit: cover; display: block; border: 1px solid #E5E5E5;" />
+                    </td>
+                    <td style="vertical-align: middle;">
+                      <div style="font-weight: 700; font-size: 14px; color: #111111;">SIENNA GRACE</div>
+                      <div style="font-size: 12px; color: #666666; margin-top: 2px;">Variant: Standard &bull; Qty 1</div>
+                      <div style="font-size: 12px; font-weight: 600; color: #191846; margin-top: 2px;">₹4,290</div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
               <p><strong>Configured Recipient:</strong> ${recipient}</p>
               <p><strong>Trigger Point:</strong> Customer completes Step 1 (Report Damage Details)</p>
               <p><strong>Included Details:</strong> Customer Name, Mobile, WhatsApp, Product Variant, Defect Reason, and Full Step 1 Acknowledgment</p>

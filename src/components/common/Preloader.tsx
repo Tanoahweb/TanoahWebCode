@@ -78,7 +78,7 @@ export const Preloader: React.FC<PreloaderProps> = ({
 
         {/* Subtle Brand Tagline */}
         <span className="text-[9px] uppercase tracking-[0.28em] text-[#888888] font-medium mt-3.5 select-none">
-          TANOAH
+          Loading...
         </span>
       </div>
 

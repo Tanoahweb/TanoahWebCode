@@ -386,6 +386,18 @@ export const ReturnsPage: React.FC = () => {
         variant_title: 'Standard',
       };
 
+      const resolvedProductImage =
+        selectedItem.image_url ||
+        selectedItem.imageUrl ||
+        selectedItem.image ||
+        selectedItem.featured_image ||
+        selectedItem.img ||
+        selectedItem.product?.featured_image ||
+        selectedItem.product?.image_url ||
+        (Array.isArray(selectedItem.product?.images) ? selectedItem.product.images[0] : '') ||
+        selectedItem.variant?.image ||
+        '';
+
       const res = await api.submitReturn({
         order_number: verifiedOrder.order_number || verifiedOrder.orderNumber || orderNumber,
         reason: damageReason,
@@ -395,6 +407,7 @@ export const ReturnsPage: React.FC = () => {
         customer_phone: customerContact || verifiedOrder.shipping_address?.phone || '',
         product_title: selectedItem.product_title || selectedItem.product?.title || 'Tanoah Garment',
         variant_info: selectedItem.variant_title || selectedItem.variant?.size || 'Standard',
+        product_image: resolvedProductImage,
         delivered_at: verifiedOrder.delivered_at || verifiedOrder.updated_at,
         hours_since_delivery: hoursSinceDelivery ?? 0,
         tag_intact_confirmed: confirmedTag,
@@ -418,7 +431,7 @@ export const ReturnsPage: React.FC = () => {
           const resolvedPhone = customerContact || verifiedOrder.shipping_address?.phone || res.ticket.customer_phone || '';
           const resolvedEmail = verifiedOrder.guest_email || verifiedOrder.customer_email || verifiedOrder.email || res.ticket.customer_email || '';
           const pPrice = selectedItem.unit_price ?? selectedItem.price ?? 0;
-          const pImg = selectedItem.product?.featured_image || selectedItem.product?.images?.[0] || selectedItem.image || '';
+          const pImg = resolvedProductImage || res.ticket.product_image || '';
 
           emailService.sendReturnRequestNotification({
             ticketId: res.ticket.ticket_number || res.ticket.id || 'N/A',
@@ -1281,6 +1294,7 @@ export const ReturnsPage: React.FC = () => {
                     <div className="space-y-2">
                       {verifiedOrder.items.map((item: any, idx: number) => {
                         const isSelected = selectedItemIndex === idx;
+                        const itemImg = item.image_url || item.imageUrl || item.image || item.featured_image || item.img || item.product?.featured_image || item.product?.image_url || (Array.isArray(item.product?.images) ? item.product.images[0] : '') || '';
                         return (
                           <label
                             key={idx}
@@ -1295,6 +1309,13 @@ export const ReturnsPage: React.FC = () => {
                               onChange={() => setSelectedItemIndex(idx)}
                               className="accent-[#3F3F8F]"
                             />
+                            {itemImg && (
+                              <img
+                                src={itemImg}
+                                alt={item.product_title || 'Item'}
+                                className="w-10 h-12 object-cover rounded bg-[#F9F9FB] border border-[#EBEBEB] flex-shrink-0"
+                              />
+                            )}
                             <div className="flex-1 text-xs">
                               <div className="font-semibold text-black">
                                 {item.product_title || item.product?.title || 'Tanoah Item'}

@@ -2797,6 +2797,7 @@ export const api = {
     customer_phone?: string;
     product_title?: string;
     variant_info?: string;
+    product_image?: string;
     delivered_at?: string;
     hours_since_delivery?: number;
     tag_intact_confirmed?: boolean;
@@ -2834,6 +2835,7 @@ export const api = {
         customer_description: params.customer_description || '',
         product_title: params.product_title || 'Tanoah Garment',
         variant_info: params.variant_info || 'Standard',
+        product_image: params.product_image || '',
         delivered_at: params.delivered_at || order?.delivered_at || order?.updated_at || null,
         hours_since_delivery: params.hours_since_delivery ?? 0,
         tag_intact_confirmed: params.tag_intact_confirmed ?? true,

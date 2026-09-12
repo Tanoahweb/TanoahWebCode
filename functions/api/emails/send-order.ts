@@ -60,6 +60,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           <div style="font-family: sans-serif; padding: 24px; color: #191846;">
             <h2>🔄 TANOAH - Return Request Notification Active</h2>
             <p>Real-time return notifications via <strong>Resend</strong> are configured and delivering properly to <strong>${recipient}</strong>.</p>
+            <div style="margin: 16px 0; padding: 12px; background: #FAFAFB; border: 1px solid #EEEEEE; border-radius: 6px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="width: 56px; vertical-align: top; padding-right: 12px;">
+                    <img src="https://pub-b84a76f2249d43fa80197c7320ff268e.r2.dev/banners/910265e23f99fc4f-IMG_4214.webp" alt="SIENNA GRACE" width="52" height="65" style="border-radius: 4px; object-fit: cover; display: block; border: 1px solid #E5E5E5;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <div style="font-weight: 700; font-size: 14px; color: #111111;">SIENNA GRACE</div>
+                    <div style="font-size: 12px; color: #666666; margin-top: 2px;">Variant: Standard &bull; Qty 1</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #191846; margin-top: 2px;">₹4,290</div>
+                  </td>
+                </tr>
+              </table>
+            </div>
             <p>Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
           </div>
         `

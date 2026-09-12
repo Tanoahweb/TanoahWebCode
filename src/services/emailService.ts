@@ -98,11 +98,37 @@ export const FALLBACK_PRODUCT_IMAGE = `${R2_PUBLIC_BASE}/assets/placeholder-prod
  * Resolves any item image into an absolute, public HTTPS raster URL suitable for email clients.
  * Handles relative paths, SVGs, and base64 URLs safely.
  */
-export const resolveEmailImageUrl = (rawUrl?: string): string => {
-  if (!rawUrl || typeof rawUrl !== 'string') {
+export const resolveEmailImageUrl = (rawUrl?: any): string => {
+  if (!rawUrl) {
     return FALLBACK_PRODUCT_IMAGE;
   }
-  const trimmed = rawUrl.trim();
+
+  let urlStr = '';
+  if (typeof rawUrl === 'string') {
+    const trimmed = rawUrl.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          urlStr = typeof parsed[0] === 'string' ? parsed[0] : (parsed[0]?.url || parsed[0]?.image_url || parsed[0]?.src || '');
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          urlStr = parsed.url || parsed.image_url || parsed.src || '';
+        } else {
+          urlStr = trimmed;
+        }
+      } catch {
+        urlStr = trimmed;
+      }
+    } else {
+      urlStr = trimmed;
+    }
+  } else if (Array.isArray(rawUrl) && rawUrl.length > 0) {
+    urlStr = typeof rawUrl[0] === 'string' ? rawUrl[0] : (rawUrl[0]?.url || rawUrl[0]?.image_url || rawUrl[0]?.src || '');
+  } else if (typeof rawUrl === 'object' && rawUrl !== null) {
+    urlStr = rawUrl.url || rawUrl.image_url || rawUrl.src || '';
+  }
+
+  const trimmed = (urlStr || '').trim();
   if (!trimmed) {
     return FALLBACK_PRODUCT_IMAGE;
   }
@@ -683,6 +709,7 @@ export const generateReturnRequestAdminHtml = (claim: ReturnClaimEmailPayload): 
 
 export const generateReturnRequestCustomerHtml = (claim: ReturnClaimEmailPayload): string => {
   const claimDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium' });
+  const img = resolveEmailImageUrl(claim.productImage);
 
   return `
     <!DOCTYPE html>
@@ -705,7 +732,7 @@ export const generateReturnRequestCustomerHtml = (claim: ReturnClaimEmailPayload
 
           <!-- Greeting Card -->
           <tr>
-            <td style="padding: 36px 32px 24px 32px;">
+            <td style="padding: 36px 32px 20px 32px;">
               <h2 style="font-size: 20px; font-weight: 700; color: #111111; margin: 0 0 12px 0;">
                 Return Claim Received &bull; Order #${claim.orderNumber}
               </h2>
@@ -713,6 +740,24 @@ export const generateReturnRequestCustomerHtml = (claim: ReturnClaimEmailPayload
                 Dear ${claim.customerName},<br/><br/>
                 We have received your return request for <strong>${claim.productTitle} (${claim.variantInfo})</strong>. Your claim reference ticket is <strong>#${claim.ticketId}</strong>.
               </p>
+            </td>
+          </tr>
+
+          <!-- Product Item Card -->
+          <tr>
+            <td style="padding: 0 32px 20px 32px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #FAFAFB; border: 1px solid #EEEEEE; border-radius: 6px; padding: 12px 14px;">
+                <tr>
+                  <td style="width: 56px; vertical-align: top; padding-right: 12px;">
+                    <img src="${img}" alt="${claim.productTitle}" width="52" height="65" style="border-radius: 4px; object-fit: cover; display: block; border: 1px solid #E5E5E5; width: 52px; height: 65px;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <div style="font-weight: 700; font-size: 14px; color: #111111;">${claim.productTitle}</div>
+                    <div style="font-size: 12px; color: #666666; margin-top: 3px;">Specification / Variant: <strong>${claim.variantInfo}</strong></div>
+                    ${claim.productPrice ? `<div style="font-size: 12px; font-weight: 600; color: #191846; margin-top: 3px;">${formatINR(claim.productPrice)}</div>` : ''}
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
