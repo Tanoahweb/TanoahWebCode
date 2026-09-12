@@ -6,15 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const DEFAULT_ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL') || 'connectus.tanoah@gmail.com';
 const DEFAULT_FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'TANOAH <onboarding@resend.dev>';
 
-async function sendResend(params: { from: string; to: string | string[]; reply_to?: string; subject: string; html: string }) {
+async function sendResend(
+  params: { from: string; to: string | string[]; reply_to?: string; subject: string; html: string },
+  apiKey?: string
+) {
+  const activeKey = apiKey || Deno.env.get('RESEND_API_KEY') || '';
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Authorization': `Bearer ${activeKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(params),
@@ -31,6 +34,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const payload = await req.json();
+    const activeApiKey = payload.apiKey || Deno.env.get('RESEND_API_KEY') || '';
     const { order, adminHtml, customerHtml, test, to } = payload;
     const adminEmail = payload.adminEmail || DEFAULT_ADMIN_EMAIL;
     const fromEmail = payload.from || DEFAULT_FROM_EMAIL;
@@ -38,12 +42,25 @@ Deno.serve(async (req: Request) => {
     // 1. Test Email
     if (test) {
       const recipient = to || adminEmail;
-      const res = await sendResend({
-        from: fromEmail,
-        to: recipient,
-        reply_to: adminEmail,
-        subject: `[Test Success] TANOAH Real-Time Email System Active`,
-        html: `
+      const isReturnTest = payload.testType === 'return';
+      const testSubject = isReturnTest
+        ? `[Test Success] TANOAH Return Request Notification System Active`
+        : `[Test Success] TANOAH Real-Time Email System Active`;
+      const testHtml = isReturnTest
+        ? `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 32px; background: #F8F8FA; color: #191846;">
+            <div style="max-width: 560px; margin: 0 auto; background: #FFFFFF; border-radius: 8px; padding: 28px; border: 1px solid #E5E5E5;">
+              <div style="color: #D4AF37; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">TANOAH &bull; CLAIMS NOTIFICATION</div>
+              <h2 style="margin-top: 0; color: #191846;">🔄 Return Request Email Pipeline Active</h2>
+              <p>Your automatic return notification system via <strong>Resend</strong> is operational and delivering properly.</p>
+              <p><strong>Configured Recipient:</strong> ${recipient}</p>
+              <p><strong>Trigger Point:</strong> Customer completes Step 1 (Report Damage Details)</p>
+              <p><strong>Included Details:</strong> Customer Name, Mobile, WhatsApp, Product Variant, Defect Reason, and Full Step 1 Acknowledgment</p>
+              <p style="font-size: 12px; color: #888888; margin-top: 24px;">Generated at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+            </div>
+          </div>
+        `
+        : `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 32px; background: #F8F8FA; color: #191846;">
             <div style="max-width: 540px; margin: 0 auto; background: #FFFFFF; border-radius: 8px; padding: 28px; border: 1px solid #E5E5E5;">
               <h2 style="margin-top: 0; color: #191846;">✨ TANOAH - Real-Time Alert Active</h2>
@@ -53,9 +70,63 @@ Deno.serve(async (req: Request) => {
               <p style="font-size: 12px; color: #888888; margin-top: 24px;">Generated at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
             </div>
           </div>
-        `,
-      });
+        `;
+
+      const res = await sendResend({
+        from: fromEmail,
+        to: recipient,
+        reply_to: adminEmail,
+        subject: testSubject,
+        html: testHtml,
+      }, activeApiKey);
       return new Response(JSON.stringify({ success: true, message: 'Test email sent', id: res.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 2. Return Claim Alert (Step 1 Complete)
+    if (payload.returnClaim || payload.type === 'return_request') {
+      const claim = payload.returnClaim || {};
+      const orderNum = claim.orderNumber || claim.order_number || 'TAN-RETURN';
+      const customerName = claim.customerName || claim.customer_name || 'Customer';
+      const customerEmail = claim.customerEmail || claim.customer_email || '';
+      const productTitle = claim.productTitle || claim.product_title || 'Garment';
+      const recipient = payload.adminEmail || DEFAULT_ADMIN_EMAIL;
+      const subject = payload.subject || `🚨 [RETURN REQUEST] #${orderNum} • ${customerName} • ${productTitle}`;
+
+      const results: any = { orderNumber: orderNum, adminAlert: null, customerConfirmation: null };
+
+      try {
+        const adminRes = await sendResend({
+          from: fromEmail,
+          to: recipient,
+          reply_to: customerEmail || recipient,
+          subject,
+          html: payload.adminHtml || payload.returnHtml || `<p>New Return Request for #${orderNum}</p>`,
+        }, activeApiKey);
+        results.adminAlert = { status: 'sent', id: adminRes.id };
+      } catch (err: any) {
+        console.error('[send-order-email] Return claim alert failed:', err);
+        results.adminAlert = { status: 'failed', error: err.message || err };
+      }
+
+      // Customer Return Acknowledgment (if email provided)
+      if (customerEmail && customerEmail.includes('@') && payload.customerHtml) {
+        try {
+          const custRes = await sendResend({
+            from: fromEmail,
+            to: customerEmail,
+            reply_to: recipient,
+            subject: `Return Request Initiated: #${orderNum} | TANOAH Client Care`,
+            html: payload.customerHtml,
+          }, activeApiKey);
+          results.customerConfirmation = { status: 'sent', id: custRes.id };
+        } catch (err: any) {
+          results.customerConfirmation = { status: 'failed', error: err.message || err };
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, results }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -89,7 +160,7 @@ Deno.serve(async (req: Request) => {
         reply_to: customerEmail || adminEmail,
         subject: `🚨 [NEW ORDER] #${orderNum} • ₹${Number(grandTotal).toLocaleString('en-IN')} • ${customerName}`,
         html: aHtml,
-      });
+      }, activeApiKey);
       results.adminAlert = { status: 'sent', id: adminRes.id };
     } catch (err: any) {
       console.error('[send-order-email] Admin alert failed:', err);
@@ -111,7 +182,7 @@ Deno.serve(async (req: Request) => {
           reply_to: adminEmail,
           subject: `Order Confirmed: #${orderNum} | Thank You for Choosing TANOAH`,
           html: cHtml,
-        });
+        }, activeApiKey);
         results.customerConfirmation = { status: 'sent', id: custRes.id };
       } catch (err: any) {
         console.warn('[send-order-email] Customer confirmation notice:', err);

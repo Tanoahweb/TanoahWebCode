@@ -29,7 +29,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const payload = await context.request.json() as any;
     const { order, test, to } = payload;
 
-    const apiKey = context.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+    const apiKey = context.env.RESEND_API_KEY || payload.apiKey || DEFAULT_RESEND_KEY;
     const adminEmail = context.env.ADMIN_EMAIL || payload.adminEmail || DEFAULT_ADMIN_EMAIL;
     const fromEmail = context.env.FROM_EMAIL || payload.from || DEFAULT_FROM_EMAIL;
 
@@ -50,20 +50,79 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     // Test email handling
     if (test) {
       const recipient = to || adminEmail;
-      const res = await sendEmail({
-        from: fromEmail,
-        to: recipient,
-        reply_to: adminEmail,
-        subject: '[Test Success] TANOAH Real-Time Email System Active',
-        html: `
+      const isReturnTest = payload.testType === 'return';
+      const testSubject = isReturnTest
+        ? `[Test Success] TANOAH Return Request Notification System Active`
+        : `[Test Success] TANOAH Real-Time Email System Active`;
+      const testHtml = isReturnTest
+        ? `
+          <div style="font-family: sans-serif; padding: 24px; color: #191846;">
+            <h2>🔄 TANOAH - Return Request Notification Active</h2>
+            <p>Real-time return notifications via <strong>Resend</strong> are configured and delivering properly to <strong>${recipient}</strong>.</p>
+            <p>Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+          </div>
+        `
+        : `
           <div style="font-family: sans-serif; padding: 24px; color: #191846;">
             <h2>✨ TANOAH - Resend Email Test Successful</h2>
             <p>Real-time order alerts are configured and delivering properly to <strong>${recipient}</strong>.</p>
             <p>Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
           </div>
-        `,
+        `;
+
+      const res = await sendEmail({
+        from: fromEmail,
+        to: recipient,
+        reply_to: adminEmail,
+        subject: testSubject,
+        html: testHtml,
       });
       return new Response(JSON.stringify({ success: true, message: 'Test email delivered', res }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Return request notification
+    if (payload.returnClaim || payload.type === 'return_request') {
+      const claim = payload.returnClaim || {};
+      const orderNum = claim.orderNumber || claim.order_number || 'TAN-RETURN';
+      const customerName = claim.customerName || claim.customer_name || 'Customer';
+      const customerEmail = claim.customerEmail || claim.customer_email || '';
+      const productTitle = claim.productTitle || claim.product_title || 'Garment';
+      const recipient = payload.adminEmail || adminEmail;
+      const subject = payload.subject || `🚨 [RETURN REQUEST] #${orderNum} • ${customerName} • ${productTitle}`;
+
+      const results: any = { orderNumber: orderNum, adminAlert: null, customerConfirmation: null };
+
+      try {
+        const adminRes = await sendEmail({
+          from: fromEmail,
+          to: recipient,
+          reply_to: customerEmail || recipient,
+          subject,
+          html: payload.adminHtml || payload.returnHtml || `<p>New Return Request for #${orderNum}</p>`,
+        });
+        results.adminAlert = { status: 'sent', id: adminRes.id };
+      } catch (err: any) {
+        results.adminAlert = { status: 'failed', error: err.message || err };
+      }
+
+      if (customerEmail && customerEmail.includes('@') && payload.customerHtml) {
+        try {
+          const custRes = await sendEmail({
+            from: fromEmail,
+            to: customerEmail,
+            reply_to: recipient,
+            subject: `Return Request Initiated: #${orderNum} | TANOAH Client Care`,
+            html: payload.customerHtml,
+          });
+          results.customerConfirmation = { status: 'sent', id: custRes.id };
+        } catch (err: any) {
+          results.customerConfirmation = { status: 'failed', error: err.message || err };
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, results }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

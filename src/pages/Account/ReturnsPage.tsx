@@ -22,6 +22,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
+import { emailService } from '../../services/emailService';
 import { ReturnAddressConfig } from '../../types';
 import { validatePhone, validateEmail } from '../../utils/validation';
 
@@ -410,6 +411,39 @@ export const ReturnsPage: React.FC = () => {
           title: 'Claim Ticket Registered',
           description: 'Please now send your 360° unboxing video to our WhatsApp support team.',
         });
+
+        // Trigger Resend email notification for return request (Admin notification + optional Customer copy)
+        try {
+          const customerFullName = `${verifiedOrder.shipping_address?.first_name || ''} ${verifiedOrder.shipping_address?.last_name || ''}`.trim() || res.ticket.customer_name || 'Customer';
+          const resolvedPhone = customerContact || verifiedOrder.shipping_address?.phone || res.ticket.customer_phone || '';
+          const resolvedEmail = verifiedOrder.guest_email || verifiedOrder.customer_email || verifiedOrder.email || res.ticket.customer_email || '';
+          const pPrice = selectedItem.unit_price ?? selectedItem.price ?? 0;
+          const pImg = selectedItem.product?.featured_image || selectedItem.product?.images?.[0] || selectedItem.image || '';
+
+          emailService.sendReturnRequestNotification({
+            ticketId: res.ticket.ticket_number || res.ticket.id || 'N/A',
+            orderNumber: verifiedOrder.order_number || verifiedOrder.orderNumber || orderNumber,
+            customerName: customerFullName,
+            customerEmail: resolvedEmail,
+            customerPhone: resolvedPhone,
+            productTitle: selectedItem.product_title || selectedItem.product?.title || res.ticket.product_title || 'Tanoah Garment',
+            variantInfo: selectedItem.variant_title || selectedItem.variant?.size || res.ticket.variant_info || 'Standard',
+            productPrice: pPrice,
+            productImage: pImg,
+            reason: damageReason,
+            customerDescription: damageDescription,
+            deliveredAt: verifiedOrder.delivered_at || verifiedOrder.updated_at,
+            hoursSinceDelivery: hoursSinceDelivery ?? 0,
+            tagIntactConfirmed: confirmedTag,
+            unboxingVideoConfirmed: confirmedVideo,
+            selfShipConfirmed: confirmedSelfShip,
+            videoSubmittedVia: 'whatsapp',
+          }).catch((mailErr) => {
+            console.warn('[ReturnsPage] Error dispatching return request notification email:', mailErr);
+          });
+        } catch (mailErr) {
+          console.warn('[ReturnsPage] Could not assemble return email payload:', mailErr);
+        }
       } else {
         throw new Error(res.message || 'Submission failed.');
       }

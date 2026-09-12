@@ -18,6 +18,7 @@ import {
   Gift,
   CreditCard,
   Truck,
+  RotateCcw,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
@@ -59,6 +60,7 @@ export const StoreSettingsPage: React.FC = () => {
   }, [searchParams]);
 
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [isSendingReturnTest, setIsSendingReturnTest] = useState(false);
   const [testRecipient, setTestRecipient] = useState(
     import.meta.env.VITE_ADMIN_NOTIFICATION_EMAIL || 'connectus.tanoah@gmail.com'
   );
@@ -305,6 +307,43 @@ export const StoreSettingsPage: React.FC = () => {
       });
     } finally {
       setIsSendingTest(false);
+    }
+  };
+
+  const handleSendTestReturnEmail = async () => {
+    if (!testRecipient) {
+      addToast({
+        type: 'error',
+        title: 'Recipient Required',
+        description: 'Please enter a valid email address to receive the test return alert.',
+      });
+      return;
+    }
+
+    setIsSendingReturnTest(true);
+    try {
+      const res = await emailService.sendTestReturnEmail(testRecipient);
+      if (res.success) {
+        addToast({
+          type: 'success',
+          title: 'Return Alert Dispatched! ✉️',
+          description: `Sample return claim alert delivered to ${testRecipient}. Check your inbox!`,
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Test Dispatch Failed',
+          description: res.error || 'Could not send test return alert via Resend.',
+        });
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Error',
+        description: err.message || 'An unexpected error occurred while sending test return email.',
+      });
+    } finally {
+      setIsSendingReturnTest(false);
     }
   };
 
@@ -904,15 +943,24 @@ export const StoreSettingsPage: React.FC = () => {
                     className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
                   />
                 </div>
-                <div className="sm:pt-5">
+                <div className="sm:pt-5 flex flex-wrap gap-2">
                   <Button
                     variant="primary"
                     size="md"
                     onClick={handleSendTestEmail}
-                    disabled={isSendingTest}
+                    disabled={isSendingTest || isSendingReturnTest}
                     icon={<Send className="w-3.5 h-3.5" />}
                   >
                     {isSendingTest ? 'DISPATCHING TEST...' : 'SEND TEST ORDER EMAIL'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={handleSendTestReturnEmail}
+                    disabled={isSendingTest || isSendingReturnTest}
+                    icon={<RotateCcw className="w-3.5 h-3.5" />}
+                  >
+                    {isSendingReturnTest ? 'DISPATCHING RETURN TEST...' : 'SEND TEST RETURN ALERT'}
                   </Button>
                 </div>
               </div>
