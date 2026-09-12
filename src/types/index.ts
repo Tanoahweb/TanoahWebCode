@@ -307,6 +307,18 @@ export interface ReturnAddressConfig {
   instructions?: string;
 }
 
+export interface DispatchFromAddressConfig {
+  sender_name: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  contact_phone: string;
+  contact_email?: string;
+  gstin?: string;
+}
+
 export interface StoreSettings {
   store_name: string;
   logo_url: string;
@@ -327,6 +339,7 @@ export interface StoreSettings {
   express_shipping_rate: number;
   delivery_speeds_config?: DeliverySpeedTier[];
   return_address_config?: ReturnAddressConfig;
+  dispatch_from_address?: DispatchFromAddressConfig;
   cod_enabled: boolean;
   cod_fee: number;
   cod_min_order: number;

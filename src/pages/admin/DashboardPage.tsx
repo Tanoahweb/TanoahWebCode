@@ -76,7 +76,7 @@ export const DashboardPage: React.FC = () => {
     <AdminLayout>
       <div className="space-y-8 text-left font-poppins">
         {/* Page Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
           <div>
             <h1 className="font-wondra text-2xl sm:text-3xl text-black">
               EXECUTIVE STORE OVERVIEW

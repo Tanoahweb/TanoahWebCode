@@ -131,7 +131,7 @@ export const ProductListPage: React.FC = () => {
         {/* Product Table */}
         <div className="bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[700px]">
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
                 <tr>
                   <th className="p-4">Product Details</th>

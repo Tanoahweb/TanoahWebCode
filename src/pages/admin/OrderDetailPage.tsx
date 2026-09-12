@@ -23,8 +23,9 @@ import { TaxInvoiceModal } from '../../components/checkout/TaxInvoiceModal';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
-import { Order, Product } from '../../types';
+import { Order, Product, DispatchFromAddressConfig } from '../../types';
 import { safeGetItem } from '../../utils/safeStorage';
+import { PackingSlipModal } from '../../components/admin/PackingSlipModal';
 
 export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,11 +40,24 @@ export const OrderDetailPage: React.FC = () => {
   const [courierName, setCourierName] = useState('India Post (Speed Post)');
   const [status, setStatus] = useState('confirmed');
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isPackingSlipOpen, setIsPackingSlipOpen] = useState(false);
+  const [dispatchFromAddress, setDispatchFromAddress] = useState<DispatchFromAddressConfig | undefined>(() => {
+    try {
+      const saved = localStorage.getItem('tanoah_dispatch_from_address');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return undefined;
+  });
 
   useEffect(() => {
     api.getProducts().then((prods) => {
       if (prods && prods.length > 0) {
         setAllProducts(prods);
+      }
+    });
+    api.getStoreSettings().then((s) => {
+      if (s?.dispatch_from_address) {
+        setDispatchFromAddress(s.dispatch_from_address);
       }
     });
   }, []);
@@ -229,7 +243,7 @@ export const OrderDetailPage: React.FC = () => {
               variant="secondary"
               size="sm"
               icon={<Printer className="w-3.5 h-3.5" />}
-              onClick={() => window.print()}
+              onClick={() => setIsPackingSlipOpen(true)}
             >
               PRINT PACKING SLIP
             </Button>
@@ -278,8 +292,12 @@ export const OrderDetailPage: React.FC = () => {
                   >
                     <option value="confirmed">Confirmed (Ready to Pack)</option>
                     <option value="processing">Processing (In Production)</option>
-                    <option value="shipped">Shipped (In Transit)</option>
-                    <option value="delivered">Delivered</option>
+                    <option value="shipped" disabled={!trackingNumber.trim()}>
+                      Shipped (In Transit) {!trackingNumber.trim() ? '— Consignment Required' : ''}
+                    </option>
+                    <option value="delivered" disabled={!trackingNumber.trim()}>
+                      Delivered {!trackingNumber.trim() ? '— Consignment Required' : ''}
+                    </option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
@@ -571,6 +589,18 @@ export const OrderDetailPage: React.FC = () => {
           grandTotal: order.grandTotal || order.subtotal,
           formData,
         }}
+      />
+
+      {/* Official Minimalist Packing Slip Modal (TO and FROM only) */}
+      <PackingSlipModal
+        isOpen={isPackingSlipOpen}
+        onClose={() => setIsPackingSlipOpen(false)}
+        orderNumber={orderNum}
+        orderDate={order.date || order.created_at}
+        consignmentNo={trackingNumber}
+        courierName={courierName}
+        toAddress={formData}
+        fromAddress={dispatchFromAddress}
       />
     </AdminLayout>
   );

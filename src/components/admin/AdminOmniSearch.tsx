@@ -404,7 +404,7 @@ export const AdminOmniSearch: React.FC = () => {
   };
 
   return (
-    <div className="relative w-64 sm:w-80 md:w-96" ref={containerRef}>
+    <div className="relative w-full max-w-[200px] xs:max-w-[260px] sm:w-80 md:w-96 min-w-0" ref={containerRef}>
       {/* Search Input */}
       <div className="relative">
         <input

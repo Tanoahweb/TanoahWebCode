@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Eye, Truck, CheckCircle2, X, ExternalLink } from 'lucide-react';
+import { ShoppingBag, Eye, Truck, CheckCircle2, X, ExternalLink, Printer } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { formatPrice } from '../../utils/formatters';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
+import { Button } from '../../components/common/Button';
+import { PackingSlipModal } from '../../components/admin/PackingSlipModal';
+import { DispatchFromAddressConfig } from '../../types';
 
 export const OrderListPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPrintOrder, setSelectedPrintOrder] = useState<any | null>(null);
+  const [dispatchFromAddress, setDispatchFromAddress] = useState<DispatchFromAddressConfig | undefined>(() => {
+    try {
+      const saved = localStorage.getItem('tanoah_dispatch_from_address');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return undefined;
+  });
 
   const loadOrders = async () => {
     try {
@@ -26,21 +37,34 @@ export const OrderListPage: React.FC = () => {
         })
         .map((o: any) => {
           const realOrderNum = o.order_number || o.orderNumber || o.id;
+          const sAddr = o.shipping_address || o.formData || {};
           return {
             id: o.id || realOrderNum,
             orderNumber: realOrderNum,
             customer:
-              (o.shipping_address?.first_name ? `${o.shipping_address.first_name} ${o.shipping_address.last_name || ''}`.trim() : null) ||
-              (o.formData?.firstName ? `${o.formData.firstName} ${o.formData.lastName || ''}`.trim() : null) ||
+              (sAddr.first_name ? `${sAddr.first_name} ${sAddr.last_name || ''}`.trim() : null) ||
+              (sAddr.firstName ? `${sAddr.firstName} ${sAddr.lastName || ''}`.trim() : null) ||
               o.guest_email ||
               'Customer',
-            email: o.guest_email || o.formData?.email || '',
+            email: o.guest_email || sAddr.email || '',
+            phone: sAddr.phone || o.guest_phone || '',
             total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
             paymentStatus: o.payment_status || 'paid',
             fulfillmentStatus: o.status || 'processing',
             trackingNumber: o.tracking_number || o.trackingNumber || '',
             courierName: o.courier_name || 'India Post (Speed Post)',
             date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
+            shippingAddress: {
+              firstName: sAddr.first_name || sAddr.firstName || 'Customer',
+              lastName: sAddr.last_name || sAddr.lastName || '',
+              phone: sAddr.phone || o.guest_phone || '+91 8714141849',
+              email: o.guest_email || sAddr.email || '',
+              address: sAddr.address || 'Address on file',
+              apartment: sAddr.apartment || '',
+              city: sAddr.city || 'Thrissur',
+              state: sAddr.state || 'Kerala',
+              postalCode: sAddr.postal_code || sAddr.postalCode || '680301',
+            },
           };
         });
       setOrders(formatted);
@@ -48,6 +72,14 @@ export const OrderListPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    api.getStoreSettings().then((s) => {
+      if (s?.dispatch_from_address) {
+        setDispatchFromAddress(s.dispatch_from_address);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     loadOrders();
@@ -132,7 +164,7 @@ export const OrderListPage: React.FC = () => {
 
         <div className="bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[850px]">
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
                 <tr>
                   <th className="p-4">Order Reference</th>
@@ -142,7 +174,7 @@ export const OrderListPage: React.FC = () => {
                   <th className="p-4">Payment</th>
                   <th className="p-4">Fulfillment Status</th>
                   <th className="p-4">India Post Consignment</th>
-                  <th className="p-4 text-right">Update Status</th>
+                  <th className="p-4 text-right">Update Status & Slip</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
@@ -164,92 +196,132 @@ export const OrderListPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  orders.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-[#FAFAFA] transition-colors">
-                    <td className="p-4 font-mono font-bold">
-                      <Link to={`/admin/orders/${ord.orderNumber}`} className="text-[#3F3F8F] hover:underline" title="Click to open full Order Details & Dispatch Management">
-                        {ord.orderNumber}
-                      </Link>
-                    </td>
-                    <td className="p-4 text-[#666666]">{ord.date}</td>
-                    <td className="p-4">
-                      <div className="font-semibold text-black">{ord.customer}</div>
-                      <div className="text-[10px] text-[#888888]">{ord.email}</div>
-                    </td>
-                    <td className="p-4 font-semibold text-black">{formatPrice(ord.total)}</td>
-                    <td className="p-4">
-                      <span className="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                        {ord.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-purple-50 text-[#3F3F8F] text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                        {ord.fulfillmentStatus}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          placeholder={
-                            ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !ord.trackingNumber
-                              ? 'Required (ED123..)'
-                              : 'e.g. ED123456789IN'
-                          }
-                          defaultValue={ord.trackingNumber || ''}
-                          key={`${ord.orderNumber}-${ord.trackingNumber || ''}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim().toUpperCase();
-                            if (val !== (ord.trackingNumber || '')) {
-                              handleConsignmentChange(ord.orderNumber || ord.id, val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className={`w-36 p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans ${
-                            ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !ord.trackingNumber
-                              ? 'border-amber-400 bg-amber-50/50'
-                              : 'border-[#E7E7E7]'
-                          }`}
-                        />
-                        {ord.trackingNumber && (
-                          <a
-                            href="https://www.indiapost.gov.in/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Track live on indiapost.gov.in"
-                            className="text-[#3F3F8F] hover:text-black p-1 transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <select
-                        value={ord.fulfillmentStatus}
-                        onChange={(e) => handleStatusChange(ord.orderNumber || ord.id, e.target.value)}
-                        className="p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="packed">Packed</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))
-              )}
+                  orders.map((ord) => {
+                    const hasTracking = Boolean(ord.trackingNumber && ord.trackingNumber.trim());
+                    return (
+                      <tr key={ord.id} className="hover:bg-[#FAFAFA] transition-colors">
+                        <td className="p-4 font-mono font-bold">
+                          <Link to={`/admin/orders/${ord.orderNumber}`} className="text-[#3F3F8F] hover:underline" title="Click to open full Order Details & Dispatch Management">
+                            {ord.orderNumber}
+                          </Link>
+                        </td>
+                        <td className="p-4 text-[#666666]">{ord.date}</td>
+                        <td className="p-4">
+                          <div className="font-semibold text-black">{ord.customer}</div>
+                          <div className="text-[10px] text-[#888888]">{ord.email}</div>
+                        </td>
+                        <td className="p-4 font-semibold text-black">{formatPrice(ord.total)}</td>
+                        <td className="p-4">
+                          <span className="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
+                            {ord.paymentStatus}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className="bg-purple-50 text-[#3F3F8F] text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
+                            {ord.fulfillmentStatus}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              placeholder={
+                                ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !hasTracking
+                                  ? 'Required (ED123..)'
+                                  : 'e.g. ED123456789IN'
+                              }
+                              value={ord.trackingNumber || ''}
+                              onChange={(e) => {
+                                const val = e.target.value.toUpperCase();
+                                setOrders((prev) =>
+                                  prev.map((o) =>
+                                    o.id === ord.id || o.orderNumber === ord.orderNumber
+                                      ? { ...o, trackingNumber: val }
+                                      : o
+                                  )
+                                );
+                              }}
+                              onBlur={(e) => {
+                                const val = e.target.value.trim().toUpperCase();
+                                handleConsignmentChange(ord.orderNumber || ord.id, val);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className={`w-36 p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans ${
+                                !hasTracking
+                                  ? 'border-neutral-300 focus:border-[#3F3F8F]'
+                                  : 'border-emerald-300 bg-emerald-50/20 focus:border-emerald-500'
+                              }`}
+                            />
+                            {ord.trackingNumber && (
+                              <a
+                                href="https://www.indiapost.gov.in/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Track live on indiapost.gov.in"
+                                className="text-[#3F3F8F] hover:text-black p-1 transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setSelectedPrintOrder(ord)}
+                              title="Print Shipping Label / Packing Slip (TO & FROM Address only)"
+                              className="h-[30px] px-2 text-[10px] uppercase font-semibold flex items-center gap-1 shrink-0"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Slip</span>
+                            </Button>
+                            <select
+                              value={ord.fulfillmentStatus}
+                              onChange={(e) => handleStatusChange(ord.orderNumber || ord.id, e.target.value)}
+                              className="p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="processing">Processing</option>
+                              <option value="packed">Packed</option>
+                              <option value="shipped" disabled={!hasTracking}>
+                                Shipped {!hasTracking ? '(Tracking Required)' : ''}
+                              </option>
+                              <option value="delivered" disabled={!hasTracking}>
+                                Delivered {!hasTracking ? '(Tracking Required)' : ''}
+                              </option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {/* Printable Minimalist Packing Slip Modal */}
+      {selectedPrintOrder && (
+        <PackingSlipModal
+          isOpen={Boolean(selectedPrintOrder)}
+          onClose={() => setSelectedPrintOrder(null)}
+          orderNumber={selectedPrintOrder.orderNumber}
+          orderDate={selectedPrintOrder.date}
+          consignmentNo={selectedPrintOrder.trackingNumber}
+          courierName={selectedPrintOrder.courierName}
+          toAddress={selectedPrintOrder.shippingAddress}
+          fromAddress={dispatchFromAddress}
+        />
+      )}
     </AdminLayout>
   );
 };

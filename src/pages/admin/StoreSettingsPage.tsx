@@ -36,7 +36,7 @@ import { SeoSettingsTab } from '../../components/admin/SeoSettingsTab';
 import { FaviconUploader } from '../../components/admin/FaviconUploader';
 import { r2Service } from '../../services/r2Service';
 import { Globe } from 'lucide-react';
-import { ReturnAddressConfig } from '../../types';
+import { ReturnAddressConfig, DispatchFromAddressConfig } from '../../types';
 
 export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
@@ -90,6 +90,24 @@ export const StoreSettingsPage: React.FC = () => {
       'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.',
   });
 
+  const [dispatchFromAddress, setDispatchFromAddress] = useState<DispatchFromAddressConfig>(() => {
+    try {
+      const saved = localStorage.getItem('tanoah_dispatch_from_address');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      sender_name: 'TANOAH',
+      address_line1: 'Rappal, Pudukkad P O',
+      address_line2: '',
+      city: 'Thrissur',
+      state: 'Kerala',
+      postal_code: '680301',
+      contact_phone: '+91 8714141849',
+      contact_email: 'connectus.tanoah@gmail.com',
+      gstin: '32AAAAA0000A1Z5',
+    };
+  });
+
   // Storage analytics state
   const [storageStats, setStorageStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -138,6 +156,9 @@ export const StoreSettingsPage: React.FC = () => {
       if (isMounted && s) {
         if (s.return_address_config) {
           setReturnAddress((prev) => ({ ...prev, ...s.return_address_config }));
+        }
+        if (s.dispatch_from_address) {
+          setDispatchFromAddress((prev) => ({ ...prev, ...s.dispatch_from_address }));
         }
         setSettings({
           storeName: s.store_name || s.storeName || 'TANOAH',
@@ -196,6 +217,10 @@ export const StoreSettingsPage: React.FC = () => {
   };
 
   const handlePurgeOrphans = async () => {
+    if (!window.confirm('Are you sure you want to permanently purge all unreferenced image files from Cloudflare R2?')) {
+      return;
+    }
+
     setIsPurgingOrphans(true);
     try {
       const result = await api.cleanupOrphanMedia(false);
@@ -219,6 +244,10 @@ export const StoreSettingsPage: React.FC = () => {
 
   const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      localStorage.setItem('tanoah_dispatch_from_address', JSON.stringify(dispatchFromAddress));
+    } catch {}
+
     await api.saveStoreSettings({
       store_name: settings.storeName,
       favicon_url: settings.faviconUrl,
@@ -232,12 +261,13 @@ export const StoreSettingsPage: React.FC = () => {
       gst_number: settings.gstNumber,
       default_tax_rate: Number(settings.defaultTaxRate),
       return_address_config: returnAddress,
+      dispatch_from_address: dispatchFromAddress,
     });
 
     addToast({
       type: 'success',
       title: 'Settings Saved & Live',
-      description: 'Store parameters, shipping thresholds, and GST rules successfully synced.',
+      description: 'Store parameters, packing slip dispatch address, and GST rules successfully synced.',
     });
   };
 
@@ -651,6 +681,140 @@ export const StoreSettingsPage: React.FC = () => {
                   placeholder="e.g. Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund."
                   className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
                 />
+              </div>
+            </div>
+
+            {/* Dispatch & Packing Slip Origin Address (FROM Address) */}
+            <div className="border-t border-[#E7E7E7] pt-6 space-y-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#3F3F8F]" />
+                  <h3 className="font-semibold text-sm text-black uppercase tracking-wider">
+                    Dispatch & Packing Slip Origin Address (FROM Address)
+                  </h3>
+                </div>
+                <p className="text-[11px] text-[#666666] mt-0.5">
+                  This address is printed on official parcel packaging slips & shipping labels as the sender (FROM) address. Update this anytime your dispatch warehouse location changes.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Sender / Brand Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.sender_name}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, sender_name: e.target.value })}
+                    placeholder="e.g. TANOAH"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Contact Phone / WhatsApp *
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.contact_phone}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, contact_phone: e.target.value })}
+                    placeholder="e.g. +91 8714141849"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Address Line 1 (Building, Street, Area) *
+                </label>
+                <input
+                  type="text"
+                  value={dispatchFromAddress.address_line1}
+                  onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, address_line1: e.target.value })}
+                  placeholder="e.g. Rappal, Pudukkad P O"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Address Line 2 (Landmark / Suite - Optional)
+                </label>
+                <input
+                  type="text"
+                  value={dispatchFromAddress.address_line2 || ''}
+                  onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, address_line2: e.target.value })}
+                  placeholder="e.g. Near Post Office / Floor 2"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    City / District *
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.city}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, city: e.target.value })}
+                    placeholder="e.g. Thrissur"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.state}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, state: e.target.value })}
+                    placeholder="e.g. Kerala"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    PIN Code *
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.postal_code}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, postal_code: e.target.value })}
+                    placeholder="e.g. 680301"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Official Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    value={dispatchFromAddress.contact_email || ''}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, contact_email: e.target.value })}
+                    placeholder="e.g. connectus.tanoah@gmail.com"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    GSTIN (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={dispatchFromAddress.gstin || ''}
+                    onChange={(e) => setDispatchFromAddress({ ...dispatchFromAddress, gstin: e.target.value })}
+                    placeholder="e.g. 32AAAAA0000A1Z5"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono uppercase focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
               </div>
             </div>
 
