@@ -57,6 +57,7 @@ export const CheckoutPage: React.FC = () => {
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -337,6 +338,38 @@ export const CheckoutPage: React.FC = () => {
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
+
+      // While typing, if the value becomes valid, dismiss the error immediately
+      if (name === 'email' && fieldErrors.email) {
+        const check = validateEmail(value);
+        if (check.isValid) {
+          setFieldErrors((prev) => ({ ...prev, email: undefined }));
+        }
+      } else if (name === 'phone' && fieldErrors.phone) {
+        const check = validatePhone(value);
+        if (check.isValid) {
+          setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+        }
+      }
+    }
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name === 'email') {
+      if (value && value.trim()) {
+        const check = validateEmail(value);
+        setFieldErrors((prev) => ({ ...prev, email: check.isValid ? undefined : check.error }));
+      } else {
+        setFieldErrors((prev) => ({ ...prev, email: undefined }));
+      }
+    } else if (name === 'phone') {
+      if (value && value.trim()) {
+        const check = validatePhone(value);
+        setFieldErrors((prev) => ({ ...prev, phone: check.isValid ? undefined : check.error }));
+      } else {
+        setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+      }
     }
   };
 
@@ -458,22 +491,26 @@ export const CheckoutPage: React.FC = () => {
     }
 
     const emailValidation = validateEmail(formData.email);
-    if (!emailValidation.isValid) {
-      addToast({
-        type: 'error',
-        title: 'Invalid Email Address',
-        description: emailValidation.error || 'Please enter a valid email address (e.g. name@example.com).',
-      });
-      return;
-    }
-
     const phoneValidation = validatePhone(formData.phone);
-    if (!phoneValidation.isValid) {
-      addToast({
-        type: 'error',
-        title: 'Invalid Mobile Number',
-        description: phoneValidation.error || 'Please enter a valid 10-digit mobile number.',
+
+    if (!emailValidation.isValid || !phoneValidation.isValid) {
+      setFieldErrors({
+        email: emailValidation.isValid ? undefined : emailValidation.error,
+        phone: phoneValidation.isValid ? undefined : phoneValidation.error,
       });
+      if (!emailValidation.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Email Address',
+          description: emailValidation.error || 'Please enter a valid email address (e.g. name@example.com).',
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Invalid Mobile Number',
+          description: phoneValidation.error || 'Please enter a valid 10-digit mobile number.',
+        });
+      }
       return;
     }
 
@@ -649,15 +686,16 @@ export const CheckoutPage: React.FC = () => {
                     placeholder="you@domain.com"
                     value={formData.email}
                     onChange={handleInputChange}
+                    onBlur={handleInputBlur}
                     className={`w-full p-2.5 border rounded-[4px] focus:outline-none ${
-                      formData.email && !validateEmail(formData.email).isValid
+                      fieldErrors.email
                         ? 'border-red-400 focus:border-red-500 bg-red-50/20'
                         : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
                     }`}
                   />
-                  {formData.email && !validateEmail(formData.email).isValid && (
+                  {fieldErrors.email && (
                     <span className="text-[10px] text-red-600 block mt-1">
-                      {validateEmail(formData.email).error}
+                      {fieldErrors.email}
                     </span>
                   )}
                 </div>
@@ -672,15 +710,16 @@ export const CheckoutPage: React.FC = () => {
                     placeholder="+91 8714141849"
                     value={formData.phone}
                     onChange={handleInputChange}
+                    onBlur={handleInputBlur}
                     className={`w-full p-2.5 border rounded-[4px] focus:outline-none ${
-                      formData.phone && !validatePhone(formData.phone).isValid
+                      fieldErrors.phone
                         ? 'border-red-400 focus:border-red-500 bg-red-50/20'
                         : 'border-[#E7E7E7] focus:border-[#3F3F8F]'
                     }`}
                   />
-                  {formData.phone && !validatePhone(formData.phone).isValid && (
+                  {fieldErrors.phone && (
                     <span className="text-[10px] text-red-600 block mt-1">
-                      {validatePhone(formData.phone).error}
+                      {fieldErrors.phone}
                     </span>
                   )}
                 </div>
