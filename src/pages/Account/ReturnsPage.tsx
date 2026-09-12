@@ -75,6 +75,59 @@ export const ReturnsPage: React.FC = () => {
     }
   }, [initialOrder]);
 
+  // Listen for admin returns update event
+  useEffect(() => {
+    const handleUpdate = () => {
+      const orderNum = submittedTicket?.order_number || orderNumber;
+      if (orderNum) {
+        api.getReturnTicketByOrder(orderNum).then((updated) => {
+          if (updated) setSubmittedTicket(updated);
+        });
+      }
+    };
+
+    window.addEventListener('tanoah_returns_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('tanoah_returns_updated', handleUpdate);
+    };
+  }, [submittedTicket?.order_number, orderNumber]);
+
+  // Auto-poll in background while on Step 3 awaiting admin review
+  useEffect(() => {
+    if (!submittedTicket?.order_number) return;
+    const isCompleted = Boolean(
+      consignmentSaved ||
+      submittedTicket?.customer_consignment_no ||
+      submittedTicket?.status === 'in_transit' ||
+      submittedTicket?.status === 'item_received' ||
+      submittedTicket?.status === 'completed'
+    );
+    const isStep3 =
+      !isCompleted &&
+      (submittedTicket.status === 'video_submitted' || submittedTicket.video_submitted) &&
+      !['claim_approved', 'approved', 'in_transit', 'item_received', 'completed', 'rejected'].includes(
+        submittedTicket.status
+      );
+
+    if (!isStep3) return;
+
+    const interval = setInterval(async () => {
+      const freshTicket = await api.getReturnTicketByOrder(submittedTicket.order_number);
+      if (freshTicket && freshTicket.status !== submittedTicket.status) {
+        setSubmittedTicket(freshTicket);
+        if (freshTicket.status === 'claim_approved' || freshTicket.status === 'approved') {
+          addToast({
+            type: 'success',
+            title: 'Video Verified & Return Approved!',
+            description: 'Your unboxing video has been approved. Self-shipment return address is now unlocked.',
+          });
+        }
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [submittedTicket?.order_number, submittedTicket?.status, submittedTicket?.customer_consignment_no, consignmentSaved]);
+
   const handleVerifyOrder = async (orderIdToVerify?: string) => {
     const rawId = (orderIdToVerify || orderNumber).trim();
     if (!rawId) {

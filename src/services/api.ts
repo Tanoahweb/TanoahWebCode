@@ -2632,13 +2632,22 @@ export const api = {
       if (order?.id) {
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.id);
         if (isUUID) {
-          await supabase.from('returns').insert([{
-            order_id: order.id,
-            return_type: 'return',
-            reason: params.reason,
-            customer_description: params.customer_description || null,
-            status: 'requested',
-          }]);
+          const { data: dbReturn } = await supabase
+            .from('returns')
+            .insert([{
+              order_id: order.id,
+              return_type: 'return',
+              reason: params.reason,
+              customer_description: params.customer_description || null,
+              status: 'requested',
+              video_submitted: false,
+            }])
+            .select()
+            .maybeSingle();
+
+          if (dbReturn?.id) {
+            newTicket.id = dbReturn.id;
+          }
         }
       }
 
@@ -2669,7 +2678,34 @@ export const api = {
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(ticketId)) {
-        await supabase.from('returns').update({ status: 'in_transit' }).eq('id', ticketId);
+        await supabase
+          .from('returns')
+          .update({
+            customer_courier_name: courierName.trim(),
+            customer_consignment_no: consignmentNo.trim(),
+            status: 'in_transit',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ticketId);
+      } else {
+        const ticket = tickets.find((t) => t.id === ticketId);
+        if (ticket?.order_number) {
+          let order = await this.getOrderByNumber(ticket.order_number);
+          if (!order && !ticket.order_number.startsWith('TAN-') && /^\d+$/.test(ticket.order_number)) {
+            order = await this.getOrderByNumber(`TAN-${ticket.order_number}`);
+          }
+          if (order?.id) {
+            await supabase
+              .from('returns')
+              .update({
+                customer_courier_name: courierName.trim(),
+                customer_consignment_no: consignmentNo.trim(),
+                status: 'in_transit',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('order_id', order.id);
+          }
+        }
       }
       return true;
     } catch {
@@ -2694,7 +2730,34 @@ export const api = {
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(ticketId)) {
-        await supabase.from('returns').update({ status: 'video_submitted' }).eq('id', ticketId);
+        await supabase
+          .from('returns')
+          .update({
+            status: 'video_submitted',
+            video_submitted: true,
+            video_submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ticketId);
+      } else {
+        const ticket = tickets.find((t) => t.id === ticketId);
+        if (ticket?.order_number) {
+          let order = await this.getOrderByNumber(ticket.order_number);
+          if (!order && !ticket.order_number.startsWith('TAN-') && /^\d+$/.test(ticket.order_number)) {
+            order = await this.getOrderByNumber(`TAN-${ticket.order_number}`);
+          }
+          if (order?.id) {
+            await supabase
+              .from('returns')
+              .update({
+                status: 'video_submitted',
+                video_submitted: true,
+                video_submitted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('order_id', order.id);
+          }
+        }
       }
       return true;
     } catch {
@@ -2707,6 +2770,61 @@ export const api = {
     if (!cleanNum) return null;
 
     try {
+      // 1. Check Supabase directly first for the latest server-side return status
+      let order = await this.getOrderByNumber(cleanNum);
+      if (!order && !cleanNum.startsWith('TAN-') && /^\d+$/.test(cleanNum)) {
+        order = await this.getOrderByNumber(`TAN-${cleanNum}`);
+      }
+
+      if (order?.id) {
+        const { data: remoteReturn } = await supabase
+          .from('returns')
+          .select('*, order:orders(*)')
+          .eq('order_id', order.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (remoteReturn) {
+          const mappedTicket = {
+            id: remoteReturn.id,
+            order_number: remoteReturn.order?.order_number || order.order_number || cleanNum,
+            customer_name:
+              `${remoteReturn.order?.shipping_address?.first_name || ''} ${remoteReturn.order?.shipping_address?.last_name || ''}`.trim() ||
+              remoteReturn.order?.guest_email ||
+              'Customer',
+            customer_email: remoteReturn.order?.guest_email || '',
+            customer_phone: remoteReturn.order?.shipping_address?.phone || '',
+            return_type: remoteReturn.return_type || 'return',
+            reason: remoteReturn.reason || 'Transit Damage',
+            customer_description: remoteReturn.customer_description || '',
+            product_title: 'Tanoah Garment',
+            variant_info: 'Standard',
+            status: remoteReturn.status || 'requested',
+            video_submitted:
+              Boolean(remoteReturn.video_submitted) ||
+              ['video_submitted', 'claim_approved', 'approved', 'in_transit', 'item_received', 'completed'].includes(
+                remoteReturn.status
+              ),
+            customer_courier_name: remoteReturn.customer_courier_name || '',
+            customer_consignment_no: remoteReturn.customer_consignment_no || '',
+            created_at: remoteReturn.created_at || new Date().toISOString(),
+          };
+
+          // Synchronize local storage cache with latest Supabase live record
+          try {
+            const raw = localStorage.getItem('tanoah_custom_returns');
+            let list = raw ? JSON.parse(raw) : [];
+            list = list.filter((t: any) => t.id !== mappedTicket.id && t.order_number !== mappedTicket.order_number);
+            list.unshift(mappedTicket);
+            localStorage.setItem('tanoah_custom_returns', JSON.stringify(list));
+          } catch {}
+
+          return mappedTicket;
+        }
+      }
+
+      // 2. Fallback to local and demo returns
       const tickets = await this.getReturnTickets();
       const match = tickets.find((t) => {
         const tNum = (t.order_number || '').trim().toUpperCase();
@@ -2910,22 +3028,37 @@ export const api = {
       if (!error && data) remoteReturns = data;
     } catch {}
 
-    const merged = [...localReturns];
-    remoteReturns.forEach((rr) => {
-      if (!merged.some((m) => m.id === rr.id)) {
-        merged.push({
-          id: rr.id,
-          order_number: rr.order?.order_number || 'TAN-UNKNOWN',
-          customer_name: `${rr.order?.shipping_address?.first_name || ''} ${rr.order?.shipping_address?.last_name || ''}`.trim() || rr.order?.guest_email || 'Customer',
-          customer_email: rr.order?.guest_email || '',
-          return_type: rr.return_type || 'return',
-          reason: rr.reason || 'General Return',
-          customer_description: rr.customer_description || '',
-          product_title: 'Tanoah Apparel',
-          variant_info: 'Standard',
-          status: rr.status || 'requested',
-          created_at: rr.created_at || new Date().toISOString(),
-        });
+    // Map remote Supabase returns as primary authoritative source
+    const merged: any[] = remoteReturns.map((rr) => ({
+      id: rr.id,
+      order_number: rr.order?.order_number || 'TAN-UNKNOWN',
+      customer_name:
+        `${rr.order?.shipping_address?.first_name || ''} ${rr.order?.shipping_address?.last_name || ''}`.trim() ||
+        rr.order?.guest_email ||
+        'Customer',
+      customer_email: rr.order?.guest_email || '',
+      customer_phone: rr.order?.shipping_address?.phone || '',
+      return_type: rr.return_type || 'return',
+      reason: rr.reason || 'General Return',
+      customer_description: rr.customer_description || '',
+      product_title: 'Tanoah Garment',
+      variant_info: 'Standard',
+      status: rr.status || 'requested',
+      video_submitted:
+        Boolean(rr.video_submitted) ||
+        ['video_submitted', 'claim_approved', 'approved', 'in_transit', 'item_received', 'completed'].includes(rr.status),
+      customer_courier_name: rr.customer_courier_name || '',
+      customer_consignment_no: rr.customer_consignment_no || '',
+      created_at: rr.created_at || new Date().toISOString(),
+    }));
+
+    // Overlay any local-only returns that don't exist yet in remote returns
+    localReturns.forEach((lr) => {
+      const exists = merged.some(
+        (m) => m.id === lr.id || (m.order_number && lr.order_number && m.order_number === lr.order_number)
+      );
+      if (!exists) {
+        merged.push(lr);
       }
     });
 
@@ -2983,8 +3116,34 @@ export const api = {
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(ticketId)) {
-        await supabase.from('returns').update({ status }).eq('id', ticketId);
+        await supabase
+          .from('returns')
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq('id', ticketId);
+      } else {
+        const ticket = tickets.find((t) => t.id === ticketId);
+        if (ticket?.order_number) {
+          let order = await this.getOrderByNumber(ticket.order_number);
+          if (!order && !ticket.order_number.startsWith('TAN-') && /^\d+$/.test(ticket.order_number)) {
+            order = await this.getOrderByNumber(`TAN-${ticket.order_number}`);
+          }
+          if (order?.id) {
+            await supabase
+              .from('returns')
+              .update({ status, updated_at: new Date().toISOString() })
+              .eq('order_id', order.id);
+          }
+        }
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tanoah_returns_updated', {
+            detail: { ticketId, status },
+          })
+        );
+      }
+
       return true;
     } catch {
       return false;
