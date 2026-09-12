@@ -2672,6 +2672,52 @@ export const api = {
     }
   },
 
+  async markReturnVideoSent(ticketId: string): Promise<boolean> {
+    try {
+      const tickets = await this.getReturnTickets();
+      const updated = tickets.map((t) =>
+        t.id === ticketId
+          ? {
+              ...t,
+              video_submitted: true,
+              video_submitted_at: new Date().toISOString(),
+              status: t.status === 'awaiting_video' ? 'claim_approved' : t.status,
+            }
+          : t
+      );
+      localStorage.setItem('tanoah_custom_returns', JSON.stringify(updated));
+
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(ticketId)) {
+        await supabase.from('returns').update({ status: 'approved' }).eq('id', ticketId);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getReturnTicketByOrder(orderNumber: string): Promise<any | null> {
+    const cleanNum = (orderNumber || '').trim().toUpperCase();
+    if (!cleanNum) return null;
+
+    try {
+      const tickets = await this.getReturnTickets();
+      const match = tickets.find((t) => {
+        const tNum = (t.order_number || '').trim().toUpperCase();
+        return (
+          tNum === cleanNum ||
+          tNum === `TAN-${cleanNum}` ||
+          `TAN-${tNum}` === cleanNum ||
+          tNum.replace(/[^A-Z0-9]/g, '') === cleanNum.replace(/[^A-Z0-9]/g, '')
+        );
+      });
+      return match || null;
+    } catch {
+      return null;
+    }
+  },
+
   // Admin: Get all orders (Merged with rich custom and sample orders)
   async getAdminOrders(): Promise<any[]> {
     const customOrders = getStoredCustomOrders();

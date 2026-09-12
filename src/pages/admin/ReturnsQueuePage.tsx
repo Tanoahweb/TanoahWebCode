@@ -16,12 +16,15 @@ import {
   ShieldAlert,
   Tag,
   AlertTriangle,
+  MapPin,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Modal } from '../../components/common/Modal';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
+import { ReturnAddressConfig } from '../../types';
 
 interface ReturnTicket {
   id: string;
@@ -52,6 +55,20 @@ export const ReturnsQueuePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [tagInspectionModal, setTagInspectionModal] = useState<ReturnTicket | null>(null);
 
+  // Return Address Management
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [returnAddress, setReturnAddress] = useState<ReturnAddressConfig>({
+    hub_name: 'TANOAH RETURNS HUB',
+    recipient_name: 'Tanoah',
+    address_line1: 'Rappal, Pudukkad P O',
+    city: 'Thrissur',
+    state: 'Kerala',
+    postal_code: '680301',
+    contact_phone: '+91 8714141849',
+    instructions: 'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.',
+  });
+
   const loadTickets = async () => {
     const live = await api.getReturnTickets();
     if (live && live.length > 0) {
@@ -61,7 +78,38 @@ export const ReturnsQueuePage: React.FC = () => {
 
   useEffect(() => {
     loadTickets();
+    api.getStoreSettings().then((s) => {
+      if (s?.return_address_config) {
+        setReturnAddress(s.return_address_config);
+      }
+    });
   }, []);
+
+  const handleSaveReturnAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingAddress(true);
+    try {
+      const success = await api.saveStoreSettings({ return_address_config: returnAddress });
+      if (success) {
+        addToast({
+          type: 'success',
+          title: 'Return Address Saved',
+          description: 'Customer self-shipment return address updated successfully.',
+        });
+        setIsEditingAddress(false);
+      } else {
+        throw new Error('Database save failed');
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        description: err.message || 'Could not update return address.',
+      });
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
 
   const handleUpdateStatus = async (ticketId: string, newStatus: string) => {
     setTickets((prev) =>
@@ -141,6 +189,15 @@ export const ReturnsQueuePage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingAddress(true)}
+              className="text-xs font-semibold flex items-center gap-1.5 border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#EEEEF8]"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Edit Return Address</span>
+            </Button>
             <Link
               to="/pages/refund-policy"
               target="_blank"
@@ -461,6 +518,154 @@ export const ReturnsQueuePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Edit Customer Self-Shipment Return Address Modal */}
+        <Modal
+          isOpen={isEditingAddress}
+          onClose={() => setIsEditingAddress(false)}
+          title="Edit Customer Self-Shipment Return Address"
+          maxWidth="lg"
+        >
+          <form onSubmit={handleSaveReturnAddress} className="space-y-4 text-left font-poppins text-xs">
+            <p className="text-[#666666] leading-relaxed">
+              This address is displayed to customers on Step 3 of the Return Request Portal so they know where to self-ship their parcel.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Return Hub Title *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={returnAddress.hub_name}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, hub_name: e.target.value })}
+                  placeholder="e.g. TANOAH RETURNS HUB"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Recipient / Business Name *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={returnAddress.recipient_name}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, recipient_name: e.target.value })}
+                  placeholder="e.g. Tanoah"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                Address Line (Building, Street, Landmark) *
+              </label>
+              <input
+                required
+                type="text"
+                value={returnAddress.address_line1}
+                onChange={(e) => setReturnAddress({ ...returnAddress, address_line1: e.target.value })}
+                placeholder="e.g. Rappal, Pudukkad P O"
+                className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  City / District *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={returnAddress.city}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, city: e.target.value })}
+                  placeholder="e.g. Thrissur"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  State *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={returnAddress.state}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, state: e.target.value })}
+                  placeholder="e.g. Kerala"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  PIN Code *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={returnAddress.postal_code}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, postal_code: e.target.value })}
+                  placeholder="e.g. 680301"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded font-mono focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                Contact Phone / WhatsApp *
+              </label>
+              <input
+                required
+                type="text"
+                value={returnAddress.contact_phone}
+                onChange={(e) => setReturnAddress({ ...returnAddress, contact_phone: e.target.value })}
+                placeholder="e.g. +91 8714141849"
+                className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                Policy & Tag Instructions (Customer Notice)
+              </label>
+              <textarea
+                rows={2}
+                value={returnAddress.instructions || ''}
+                onChange={(e) => setReturnAddress({ ...returnAddress, instructions: e.target.value })}
+                placeholder="e.g. Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund."
+                className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-[#E7E7E7] flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingAddress(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isSavingAddress}
+              >
+                Save Return Address
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </AdminLayout>
   );

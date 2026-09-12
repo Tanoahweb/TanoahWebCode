@@ -36,6 +36,7 @@ import { SeoSettingsTab } from '../../components/admin/SeoSettingsTab';
 import { FaviconUploader } from '../../components/admin/FaviconUploader';
 import { r2Service } from '../../services/r2Service';
 import { Globe } from 'lucide-react';
+import { ReturnAddressConfig } from '../../types';
 
 export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
@@ -75,6 +76,18 @@ export const StoreSettingsPage: React.FC = () => {
     expressShippingFee: 199,
     gstNumber: '32AAAAA0000A1Z5',
     defaultTaxRate: 5,
+  });
+
+  const [returnAddress, setReturnAddress] = useState<ReturnAddressConfig>({
+    hub_name: 'TANOAH RETURNS HUB',
+    recipient_name: 'Tanoah',
+    address_line1: 'Rappal, Pudukkad P O',
+    city: 'Thrissur',
+    state: 'Kerala',
+    postal_code: '680301',
+    contact_phone: '+91 8714141849',
+    instructions:
+      'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.',
   });
 
   // Storage analytics state
@@ -123,6 +136,9 @@ export const StoreSettingsPage: React.FC = () => {
     let isMounted = true;
     api.getStoreSettings().then((s: any) => {
       if (isMounted && s) {
+        if (s.return_address_config) {
+          setReturnAddress((prev) => ({ ...prev, ...s.return_address_config }));
+        }
         setSettings({
           storeName: s.store_name || s.storeName || 'TANOAH',
           faviconUrl: s.favicon_url || s.faviconUrl || '/Assets/brand/logo-badge-white.png',
@@ -215,6 +231,7 @@ export const StoreSettingsPage: React.FC = () => {
       cod_fee: 0,
       gst_number: settings.gstNumber,
       default_tax_rate: Number(settings.defaultTaxRate),
+      return_address_config: returnAddress,
     });
 
     addToast({
@@ -512,6 +529,126 @@ export const StoreSettingsPage: React.FC = () => {
                   onChange={(e) =>
                     setSettings({ ...settings, expressShippingFee: Number(e.target.value) })
                   }
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+            </div>
+
+            {/* Customer Self-Shipment Return Address Section */}
+            <div className="border-t border-[#E7E7E7] pt-6 space-y-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#3F3F8F]" />
+                  <h3 className="font-semibold text-sm text-black uppercase tracking-wider">
+                    Customer Self-Shipment Return Address
+                  </h3>
+                </div>
+                <p className="text-[11px] text-[#666666] mt-0.5">
+                  Displayed to customers on Step 3 of the Return Portal after unboxing video confirmation.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Return Hub Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAddress.hub_name}
+                    onChange={(e) => setReturnAddress({ ...returnAddress, hub_name: e.target.value })}
+                    placeholder="e.g. TANOAH RETURNS HUB"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    Recipient / Business Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAddress.recipient_name}
+                    onChange={(e) => setReturnAddress({ ...returnAddress, recipient_name: e.target.value })}
+                    placeholder="e.g. Tanoah"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Address Line (Building, Street, Landmark) *
+                </label>
+                <input
+                  type="text"
+                  value={returnAddress.address_line1}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, address_line1: e.target.value })}
+                  placeholder="e.g. Rappal, Pudukkad P O"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    City / District *
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAddress.city}
+                    onChange={(e) => setReturnAddress({ ...returnAddress, city: e.target.value })}
+                    placeholder="e.g. Thrissur"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAddress.state}
+                    onChange={(e) => setReturnAddress({ ...returnAddress, state: e.target.value })}
+                    placeholder="e.g. Kerala"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                    PIN Code *
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAddress.postal_code}
+                    onChange={(e) => setReturnAddress({ ...returnAddress, postal_code: e.target.value })}
+                    placeholder="e.g. 680301"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono focus:outline-none focus:border-[#3F3F8F]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Contact Phone / WhatsApp *
+                </label>
+                <input
+                  type="text"
+                  value={returnAddress.contact_phone}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, contact_phone: e.target.value })}
+                  placeholder="e.g. +91 8714141849"
+                  className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-black uppercase mb-1">
+                  Policy & Tag Instructions (Customer Notice)
+                </label>
+                <textarea
+                  rows={2}
+                  value={returnAddress.instructions || ''}
+                  onChange={(e) => setReturnAddress({ ...returnAddress, instructions: e.target.value })}
+                  placeholder="e.g. Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund."
                   className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
                 />
               </div>

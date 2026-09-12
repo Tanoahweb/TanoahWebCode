@@ -18,6 +18,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
+import { ReturnAddressConfig } from '../../types';
 
 export const ReturnsPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -43,6 +44,8 @@ export const ReturnsPage: React.FC = () => {
 
   // Post-submission state
   const [submittedTicket, setSubmittedTicket] = useState<any | null>(null);
+  const [returnStep, setReturnStep] = useState<'send_video' | 'shipment_tracking'>('send_video');
+  const [isMarkingVideo, setIsMarkingVideo] = useState(false);
   const [courierName, setCourierName] = useState('');
   const [consignmentNo, setConsignmentNo] = useState('');
   const [isSavingConsignment, setIsSavingConsignment] = useState(false);
@@ -83,6 +86,40 @@ export const ReturnsPage: React.FC = () => {
     setHoursSinceDelivery(null);
 
     try {
+      // 1. Check if a return ticket already exists for this order
+      const existingTicket = await api.getReturnTicketByOrder(rawId);
+      if (existingTicket) {
+        setSubmittedTicket(existingTicket);
+
+        let order = await api.getOrderByNumber(rawId);
+        if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
+          order = await api.getOrderByNumber(`TAN-${rawId}`);
+        }
+        if (order) setVerifiedOrder(order);
+
+        if (existingTicket.customer_consignment_no) {
+          setCourierName(existingTicket.customer_courier_name || '');
+          setConsignmentNo(existingTicket.customer_consignment_no || '');
+          setConsignmentSaved(true);
+        }
+
+        if (
+          existingTicket.video_submitted ||
+          (existingTicket.status && existingTicket.status !== 'awaiting_video' && existingTicket.status !== 'requested')
+        ) {
+          setReturnStep('shipment_tracking');
+        } else {
+          setReturnStep('send_video');
+        }
+
+        addToast({
+          type: 'info',
+          title: 'Existing Claim Resumed',
+          description: `Found active Claim Ticket #${existingTicket.id} for Order ${existingTicket.order_number}.`,
+        });
+        return;
+      }
+
       let order = await api.getOrderByNumber(rawId);
       if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
         order = await api.getOrderByNumber(`TAN-${rawId}`);
@@ -117,6 +154,29 @@ export const ReturnsPage: React.FC = () => {
       setVerificationError('Unable to verify order at this moment. Please try again.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleVideoSent = async () => {
+    if (!submittedTicket) return;
+    setIsMarkingVideo(true);
+    try {
+      await api.markReturnVideoSent(submittedTicket.id);
+      setSubmittedTicket((prev: any) => ({
+        ...prev,
+        video_submitted: true,
+        status: prev.status === 'awaiting_video' ? 'claim_approved' : prev.status,
+      }));
+      setReturnStep('shipment_tracking');
+      addToast({
+        type: 'success',
+        title: 'Video Submission Recorded',
+        description: 'You may now proceed with customer self-shipment dispatch.',
+      });
+    } catch {
+      setReturnStep('shipment_tracking');
+    } finally {
+      setIsMarkingVideo(false);
     }
   };
 
@@ -159,6 +219,7 @@ export const ReturnsPage: React.FC = () => {
 
       if (res.success && res.ticket) {
         setSubmittedTicket(res.ticket);
+        setReturnStep('send_video');
         addToast({
           type: 'success',
           title: 'Claim Ticket Registered',
@@ -231,141 +292,215 @@ export const ReturnsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* STEP 3: POST-SUBMISSION TICKET CONFIRMATION & WHATSAPP REDIRECT */}
+        {/* STEP 2 & 3: POST-SUBMISSION TICKET CONFIRMATION & STEPPED ACTIONS */}
         {submittedTicket ? (
-          <div className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 sm:p-8 shadow-sm space-y-6">
-            <div className="text-center pb-6 border-b border-[#E7E7E7]">
-              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <span className="text-[11px] font-mono uppercase bg-emerald-100 text-emerald-800 px-3 py-1 rounded font-semibold">
-                TICKET #{submittedTicket.id}
-              </span>
-              <h2 className="font-wondra text-2xl text-black mt-3">
-                CLAIM REGISTERED · SEND VIDEO NOW
-              </h2>
-              <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
-                Your damage claim for Order <strong>{submittedTicket.order_number}</strong> has been logged in our system.
-              </p>
-            </div>
-
-            {/* Step 1 on screen: Send WhatsApp Video */}
-            <div className="bg-[#25D366]/10 border border-[#25D366]/30 rounded-[4px] p-5 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 bg-[#25D366] text-white rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                  <MessageCircle className="w-5 h-5 fill-current" />
-                </div>
-                <div className="text-xs space-y-1">
-                  <h4 className="font-semibold text-black text-sm">
-                    Action Required: Send 360° Unboxing Video
-                  </h4>
-                  <p className="text-[#444444] leading-relaxed">
-                    Tap the button below to open our official WhatsApp support. Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
+          <div className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 sm:p-8 shadow-sm space-y-6 text-left">
+            {returnStep === 'send_video' ? (
+              <>
+                {/* STEP 2: SEND VIDEO NOW */}
+                <div className="text-center pb-6 border-b border-[#E7E7E7]">
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <span className="text-[11px] font-mono uppercase bg-emerald-100 text-emerald-800 px-3 py-1 rounded font-semibold">
+                    TICKET #{submittedTicket.id}
+                  </span>
+                  <h2 className="font-wondra text-2xl text-black mt-3">
+                    CLAIM REGISTERED · SEND VIDEO NOW
+                  </h2>
+                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
+                    Your damage claim for Order <strong>{submittedTicket.order_number}</strong> has been logged in our system.
                   </p>
                 </div>
-              </div>
 
-              <a
-                href={generateWhatsAppUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold text-xs tracking-wider uppercase rounded-[4px] transition-all shadow-md"
-              >
-                <MessageCircle className="w-4 h-4 fill-current" />
-                <span>SEND 360° VIDEO ON WHATSAPP</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+                {/* Step 1 on screen: Send WhatsApp Video */}
+                <div className="bg-[#25D366]/10 border border-[#25D366]/30 rounded-[4px] p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-[#25D366] text-white rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                      <MessageCircle className="w-5 h-5 fill-current" />
+                    </div>
+                    <div className="text-xs space-y-1">
+                      <h4 className="font-semibold text-black text-sm">
+                        Action Required: Send 360° Unboxing Video
+                      </h4>
+                      <p className="text-[#444444] leading-relaxed">
+                        Tap the button below to open our official WhatsApp support. Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Step 2 on screen: Return Shipping Address */}
-            <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-[#FAFAFA]">
-              <div className="flex items-center gap-2 text-black font-semibold text-xs uppercase tracking-wider">
-                <Truck className="w-4 h-4 text-[#3F3F8F]" />
-                <span>Customer Self-Shipment Return Address</span>
-              </div>
-              <p className="text-[11px] text-[#666666]">
-                As per policy, Tanoah does not provide reverse pickup. Once your video is approved on WhatsApp, please dispatch the parcel to our return address:
-              </p>
-              <div className="p-3.5 bg-white border border-[#E7E7E7] rounded text-xs space-y-1 font-mono text-neutral-800">
-                <p className="font-bold text-black font-poppins">TANOAH RETURNS HUB</p>
-                <p>Tanoah</p>
-                <p>Rappal, Pudukkad P O</p>
-                <p>Thrissur, Kerala 680301</p>
-                <p className="pt-1 text-[#3F3F8F] font-semibold">Contact: +91 8714141849</p>
-              </div>
-              <p className="text-[10px] text-red-600 font-medium">
-                ⚠️ Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.
-              </p>
-            </div>
-
-            {/* Step 3 on screen: Log Customer's Return Consignment */}
-            <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-white">
-              <h4 className="font-semibold text-black text-xs uppercase tracking-wider">
-                Already Shipped the Parcel? Enter Your Tracking
-              </h4>
-              <p className="text-[11px] text-[#666666]">
-                Provide your return courier name and consignment number so our warehouse team can monitor its transit.
-              </p>
-
-              {consignmentSaved ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>
-                    Return tracking registered: <strong>{courierName}</strong> - <strong>{consignmentNo}</strong>
-                  </span>
+                  <a
+                    href={generateWhatsAppUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold text-xs tracking-wider uppercase rounded-[4px] transition-all shadow-md"
+                  >
+                    <MessageCircle className="w-4 h-4 fill-current" />
+                    <span>SEND 360° VIDEO ON WHATSAPP</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
-              ) : (
-                <form onSubmit={handleSaveCustomerConsignment} className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
-                  <div className="sm:col-span-5">
-                    <input
-                      required
-                      type="text"
-                      placeholder="Courier Name (e.g. India Post / DTDC)"
-                      value={courierName}
-                      onChange={(e) => setCourierName(e.target.value)}
-                      className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
-                    />
-                  </div>
-                  <div className="sm:col-span-5">
-                    <input
-                      required
-                      type="text"
-                      placeholder="Consignment / Tracking Number"
-                      value={consignmentNo}
-                      onChange={(e) => setConsignmentNo(e.target.value)}
-                      className="w-full p-2.5 border border-[#E7E7E7] rounded font-mono focus:outline-none focus:border-[#3F3F8F]"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      type="submit"
-                      isLoading={isSavingConsignment}
-                      className="w-full h-full py-2.5 text-[11px]"
-                    >
-                      SAVE
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </div>
 
-            <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs">
-              <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
-                Read Full Refund Policy →
-              </Link>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
-                  Continue Shopping
-                </Button>
-                {user && (
-                  <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
-                    Back to My Account
+                {/* Video Sent Confirmation Action */}
+                <div className="pt-2 space-y-2">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={handleVideoSent}
+                    isLoading={isMarkingVideo}
+                    className="w-full py-4 text-xs font-semibold tracking-wider uppercase bg-[#3F3F8F] hover:bg-[#343476]"
+                  >
+                    <span>VIDEO SENT SUCCESSFULLY · PROCEED TO RETURN ADDRESS →</span>
                   </Button>
-                )}
-              </div>
-            </div>
+                  <p className="text-center text-[11px] text-[#666666] font-poppins">
+                    Tap &ldquo;Video Sent Successfully&rdquo; once you have dispatched your 360° unboxing video to WhatsApp.
+                  </p>
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
+                  <Link to="/pages/refund-policy" className="text-[#3F3F8F] hover:underline">
+                    Read Full Refund Policy →
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                      Continue Shopping
+                    </Button>
+                    {user && (
+                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                        Back to My Account
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* STEP 3: RETURN ADDRESS & CONSIGNMENT TRACKING */}
+                <div className="text-center pb-6 border-b border-[#E7E7E7]">
+                  <div className="w-16 h-16 bg-[#EEEEF8] text-[#3F3F8F] rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Truck className="w-8 h-8" />
+                  </div>
+                  <span className="text-[11px] font-mono uppercase bg-indigo-100 text-indigo-900 px-3 py-1 rounded font-semibold">
+                    TICKET #{submittedTicket.id} · AWAITING DISPATCH
+                  </span>
+                  <h2 className="font-wondra text-2xl text-black mt-3">
+                    CUSTOMER SELF-SHIPMENT & TRACKING
+                  </h2>
+                  <p className="text-xs text-[#555555] max-w-md mx-auto mt-1">
+                    Your 360° unboxing video has been recorded for Order <strong>{submittedTicket.order_number}</strong>. Please dispatch the package to our returns address below and log your tracking number.
+                  </p>
+                </div>
+
+                {/* Step 2 on screen: Return Shipping Address */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-[#FAFAFA]">
+                  <div className="flex items-center gap-2 text-black font-semibold text-xs uppercase tracking-wider">
+                    <Truck className="w-4 h-4 text-[#3F3F8F]" />
+                    <span>Customer Self-Shipment Return Address</span>
+                  </div>
+                  <p className="text-[11px] text-[#666666]">
+                    As per policy, Tanoah does not provide reverse pickup. Once your video is approved on WhatsApp, please dispatch the parcel to our return address:
+                  </p>
+                  <div className="p-3.5 bg-white border border-[#E7E7E7] rounded text-xs space-y-1 font-mono text-neutral-800">
+                    <p className="font-bold text-black font-poppins">
+                      {storeSettings?.return_address_config?.hub_name || 'TANOAH RETURNS HUB'}
+                    </p>
+                    <p>
+                      {storeSettings?.return_address_config?.recipient_name || 'Tanoah'}
+                    </p>
+                    <p>
+                      {storeSettings?.return_address_config?.address_line1 || 'Rappal, Pudukkad P O'}
+                    </p>
+                    <p>
+                      {storeSettings?.return_address_config?.city || 'Thrissur'}, {storeSettings?.return_address_config?.state || 'Kerala'} {storeSettings?.return_address_config?.postal_code || '680301'}
+                    </p>
+                    <p className="pt-1 text-[#3F3F8F] font-semibold">
+                      Contact: {storeSettings?.return_address_config?.contact_phone || '+91 8714141849'}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-red-600 font-medium">
+                    ⚠️ {storeSettings?.return_address_config?.instructions || 'Important: Do not remove or damage the price tag. Any parcel received with a missing or detached tag is strictly ineligible for refund.'}
+                  </p>
+                </div>
+
+                {/* Step 3 on screen: Log Customer's Return Consignment */}
+                <div className="border border-[#E7E7E7] rounded-[4px] p-5 space-y-3 bg-white">
+                  <h4 className="font-semibold text-black text-xs uppercase tracking-wider">
+                    Already Shipped the Parcel? Enter Your Tracking
+                  </h4>
+                  <p className="text-[11px] text-[#666666]">
+                    Provide your return courier name and consignment number so our warehouse team can monitor its transit.
+                  </p>
+
+                  {consignmentSaved ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          Return tracking registered: <strong>{courierName}</strong> - <strong>{consignmentNo}</strong>
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
+                        In Transit
+                      </span>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSaveCustomerConsignment} className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                      <div className="sm:col-span-5">
+                        <input
+                          required
+                          type="text"
+                          placeholder="Courier Name (e.g. India Post / DTDC)"
+                          value={courierName}
+                          onChange={(e) => setCourierName(e.target.value)}
+                          className="w-full p-2.5 border border-[#E7E7E7] rounded focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                      </div>
+                      <div className="sm:col-span-5">
+                        <input
+                          required
+                          type="text"
+                          placeholder="Consignment / Tracking Number"
+                          value={consignmentNo}
+                          onChange={(e) => setConsignmentNo(e.target.value)}
+                          className="w-full p-2.5 border border-[#E7E7E7] rounded font-mono focus:outline-none focus:border-[#3F3F8F]"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          type="submit"
+                          isLoading={isSavingConsignment}
+                          className="w-full h-full py-2.5 text-[11px]"
+                        >
+                          SAVE
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+
+                <div className="pt-4 flex flex-wrap justify-between items-center gap-3 text-xs border-t border-[#E7E7E7]">
+                  <button
+                    type="button"
+                    onClick={() => setReturnStep('send_video')}
+                    className="text-xs text-[#3F3F8F] hover:underline font-medium"
+                  >
+                    ← View WhatsApp Video Instructions
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/collections/all')}>
+                      Continue Shopping
+                    </Button>
+                    {user && (
+                      <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+                        Back to My Account
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-6">

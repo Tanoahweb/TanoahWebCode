@@ -296,6 +296,17 @@ export interface DeliverySpeedTier {
   is_default?: boolean;
 }
 
+export interface ReturnAddressConfig {
+  hub_name: string;
+  recipient_name: string;
+  address_line1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  contact_phone: string;
+  instructions?: string;
+}
+
 export interface StoreSettings {
   store_name: string;
   logo_url: string;
@@ -315,6 +326,7 @@ export interface StoreSettings {
   standard_shipping_rate: number;
   express_shipping_rate: number;
   delivery_speeds_config?: DeliverySpeedTier[];
+  return_address_config?: ReturnAddressConfig;
   cod_enabled: boolean;
   cod_fee: number;
   cod_min_order: number;
