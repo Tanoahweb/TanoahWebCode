@@ -76,8 +76,6 @@ export const CartDrawer: React.FC = () => {
     };
   }, [isDrawerOpen]);
 
-  if (!isDrawerOpen) return null;
-
   const subtotal = getSubtotal();
   const discount = getDiscountAmount();
   const shipping = getShippingFee();
@@ -234,6 +232,8 @@ export const CartDrawer: React.FC = () => {
     closeDrawer();
     navigate('/checkout');
   };
+
+  if (!isDrawerOpen) return null;
 
   return (
     <div
