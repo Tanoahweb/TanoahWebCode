@@ -213,6 +213,14 @@ export const ProductEditPage: React.FC = () => {
   const [isNoindex, setIsNoindex] = useState<boolean>(false);
   const [structuredAttributes, setStructuredAttributes] = useState<Record<string, string>>({});
 
+  // Similar Products & Categories State
+  const [similarProductIds, setSimilarProductIds] = useState<string[]>([]);
+  const [similarCategoryIds, setSimilarCategoryIds] = useState<string[]>([]);
+  const [allCatalogProducts, setAllCatalogProducts] = useState<Product[]>([]);
+  const [similarProductSearch, setSimilarProductSearch] = useState<string>('');
+  const [isSimilarProductDropdownOpen, setIsSimilarProductDropdownOpen] = useState<boolean>(false);
+  const similarPickerRef = useRef<HTMLDivElement>(null);
+
   // Options System (Matches user's screenshots 1 & 2)
   const [options, setOptions] = useState<ProductOption[]>([
     {
@@ -393,6 +401,13 @@ export const ProductEditPage: React.FC = () => {
       }
     });
 
+    // Load all catalog products for similar product picker
+    api.getProducts('all').then((prods) => {
+      if (isMounted && prods && prods.length > 0) {
+        setAllCatalogProducts(prods);
+      }
+    });
+
     if (isEditing && id) {
       setIsLoading(true);
       api.getProductById(id).then(async (match) => {
@@ -431,6 +446,8 @@ export const ProductEditPage: React.FC = () => {
             setCanonicalUrlOverride(match.canonical_url_override || '');
             setIsNoindex(Boolean(match.is_noindex));
             setStructuredAttributes((match.structured_attributes as Record<string, string>) || {});
+            setSimilarProductIds(Array.isArray(match.similar_product_ids) ? match.similar_product_ids : []);
+            setSimilarCategoryIds(Array.isArray(match.similar_category_ids) ? match.similar_category_ids : []);
 
             // Hydrate collections for existing product
             const initialColSlugs: string[] = [];
@@ -563,6 +580,17 @@ export const ProductEditPage: React.FC = () => {
       isMounted = false;
     };
   }, [id, isEditing]);
+
+  // Handle outside clicks for similar product picker dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (similarPickerRef.current && !similarPickerRef.current.contains(e.target as Node)) {
+        setIsSimilarProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
@@ -1115,6 +1143,8 @@ export const ProductEditPage: React.FC = () => {
       canonical_url_override: canonicalUrlOverride.trim() || undefined,
       is_noindex: isNoindex,
       structured_attributes: structuredAttributes,
+      similar_product_ids: similarProductIds,
+      similar_category_ids: similarCategoryIds,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -2434,6 +2464,196 @@ export const ProductEditPage: React.FC = () => {
                     </Link>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Similar Products & Categories Card */}
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
+                <div>
+                  <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                    <span>SIMILAR PRODUCTS & CATEGORIES</span>
+                  </h3>
+                  <p className="text-[10px] text-[#666666] mt-0.5">
+                    Curate recommendations shown under "Similar products" on the product detail page.
+                  </p>
+                </div>
+              </div>
+
+              {/* 1. Curated Similar Products Picker */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-semibold text-black uppercase">
+                    Specific Similar Products ({similarProductIds.length})
+                  </label>
+                  {similarProductIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSimilarProductIds([])}
+                      className="text-[10px] text-red-600 hover:underline font-medium"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected Products List */}
+                {similarProductIds.length > 0 && (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {similarProductIds.map((pid) => {
+                      const prod = allCatalogProducts.find((p) => p.id === pid || p.slug === pid);
+                      const thumb = prod?.images?.[0]?.image_url || '/Assets/products/placeholder-product.svg';
+                      return (
+                        <div
+                          key={pid}
+                          className="flex items-center justify-between gap-2 p-2 bg-[#F8F8FC] border border-[#E7E7E7] rounded-[4px] text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={thumb}
+                              alt={prod?.title || 'Product'}
+                              className="w-8 h-8 rounded object-cover border border-[#E7E7E7] bg-white flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium text-black truncate text-[11px]">
+                                {prod?.title || pid}
+                              </p>
+                              <p className="text-[10px] text-[#666666]">
+                                {prod ? formatPrice(prod.base_price) : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSimilarProductIds((prev) => prev.filter((item) => item !== pid))}
+                            className="p-1 text-neutral-400 hover:text-red-600 rounded transition-colors"
+                            title="Remove product"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Search & Add Product */}
+                <div className="relative" ref={similarPickerRef}>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search products to add as similar..."
+                      value={similarProductSearch}
+                      onChange={(e) => {
+                        setSimilarProductSearch(e.target.value);
+                        setIsSimilarProductDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsSimilarProductDropdownOpen(true)}
+                      className="w-full pl-8 pr-8 py-1.5 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white"
+                    />
+                    {similarProductSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setSimilarProductSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown Results */}
+                  {isSimilarProductDropdownOpen && (
+                    <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-[#E7E7E7] rounded-[4px] shadow-lg max-h-52 overflow-y-auto divide-y divide-neutral-100">
+                      {allCatalogProducts
+                        .filter((p) => p.id !== id && !similarProductIds.includes(p.id))
+                        .filter((p) =>
+                          !similarProductSearch.trim() ||
+                          p.title.toLowerCase().includes(similarProductSearch.toLowerCase()) ||
+                          p.product_type?.toLowerCase().includes(similarProductSearch.toLowerCase()) ||
+                          p.brand?.toLowerCase().includes(similarProductSearch.toLowerCase())
+                        )
+                        .slice(0, 10)
+                        .map((p) => {
+                          const thumb = p.images?.[0]?.image_url || '/Assets/products/placeholder-product.svg';
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setSimilarProductIds((prev) => [...prev, p.id]);
+                                setSimilarProductSearch('');
+                                setIsSimilarProductDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between p-2 hover:bg-[#EEEEF8] text-left transition-colors text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img
+                                  src={thumb}
+                                  alt={p.title}
+                                  className="w-7 h-7 rounded object-cover border border-[#E7E7E7] bg-white flex-shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-medium text-black truncate text-[11px]">{p.title}</p>
+                                  <p className="text-[10px] text-neutral-500">{p.product_type} · {formatPrice(p.base_price)}</p>
+                                </div>
+                              </div>
+                              <span className="text-[11px] text-[#3F3F8F] font-semibold flex items-center gap-0.5 flex-shrink-0">
+                                <Plus className="w-3 h-3" /> Add
+                              </span>
+                            </button>
+                          );
+                        })}
+                      {allCatalogProducts.filter((p) => p.id !== id && !similarProductIds.includes(p.id)).length === 0 && (
+                        <div className="p-3 text-center text-[11px] text-neutral-500">
+                          No more products available.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Curated Similar Categories */}
+              <div className="space-y-2 pt-3 border-t border-[#E7E7E7]">
+                <label className="block text-[11px] font-semibold text-black uppercase">
+                  Similar Categories ({similarCategoryIds.length})
+                </label>
+                <p className="text-[10px] text-[#666666]">
+                  Products from these categories are recommended if fewer than 4 specific products are curated.
+                </p>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {categories.map((cat) => {
+                    const isSelected = similarCategoryIds.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSimilarCategoryIds((prev) => prev.filter((cid) => cid !== cat.id));
+                          } else {
+                            setSimilarCategoryIds((prev) => [...prev, cat.id]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-[#3F3F8F] text-white shadow-xs'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 border border-[#E7E7E7]'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                        <span>{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                  {categories.length === 0 && (
+                    <p className="text-[11px] text-neutral-500">No categories found.</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

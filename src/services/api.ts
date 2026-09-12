@@ -100,11 +100,29 @@ const sanitizeProduct = (p: Product): Product => {
       content: (sec.content || '').trim(),
     }));
 
+  const similarProductIds: string[] = Array.isArray(p.similar_product_ids)
+    ? p.similar_product_ids
+    : (Array.isArray((p.structured_attributes as any)?.similar_product_ids)
+      ? (p.structured_attributes as any).similar_product_ids
+      : (typeof (p.structured_attributes as any)?.similar_product_ids === 'string'
+        ? (() => { try { return JSON.parse((p.structured_attributes as any).similar_product_ids); } catch { return []; } })()
+        : []));
+
+  const similarCategoryIds: string[] = Array.isArray(p.similar_category_ids)
+    ? p.similar_category_ids
+    : (Array.isArray((p.structured_attributes as any)?.similar_category_ids)
+      ? (p.structured_attributes as any).similar_category_ids
+      : (typeof (p.structured_attributes as any)?.similar_category_ids === 'string'
+        ? (() => { try { return JSON.parse((p.structured_attributes as any).similar_category_ids); } catch { return []; } })()
+        : []));
+
   return {
     ...p,
     custom_sections: cleanSections,
     images: validImgs,
     variants: sanitizedVariants,
+    similar_product_ids: similarProductIds,
+    similar_category_ids: similarCategoryIds,
   };
 };
 
@@ -838,7 +856,13 @@ export const api = {
       social_image_url: sanitized.social_image_url || null,
       canonical_url_override: sanitized.canonical_url_override || null,
       is_noindex: !!sanitized.is_noindex,
-      structured_attributes: sanitized.structured_attributes || {},
+      structured_attributes: {
+        ...(sanitized.structured_attributes || {}),
+        similar_product_ids: sanitized.similar_product_ids || [],
+        similar_category_ids: sanitized.similar_category_ids || [],
+      },
+      similar_product_ids: sanitized.similar_product_ids || [],
+      similar_category_ids: sanitized.similar_category_ids || [],
       updated_at: new Date().toISOString(),
     };
 

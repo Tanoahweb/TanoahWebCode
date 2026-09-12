@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { safeGetItem, safeSetItem } from '../utils/safeStorage';
 import {
   Heart,
   ShoppingBag,
@@ -692,9 +693,128 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
-  const relatedProducts = (catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS)
-    .filter((p) => p.id !== product.id)
-    .slice(0, 4);
+  // Track recently viewed products in safe storage
+  useEffect(() => {
+    if (!product?.id) return;
+    try {
+      const raw = safeGetItem('tanoah_recently_viewed');
+      let ids: string[] = [];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          ids = parsed.filter((item: unknown) => typeof item === 'string' && item !== product.id);
+        }
+      }
+      const updated = [product.id, ...ids].slice(0, 12);
+      safeSetItem('tanoah_recently_viewed', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('tanoah_recently_viewed_updated', { detail: { ids: updated } }));
+    } catch (e) {
+      console.warn('Error saving recently viewed product:', e);
+    }
+  }, [product?.id]);
+
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
+    try {
+      const raw = safeGetItem('tanoah_recently_viewed');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((id: unknown) => typeof id === 'string');
+      }
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      if (e.detail?.ids && Array.isArray(e.detail.ids)) {
+        setRecentlyViewedIds(e.detail.ids);
+      }
+    };
+    window.addEventListener('tanoah_recently_viewed_updated', handleUpdate);
+    return () => window.removeEventListener('tanoah_recently_viewed_updated', handleUpdate);
+  }, []);
+
+  // Compute Similar Products
+  const similarProducts = useMemo(() => {
+    if (!product) return [];
+    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
+    const candidates = all.filter((p) => p.id !== product.id && p.slug !== product.slug);
+
+    const result: Product[] = [];
+    const addedIds = new Set<string>();
+
+    // 1. Curated similar products specified by admin
+    if (Array.isArray(product.similar_product_ids) && product.similar_product_ids.length > 0) {
+      for (const pid of product.similar_product_ids) {
+        const found = candidates.find((p) => p.id === pid || p.slug === pid);
+        if (found && !addedIds.has(found.id)) {
+          result.push(found);
+          addedIds.add(found.id);
+        }
+      }
+    }
+
+    // 2. Curated similar categories specified by admin
+    if (result.length < 4 && Array.isArray(product.similar_category_ids) && product.similar_category_ids.length > 0) {
+      for (const catId of product.similar_category_ids) {
+        const matching = candidates.filter(
+          (p) => !addedIds.has(p.id) && (p.category_id === catId || (p as any).category?.id === catId)
+        );
+        for (const p of matching) {
+          if (result.length >= 4) break;
+          result.push(p);
+          addedIds.add(p.id);
+        }
+        if (result.length >= 4) break;
+      }
+    }
+
+    // 3. Fallback: products in same category or product type
+    if (result.length < 4) {
+      const sameCategoryOrType = candidates.filter(
+        (p) =>
+          !addedIds.has(p.id) &&
+          ((product.category_id && p.category_id === product.category_id) ||
+            (product.product_type && p.product_type && p.product_type.toLowerCase() === product.product_type.toLowerCase()))
+      );
+      for (const p of sameCategoryOrType) {
+        if (result.length >= 4) break;
+        result.push(p);
+        addedIds.add(p.id);
+      }
+    }
+
+    // 4. Fallback: general catalog products
+    if (result.length < 4) {
+      for (const p of candidates) {
+        if (result.length >= 4) break;
+        if (!addedIds.has(p.id)) {
+          result.push(p);
+          addedIds.add(p.id);
+        }
+      }
+    }
+
+    return result.slice(0, 4);
+  }, [product, catalogProducts]);
+
+  // Compute Recently Viewed Products (excluding current product)
+  const recentlyViewedProducts = useMemo(() => {
+    if (!product) return [];
+    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
+    const otherIds = recentlyViewedIds.filter((id) => id !== product.id && id !== product.slug);
+    if (otherIds.length === 0) return [];
+
+    const matched: Product[] = [];
+    for (const id of otherIds) {
+      const found = all.find((p) => p.id === id || p.slug === id);
+      if (found && !matched.some((m) => m.id === found.id)) {
+        matched.push(found);
+      }
+      if (matched.length >= 4) break;
+    }
+    return matched;
+  }, [product, recentlyViewedIds, catalogProducts]);
 
   const productMeta = product ? getProductMeta(product) : null;
   const productJsonLd = product ? generateProductJsonLd(product, reviews) : undefined;
@@ -1536,23 +1656,45 @@ export const ProductDetailPage: React.FC = () => {
           )}
         </div>
 
-        {/* Related Products Carousel */}
-        <div className="mt-24 border-t border-[#E7E7E7] pt-16">
-          <div className="text-center max-w-xl mx-auto mb-12">
-            <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
-              COMPLETE THE LOOK
-            </span>
-            <h2 className="font-wondra text-3xl text-black">
-              YOU MAY ALSO DESIRE
-            </h2>
-          </div>
+        {/* Similar Products Section */}
+        {similarProducts.length > 0 && (
+          <div className="mt-24 border-t border-[#E7E7E7] pt-16">
+            <div className="text-center max-w-xl mx-auto mb-12">
+              <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
+                CURATED SELECTIONS
+              </span>
+              <h2 className="font-wondra text-3xl text-black">
+                Similar products
+              </h2>
+            </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
-            {relatedProducts.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+              {similarProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Recently Viewed Section */}
+        {recentlyViewedProducts.length > 0 && (
+          <div className="mt-20 border-t border-[#E7E7E7] pt-16">
+            <div className="text-center max-w-xl mx-auto mb-12">
+              <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
+                YOUR BROWSING HISTORY
+              </span>
+              <h2 className="font-wondra text-3xl text-black">
+                Recently viewed
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+              {recentlyViewedProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Size Guide Modal */}

@@ -94,6 +94,8 @@ export interface Product {
   images: ProductImage[];
   variants: ProductVariant[];
   custom_sections?: ProductDetailSection[];
+  similar_product_ids?: string[];
+  similar_category_ids?: string[];
   created_at?: string;
   updated_at?: string;
 }
