@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Lock,
   Tag,
+  ShieldCheck,
 } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,6 +31,7 @@ export const ReturnsPage: React.FC = () => {
   const initialOrder = searchParams.get('order') || '';
 
   const [orderNumber, setOrderNumber] = useState(initialOrder);
+  const [verificationPhone, setVerificationPhone] = useState('');
   const [customerContact, setCustomerContact] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedOrder, setVerifiedOrder] = useState<any | null>(null);
@@ -68,12 +70,21 @@ export const ReturnsPage: React.FC = () => {
     };
   }, []);
 
-  // Auto-verify if order param is in URL
+  // Pre-fill initial order from URL and user phone if logged in
   useEffect(() => {
     if (initialOrder) {
-      handleVerifyOrder(initialOrder);
+      setOrderNumber(initialOrder);
     }
   }, [initialOrder]);
+
+  useEffect(() => {
+    if (user && !verificationPhone) {
+      const userPhone = user.phone || user.user_metadata?.phone || (user.user_metadata as any)?.mobile;
+      if (userPhone) {
+        setVerificationPhone(userPhone);
+      }
+    }
+  }, [user]);
 
   // Listen for admin returns update event
   useEffect(() => {
@@ -133,10 +144,50 @@ export const ReturnsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [submittedTicket?.id, submittedTicket?.status, submittedTicket?.video_submitted]);
 
-  const handleVerifyOrder = async (orderIdToVerify?: string) => {
+  // Helper: verify if provided mobile number matches the contact records of an order
+  const doesPhoneMatchOrder = (order: any, phoneInput: string): boolean => {
+    if (!order || !phoneInput) return false;
+    const inputDigits = phoneInput.replace(/\D/g, '');
+    if (inputDigits.length < 7) return false;
+    const last10Input = inputDigits.slice(-10);
+
+    const candidatePhones = [
+      order.guest_phone,
+      order.guestPhone,
+      order.formData?.phone,
+      order.shipping_address?.phone,
+      order.billing_address?.phone,
+    ].filter(Boolean);
+
+    for (const rawPhone of candidatePhones) {
+      const orderDigits = String(rawPhone).replace(/\D/g, '');
+      const last10Order = orderDigits.slice(-10);
+      if (last10Order && last10Order === last10Input) return true;
+      if (orderDigits && (orderDigits.includes(inputDigits) || inputDigits.includes(orderDigits))) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const handleVerifyOrder = async (orderIdToVerify?: string, phoneToVerify?: string) => {
     const rawId = (orderIdToVerify || orderNumber).trim();
+    const rawPhone = (phoneToVerify !== undefined ? phoneToVerify : verificationPhone).trim();
+
     if (!rawId) {
       setVerificationError('Please enter your Order Number to check eligibility.');
+      return;
+    }
+
+    if (!rawPhone) {
+      setVerificationError('Please enter the registered Phone Number associated with this order.');
+      return;
+    }
+
+    const cleanInputDigits = rawPhone.replace(/\D/g, '');
+    if (cleanInputDigits.length < 10) {
+      setVerificationError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -146,16 +197,33 @@ export const ReturnsPage: React.FC = () => {
     setHoursSinceDelivery(null);
 
     try {
-      // 1. Check if a return ticket already exists for this order
+      // 1. Locate the order first to verify ownership against registered records
+      let order = await api.getOrderByNumber(rawId);
+      if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
+        order = await api.getOrderByNumber(`TAN-${rawId}`);
+      }
+
+      if (!order) {
+        setVerificationError('Order not found. Please verify the order number from your confirmation email or invoice.');
+        return;
+      }
+
+      // 2. Strict phone match check: Verify entered phone against order records
+      const phoneMatches = doesPhoneMatchOrder(order, rawPhone);
+      const isDirectUserOwner = Boolean(user?.id && order.user_id && user.id === order.user_id);
+
+      if (!phoneMatches && !isDirectUserOwner) {
+        setVerificationError(
+          'The mobile number entered does not match the contact details for this order. For your protection, only the verified buyer can request or view returns.'
+        );
+        return;
+      }
+
+      // 3. Now that ownership is verified, check if an existing return ticket exists for this order
       const existingTicket = await api.getReturnTicketByOrder(rawId);
       if (existingTicket) {
         setSubmittedTicket(existingTicket);
-
-        let order = await api.getOrderByNumber(rawId);
-        if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
-          order = await api.getOrderByNumber(`TAN-${rawId}`);
-        }
-        if (order) setVerifiedOrder(order);
+        setVerifiedOrder(order);
 
         if (existingTicket.customer_consignment_no) {
           setCourierName(existingTicket.customer_courier_name || '');
@@ -171,16 +239,7 @@ export const ReturnsPage: React.FC = () => {
         return;
       }
 
-      let order = await api.getOrderByNumber(rawId);
-      if (!order && !rawId.toUpperCase().startsWith('TAN-') && /^\d+$/.test(rawId)) {
-        order = await api.getOrderByNumber(`TAN-${rawId}`);
-      }
-      if (!order) {
-        setVerificationError('Order not found. Please verify the order number from your confirmation email or invoice.');
-        return;
-      }
-
-      // Check delivery status
+      // 4. Check delivery status
       const status = (order.status || '').toLowerCase();
       if (status !== 'delivered') {
         setVerificationError(
@@ -189,17 +248,14 @@ export const ReturnsPage: React.FC = () => {
         return;
       }
 
-      // Check delivery timestamp (fallback to updated_at or created_at if delivered_at missing)
+      // 5. Check delivery timestamp (fallback to updated_at or created_at if delivered_at missing)
       const deliveryTimeStr = order.delivered_at || order.updated_at || order.created_at;
       const deliveryTimestamp = new Date(deliveryTimeStr).getTime();
       const diffHours = (Date.now() - deliveryTimestamp) / (1000 * 60 * 60);
       setHoursSinceDelivery(diffHours);
 
-      // Pre-fill contact if available
-      if (order.shipping_address?.phone || order.guest_email) {
-        setCustomerContact(order.shipping_address?.phone || order.guest_email);
-      }
-
+      // Pre-fill contact with verified phone or address phone
+      setCustomerContact(rawPhone || order.shipping_address?.phone || order.guest_email || '');
       setVerifiedOrder(order);
     } catch {
       setVerificationError('Unable to verify order at this moment. Please try again.');
@@ -883,32 +939,61 @@ export const ReturnsPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Order input row with perfect alignment (Screenshot 2 fix) */}
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold text-black uppercase">
-                  Order Number (Guest or Account) *
-                </label>
-                <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
+              {/* Order and Phone input row with two-factor verification */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-black uppercase">
+                    Order Number (Guest or Account) <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     placeholder="e.g. TAN-849201 or 849201"
                     value={orderNumber}
                     onChange={(e) => setOrderNumber(e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase h-[42px]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleVerifyOrder();
+                    }}
+                    className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] font-mono text-xs uppercase h-[42px]"
                   />
-                  <Button
-                    variant="primary"
-                    size="md"
-                    onClick={() => handleVerifyOrder()}
-                    isLoading={isVerifying}
-                    className="sm:w-48 text-xs font-semibold h-[42px] shrink-0"
-                  >
-                    CHECK ORDER
-                  </Button>
+                  <span className="text-[10px] text-[#888888] block pt-0.5">
+                    Found in your order confirmation email, SMS, or delivery slip.
+                  </span>
                 </div>
-                <span className="text-[10px] text-[#888888] block pt-0.5">
-                  Found in your order confirmation email, SMS, or delivery slip.
-                </span>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-black uppercase">
+                    Registered Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210 or +91 9876543210"
+                    value={verificationPhone}
+                    onChange={(e) => setVerificationPhone(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleVerifyOrder();
+                    }}
+                    className="w-full px-3.5 py-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F] text-xs h-[42px]"
+                  />
+                  <span className="text-[10px] text-[#888888] block pt-0.5">
+                    The 10-digit mobile number provided during checkout.
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-[#F4F4F4]">
+                <p className="text-[11px] text-[#666666] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#3F3F8F] shrink-0" />
+                  <span>Two-factor validation ensures only the authorized buyer can initiate claims.</span>
+                </p>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => handleVerifyOrder()}
+                  isLoading={isVerifying}
+                  className="sm:w-56 text-xs font-semibold h-[42px] shrink-0"
+                >
+                  CHECK ORDER ELIGIBILITY
+                </Button>
               </div>
 
               {verificationError && (
@@ -953,12 +1038,25 @@ export const ReturnsPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>
-                      Order <strong>{verifiedOrder.order_number || verifiedOrder.orderNumber}</strong> verified · Delivered {hoursSinceDelivery ? `${hoursSinceDelivery.toFixed(1)} hrs ago` : 'recently'}.
+                      Order <strong>{verifiedOrder.order_number || verifiedOrder.orderNumber}</strong> verified for contact ending in <strong>...{(verificationPhone || verifiedOrder.shipping_address?.phone || '').slice(-4)}</strong> · Delivered {hoursSinceDelivery ? `${hoursSinceDelivery.toFixed(1)} hrs ago` : 'recently'}.
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded">
-                    Eligible for Claim
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded">
+                      Eligible for Claim
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerifiedOrder(null);
+                        setSubmittedTicket(null);
+                        setVerificationError(null);
+                      }}
+                      className="text-[10px] text-emerald-800 hover:text-emerald-950 underline font-medium ml-1"
+                    >
+                      Verify another order
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
