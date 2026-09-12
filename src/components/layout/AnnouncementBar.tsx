@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Copy, Check } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
@@ -114,13 +114,7 @@ export const AnnouncementBar: React.FC = () => {
 
         <div className="flex-1 flex justify-center items-center">
           <div className="inline-flex items-center gap-2 uppercase font-medium text-center transition-all duration-300">
-            <Link
-              to={current.link}
-              className="hover:underline flex items-center gap-1.5"
-            >
-              <span>{current.text}</span>
-              <ChevronRight className="w-3 h-3 opacity-80" />
-            </Link>
+            <span className="flex items-center gap-1.5">{current.text}</span>
 
             {current.code && (
               <button

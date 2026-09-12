@@ -153,12 +153,40 @@ export const CustomerReviewsSection: React.FC = () => {
     };
   }, []);
 
-  // Auto carousel cycling
+  // Touch gestures for mobile horizontal swiping
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const minSwipeDistance = 45;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsPaused(true);
+    setTouchEndX(null);
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    setIsPaused(false);
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    if (isLeftSwipe) {
+      handleNext();
+    } else if (isRightSwipe) {
+      handlePrev();
+    }
+  };
+
+  // Auto carousel cycling (slides every 5s if more than 1 review)
   useEffect(() => {
-    if (isPaused || reviews.length <= 3) return;
+    if (isPaused || reviews.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % reviews.length);
-    }, 6000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [isPaused, reviews.length]);
 
@@ -345,8 +373,115 @@ export const CustomerReviewsSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Carousel Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+        {/* Mobile Horizontal Auto-Sliding Carousel */}
+        <div
+          className="md:hidden relative overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div
+            className="flex transition-transform duration-500 ease-out"
+            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          >
+            {reviews.map((rev) => {
+              const hasPhotos = rev.image_urls && rev.image_urls.length > 0;
+              return (
+                <div key={rev.id} className="w-full shrink-0 px-1">
+                  <div className="bg-white p-6 rounded-[6px] border border-[#E7E7E7] shadow-xs flex flex-col justify-between relative text-left min-h-[260px]">
+                    <Quote className="w-8 h-8 text-[#EEEEF8] absolute top-5 right-5 pointer-events-none" />
+
+                    <div className="space-y-3 relative z-10 text-left">
+                      {/* Rating Stars & Verified Client badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex text-amber-500">
+                          {[...Array(rev.rating)].map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                          ))}
+                        </div>
+                        {rev.is_verified_buyer && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                            <ShieldCheck className="w-3 h-3" /> Verified Client
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title & Body */}
+                      {rev.title && (
+                        <h4 className="font-wondra text-base text-black">{rev.title}</h4>
+                      )}
+                      <p className="text-xs text-[#555555] leading-relaxed italic">
+                        "{rev.review_text}"
+                      </p>
+
+                      {/* Customer Uploaded Photos Preview */}
+                      {hasPhotos && (
+                        <div className="pt-2">
+                          <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 font-medium mb-1.5">
+                            <Camera className="w-3 h-3" />
+                            <span>Client Photo</span>
+                          </div>
+                          <div className="flex gap-2">
+                            {rev.image_urls?.slice(0, 2).map((photoUrl, pIdx) => (
+                              <div
+                                key={pIdx}
+                                onClick={() =>
+                                  setInspectPhoto({
+                                    url: photoUrl,
+                                    author: rev.author_name,
+                                    rating: rev.rating,
+                                    title: rev.title,
+                                    text: rev.review_text,
+                                    productTitle: rev.product_title,
+                                    date: new Date(rev.created_at).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    }),
+                                  })
+                                }
+                                className="relative w-16 h-16 rounded border border-[#E7E7E7] overflow-hidden bg-neutral-100 cursor-pointer hover:border-[#3F3F8F] transition-all shrink-0"
+                              >
+                                <img
+                                  src={photoUrl}
+                                  alt="Customer photo"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 active:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <ZoomIn className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer: Author & Product Link */}
+                    <div className="pt-4 mt-4 border-t border-[#E7E7E7] flex flex-col text-left">
+                      <div className="font-semibold text-black text-xs">
+                        {rev.author_name}
+                      </div>
+                      {rev.product_title && (
+                        <Link
+                          to={`/product/${rev.product_id}`}
+                          className="text-[11px] text-[#3F3F8F] hover:underline flex items-center gap-1 mt-1 truncate"
+                          title={rev.product_title}
+                        >
+                          <span className="truncate">Reviewed: {rev.product_title}</span>
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Desktop Carousel Grid */}
+        <div className="hidden md:grid md:grid-cols-3 gap-6 relative">
           {visibleReviews.map((rev) => {
             const hasPhotos = rev.image_urls && rev.image_urls.length > 0;
             return (
