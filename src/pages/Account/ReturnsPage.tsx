@@ -122,8 +122,6 @@ export const ReturnsPage: React.FC = () => {
         return;
       }
 
-      setVerifiedOrder(order);
-
       // Check delivery status
       const status = (order.status || '').toLowerCase();
       if (status !== 'delivered') {
@@ -143,6 +141,8 @@ export const ReturnsPage: React.FC = () => {
       if (order.shipping_address?.phone || order.guest_email) {
         setCustomerContact(order.shipping_address?.phone || order.guest_email);
       }
+
+      setVerifiedOrder(order);
     } catch {
       setVerificationError('Unable to verify order at this moment. Please try again.');
     } finally {
@@ -313,6 +313,7 @@ export const ReturnsPage: React.FC = () => {
   };
 
   const isWindowExpired = hoursSinceDelivery !== null && hoursSinceDelivery > 24;
+  const shouldShowStepper = Boolean(submittedTicket || (verifiedOrder && !isWindowExpired));
 
   return (
     <div className="w-full bg-[#FAFAFA] font-poppins min-h-screen py-12 sm:py-16">
@@ -330,61 +331,63 @@ export const ReturnsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* 4-STEP RETURN LIFECYCLE STEPPER */}
-        <div className="w-full bg-white border border-[#E7E7E7] rounded-[4px] p-4 sm:p-5 shadow-xs text-left mb-6">
-          <div className="grid grid-cols-4 gap-2 text-center text-xs">
-            {[
-              { step: 1, label: 'Verify Order' },
-              { step: 2, label: 'Submit Video' },
-              { step: 3, label: 'Admin Review' },
-              { step: 4, label: 'Self-Shipment' },
-            ].map((s) => {
-              const isCompleted = isAllCompleted ? true : currentStep > s.step;
-              const isCurrent = !isAllCompleted && currentStep === s.step;
-              return (
-                <div key={s.step} className="flex flex-col items-center space-y-1 relative">
-                  <div
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      isCompleted
-                        ? 'bg-emerald-600 text-white'
-                        : isCurrent
-                        ? 'bg-[#3F3F8F] text-white ring-4 ring-[#EEEEF8]'
-                        : 'bg-neutral-100 text-neutral-400'
-                    }`}
-                  >
-                    {isCompleted ? '✓' : s.step}
+        {/* 4-STEP RETURN LIFECYCLE STEPPER - SHOWN ONLY FOR DELIVERED & ELIGIBLE ORDERS OR ACTIVE TICKETS */}
+        {shouldShowStepper && (
+          <div className="w-full bg-white border border-[#E7E7E7] rounded-[4px] p-4 sm:p-5 shadow-xs text-left mb-6">
+            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+              {[
+                { step: 1, label: 'Report Damage' },
+                { step: 2, label: 'Submit Video' },
+                { step: 3, label: 'Admin Review' },
+                { step: 4, label: 'Self-Shipment' },
+              ].map((s) => {
+                const isCompleted = isAllCompleted ? true : currentStep > s.step;
+                const isCurrent = !isAllCompleted && currentStep === s.step;
+                return (
+                  <div key={s.step} className="flex flex-col items-center space-y-1 relative">
+                    <div
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        isCompleted
+                          ? 'bg-emerald-600 text-white'
+                          : isCurrent
+                          ? 'bg-[#3F3F8F] text-white ring-4 ring-[#EEEEF8]'
+                          : 'bg-neutral-100 text-neutral-400'
+                      }`}
+                    >
+                      {isCompleted ? '✓' : s.step}
+                    </div>
+                    <span
+                      className={`text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold ${
+                        isCurrent ? 'text-[#3F3F8F]' : isCompleted ? 'text-black' : 'text-neutral-400'
+                      }`}
+                    >
+                      Step {s.step}
+                    </span>
+                    <span
+                      className={`text-[9px] sm:text-[10px] hidden sm:block ${
+                        isCurrent ? 'text-black font-medium' : 'text-[#888888]'
+                      }`}
+                    >
+                      {s.label}
+                    </span>
                   </div>
-                  <span
-                    className={`text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold ${
-                      isCurrent ? 'text-[#3F3F8F]' : isCompleted ? 'text-black' : 'text-neutral-400'
-                    }`}
-                  >
-                    Step {s.step}
-                  </span>
-                  <span
-                    className={`text-[9px] sm:text-[10px] hidden sm:block ${
-                      isCurrent ? 'text-black font-medium' : 'text-[#888888]'
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <div className="mt-3 pt-3 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#666666]">
+              <span className="font-medium">
+                {currentStep === 1 && 'Step 1 of 4: Report transit damage details and agree to return policy.'}
+                {currentStep === 2 && 'Step 2 of 4: Send your mandatory 360° unboxing video on WhatsApp.'}
+                {currentStep === 3 && 'Step 3 of 4: Verification pending. Admin inspection team is reviewing your video.'}
+                {currentStep === 4 && !isAllCompleted && 'Step 4 of 4: Dispatch parcel & enter courier tracking. Process is completed only after entering tracking.'}
+                {isAllCompleted && 'All Steps Completed: Return tracking logged. 7-day refund SLA active.'}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded shrink-0">
+                {isAllCompleted ? 'Completed ✓' : `Step ${currentStep} of 4`}
+              </span>
+            </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#666666]">
-            <span className="font-medium">
-              {currentStep === 1 && 'Step 1 of 4: Check order delivery eligibility and submit defect report.'}
-              {currentStep === 2 && 'Step 2 of 4: Send your mandatory 360° unboxing video on WhatsApp.'}
-              {currentStep === 3 && 'Step 3 of 4: Verification pending. Admin inspection team is reviewing your video.'}
-              {currentStep === 4 && !isAllCompleted && 'Step 4 of 4: Dispatch parcel & enter courier tracking. Process is completed only after entering tracking.'}
-              {isAllCompleted && 'All Steps Completed: Return tracking logged. 7-day refund SLA active.'}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded shrink-0">
-              {isAllCompleted ? 'Completed ✓' : `Step ${currentStep} of 4`}
-            </span>
-          </div>
-        </div>
+        )}
 
         {/* POST-SUBMISSION TICKET CONFIRMATION & STEPPED ACTIONS */}
         {submittedTicket ? (
@@ -789,10 +792,10 @@ export const ReturnsPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* STEP 1: ORDER LOOKUP CARD */}
+            {/* ORDER LOOKUP & ELIGIBILITY VERIFICATION CARD */}
             <div className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 shadow-sm space-y-4 text-left">
               <div className="flex items-center justify-between pb-3 border-b border-[#E7E7E7]">
-                <h3 className="font-wondra text-xl text-black">STEP 1 OF 4: VERIFY ORDER ELIGIBILITY</h3>
+                <h3 className="font-wondra text-xl text-black">VERIFY ORDER ELIGIBILITY</h3>
                 <span className="text-[10px] uppercase font-semibold text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded">
                   24-Hour Policy Check
                 </span>
@@ -878,13 +881,18 @@ export const ReturnsPage: React.FC = () => {
               )}
             </div>
 
-            {/* STEP 2: DAMAGE CLAIM DETAILS & CHECKLIST (Rendered only if verified within 24h) */}
+            {/* STEP 1 OF 4: DAMAGE CLAIM DETAILS & POLICY (Rendered only if verified within 24h) */}
             {verifiedOrder && !isWindowExpired && (
               <form onSubmit={handleSubmitClaim} className="bg-white border border-[#E7E7E7] rounded-[4px] p-6 shadow-sm space-y-6 text-left">
                 <div className="pb-3 border-b border-[#E7E7E7]">
-                  <h3 className="font-wondra text-xl text-black">STEP 1 (CONTINUED): REPORT DAMAGE & CONFIRM POLICY</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#3F3F8F] bg-[#EEEEF8] px-2.5 py-0.5 rounded inline-block mb-1">
+                    Step 1 of 4
+                  </span>
+                  <h3 className="font-wondra text-xl text-black">
+                    STEP 1 OF 4: REPORT DAMAGE DETAILS & POLICY AGREEMENT
+                  </h3>
                   <p className="text-[11px] text-[#666666] mt-0.5">
-                    Select the damaged garment and confirm policy compliance.
+                    Select the damaged garment and confirm policy compliance to initiate your claim.
                   </p>
                 </div>
 
