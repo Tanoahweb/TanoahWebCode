@@ -44,7 +44,36 @@ export interface HeaderMenuItem {
   };
 }
 
+export interface FooterMenuItem {
+  id: string;
+  label: string; // e.g. "New Arrivals SS26", "Refund Policy"
+  url: string; // e.g. "/collections/new-arrivals", "/pages/refund-policy"
+  sort_order: number;
+  is_active: boolean;
+  open_in_new_tab?: boolean;
+}
+
+export interface FooterMenuColumn {
+  id: string;
+  title: string; // e.g. "COLLECTIONS", "CLIENT SERVICES", "THE MAISON"
+  sort_order: number;
+  is_active: boolean;
+  links: FooterMenuItem[];
+}
+
+export interface FooterSubLink {
+  id: string;
+  label: string; // e.g. "PRIVACY", "TERMS", "SITEMAP"
+  url: string;
+  sort_order: number;
+  is_active: boolean;
+  open_in_new_tab?: boolean;
+}
+
 export interface NavigationConfig {
   header_menu: HeaderMenuItem[];
+  footer_menu?: FooterMenuColumn[];
+  footer_bottom_links?: FooterSubLink[];
   updated_at?: string;
 }
+

@@ -26,6 +26,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Zap,
+  PanelBottom,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -36,11 +37,15 @@ import {
   MegaMenuColumn,
   MegaMenuSubLink,
   MegaMenuBanner,
+  FooterMenuColumn,
+  FooterSubLink,
 } from '../../types/navigation';
+import { DEFAULT_NAVIGATION_CONFIG } from '../../data/defaultNavigation';
 import { Collection } from '../../types';
 import { api } from '../../services/api';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 import { Link } from 'react-router-dom';
+import { FooterNavigationEditor } from './FooterNavigationEditor';
 
 export const NavigationPage: React.FC = () => {
   const { addToast } = useUIStore();
@@ -53,8 +58,13 @@ export const NavigationPage: React.FC = () => {
     resetToDefaults,
   } = useNavigationStore();
 
+  // Active Navigation Tab
+  const [activeNavTab, setActiveNavTab] = useState<'header' | 'footer'>('header');
+
   // Local draft state for editing before saving
   const [draftItems, setDraftItems] = useState<HeaderMenuItem[]>([]);
+  const [draftFooterColumns, setDraftFooterColumns] = useState<FooterMenuColumn[]>([]);
+  const [draftBottomLinks, setDraftBottomLinks] = useState<FooterSubLink[]>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [previewHoveredItem, setPreviewHoveredItem] = useState<string | null>(null);
@@ -115,6 +125,17 @@ export const NavigationPage: React.FC = () => {
         setSelectedItemId(firstMega.id);
       }
     }
+    const initialFooterCols =
+      config?.footer_menu && config.footer_menu.length > 0
+        ? config.footer_menu
+        : DEFAULT_NAVIGATION_CONFIG.footer_menu || [];
+    setDraftFooterColumns(JSON.parse(JSON.stringify(initialFooterCols)));
+
+    const initialBottomLinks =
+      config?.footer_bottom_links && config.footer_bottom_links.length > 0
+        ? config.footer_bottom_links
+        : DEFAULT_NAVIGATION_CONFIG.footer_bottom_links || [];
+    setDraftBottomLinks(JSON.parse(JSON.stringify(initialBottomLinks)));
   }, [config]);
 
   const selectedItem = draftItems.find((i) => i.id === selectedItemId) || null;
@@ -645,6 +666,8 @@ export const NavigationPage: React.FC = () => {
     setIsSaving(true);
     const success = await saveNavigation({
       header_menu: draftItems,
+      footer_menu: draftFooterColumns,
+      footer_bottom_links: draftBottomLinks,
       updated_at: new Date().toISOString(),
     });
     setIsSaving(false);
@@ -653,7 +676,7 @@ export const NavigationPage: React.FC = () => {
       addToast({
         type: 'success',
         title: 'Navigation Published',
-        description: 'Header menu and mega menu changes are now live across your store.',
+        description: 'Header and footer navigation changes are now live across your store.',
       });
     } else {
       addToast({
@@ -672,6 +695,9 @@ export const NavigationPage: React.FC = () => {
     setIsResetModalOpen(false);
 
     if (success) {
+      setDraftItems(JSON.parse(JSON.stringify(DEFAULT_NAVIGATION_CONFIG.header_menu)));
+      setDraftFooterColumns(JSON.parse(JSON.stringify(DEFAULT_NAVIGATION_CONFIG.footer_menu || [])));
+      setDraftBottomLinks(JSON.parse(JSON.stringify(DEFAULT_NAVIGATION_CONFIG.footer_bottom_links || [])));
       addToast({
         type: 'info',
         title: 'Reset Completed',
@@ -691,10 +717,10 @@ export const NavigationPage: React.FC = () => {
               <span>STORE OS &bull; STOREFRONT NAVIGATION</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold font-wondra text-black tracking-wide">
-              HEADER MENU &amp; MEGA MENU STUDIO
+              STORE NAVIGATION &amp; MEGA MENU STUDIO
             </h1>
             <p className="text-xs text-[#666666] mt-1">
-              Organize top-level header links, multi-column mega menu dropdowns, promotional campaign banners, and mobile navigation.
+              Organize top-level header links, multi-column mega menu dropdowns, promotional campaign banners, and storefront footer columns &amp; legal links.
             </p>
           </div>
 
@@ -722,8 +748,53 @@ export const NavigationPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Interactive Storefront Preview Box */}
-        <div className="bg-white rounded-[6px] border border-[#E7E7E7] shadow-xs overflow-hidden">
+        {/* Navigation Mode Tabs */}
+        <div className="flex items-center gap-3 border-b border-[#E7E7E7] pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveNavTab('header')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-xs font-semibold tracking-wider uppercase transition-all ${
+              activeNavTab === 'header'
+                ? 'bg-[#3F3F8F] text-white shadow-xs'
+                : 'bg-white border border-[#E7E7E7] text-[#666666] hover:text-black hover:border-neutral-300'
+            }`}
+          >
+            <Menu className="w-4 h-4" />
+            <span>Header Menu &amp; Mega Menus</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                activeNavTab === 'header' ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'
+              }`}
+            >
+              {draftItems.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveNavTab('footer')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-xs font-semibold tracking-wider uppercase transition-all ${
+              activeNavTab === 'footer'
+                ? 'bg-[#3F3F8F] text-white shadow-xs'
+                : 'bg-white border border-[#E7E7E7] text-[#666666] hover:text-black hover:border-neutral-300'
+            }`}
+          >
+            <PanelBottom className="w-4 h-4" />
+            <span>Footer Menus &amp; Bottom Links</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                activeNavTab === 'footer' ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'
+              }`}
+            >
+              {draftFooterColumns.length} cols &bull; {draftBottomLinks.length} links
+            </span>
+          </button>
+        </div>
+
+        {activeNavTab === 'header' ? (
+          <>
+            {/* Live Interactive Storefront Preview Box */}
+            <div className="bg-white rounded-[6px] border border-[#E7E7E7] shadow-xs overflow-hidden">
           <div className="px-5 py-3 border-b border-[#E7E7E7] bg-[#FAFAFA] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-[#3F3F8F]" />
@@ -1680,7 +1751,19 @@ export const NavigationPage: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
+      </>
+    ) : (
+      <FooterNavigationEditor
+        draftFooterColumns={draftFooterColumns}
+        setDraftFooterColumns={setDraftFooterColumns}
+        draftBottomLinks={draftBottomLinks}
+        setDraftBottomLinks={setDraftBottomLinks}
+        availableCollections={availableCollections}
+        onSave={handleSaveAll}
+        isSaving={isSaving}
+      />
+    )}
+  </div>
 
       {/* Edit / Add Header Item Modal */}
       {isItemModalOpen && (
@@ -1865,7 +1948,7 @@ export const NavigationPage: React.FC = () => {
             </div>
 
             <p className="text-xs text-[#666666] leading-relaxed">
-              Are you sure you want to restore the navigation to the factory <strong>Tanoah defaults</strong>? All custom columns, links, and banners will be reset to the original design (SHOP, MEN, WOMEN, NEW ARRIVALS, SALE, LOOKBOOK).
+              Are you sure you want to restore the navigation to the factory <strong>Tanoah defaults</strong>? All custom header links, mega menus, promotional banners, footer columns (COLLECTIONS, CLIENT SERVICES, THE MAISON), and bottom legal links will be restored to their original design.
             </p>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-[#E7E7E7]">

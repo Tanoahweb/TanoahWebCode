@@ -1,13 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ShieldCheck, Truck, RotateCcw, Award } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
+import { useNavigationStore } from '../../store/useNavigationStore';
+import { DEFAULT_NAVIGATION_CONFIG } from '../../data/defaultNavigation';
 import { api } from '../../services/api';
 
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
   const { addToast } = useUIStore();
+  const { config, hasLoaded, fetchNavigation } = useNavigationStore();
+
+  useEffect(() => {
+    if (!hasLoaded) {
+      fetchNavigation();
+    }
+  }, [hasLoaded, fetchNavigation]);
+
+  const activeColumns = (config?.footer_menu && config.footer_menu.length > 0
+    ? config.footer_menu
+    : DEFAULT_NAVIGATION_CONFIG.footer_menu || []
+  )
+    .filter((col) => col.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  const bottomLinks = (config?.footer_bottom_links && config.footer_bottom_links.length > 0
+    ? config.footer_bottom_links
+    : DEFAULT_NAVIGATION_CONFIG.footer_bottom_links || []
+  )
+    .filter((l) => l.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order);
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,52 +151,60 @@ export const Footer: React.FC = () => {
           </form>
         </div>
 
-        {/* Navigation Column 1: SHOP */}
-        <div className="md:col-span-2 space-y-4">
-          <h4 className="font-wondra text-lg tracking-wider text-white">COLLECTIONS</h4>
-          <ul className="space-y-2 text-xs font-poppins text-white/80">
-            <li><Link to="/collections/new-arrivals" className="hover:text-white underline-offset-4 hover:underline">New Arrivals SS26</Link></li>
-            <li><Link to="/collections/men" className="hover:text-white underline-offset-4 hover:underline">Men's Apparel</Link></li>
-            <li><Link to="/collections/women" className="hover:text-white underline-offset-4 hover:underline">Women's Apparel</Link></li>
-            <li><Link to="/collections/best-sellers" className="hover:text-white underline-offset-4 hover:underline">Best Sellers</Link></li>
-            <li><Link to="/collections/sale" className="hover:text-white underline-offset-4 hover:underline">Sale & Archives</Link></li>
-            <li><Link to="/lookbook" className="hover:text-white underline-offset-4 hover:underline">Editorial Lookbook</Link></li>
-            <li><Link to="/blog" className="hover:text-white underline-offset-4 hover:underline">Editorial Journal</Link></li>
-          </ul>
-        </div>
+        {/* Dynamic Footer Menu Columns */}
+        <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+          {activeColumns.map((column, colIdx) => {
+            const activeLinks = (column.links || [])
+              .filter((l) => l.is_active)
+              .sort((a, b) => a.sort_order - b.sort_order);
 
-        {/* Navigation Column 2: CLIENT SERVICES */}
-        <div className="md:col-span-3 space-y-4">
-          <h4 className="font-wondra text-lg tracking-wider text-white">CLIENT SERVICES</h4>
-          <ul className="space-y-2 text-xs font-poppins text-white/80">
-            <li><Link to="/tracking" className="hover:text-white underline-offset-4 hover:underline">Track Your Order</Link></li>
-            <li><Link to="/pages/refund-policy" className="hover:text-white underline-offset-4 hover:underline">Refund Policy</Link></li>
-            <li><Link to="/pages/size-guide" className="hover:text-white underline-offset-4 hover:underline">Fit & Size Guide</Link></li>
-            <li><Link to="/pages/shipping-policy" className="hover:text-white underline-offset-4 hover:underline">Shipping Policy</Link></li>
-            <li><Link to="/pages/faq" className="hover:text-white underline-offset-4 hover:underline">Frequently Asked Questions</Link></li>
-            <li><Link to="/pages/contact" className="hover:text-white underline-offset-4 hover:underline">Contact Customer Care</Link></li>
-          </ul>
-        </div>
+            const isLastCol = colIdx === activeColumns.length - 1;
 
-        {/* Navigation Column 3: LEGAL & BOUTIQUE */}
-        <div className="md:col-span-3 space-y-4">
-          <h4 className="font-wondra text-lg tracking-wider text-white">THE MAISON</h4>
-          <ul className="space-y-2 text-xs font-poppins text-white/80">
-            <li><Link to="/pages/about" className="hover:text-white underline-offset-4 hover:underline">About TANOAH</Link></li>
-            <li><Link to="/pages/store-locator" className="hover:text-white underline-offset-4 hover:underline">Store Locator</Link></li>
-            <li><Link to="/pages/privacy-policy" className="hover:text-white underline-offset-4 hover:underline">Privacy Policy</Link></li>
-            <li><Link to="/pages/terms" className="hover:text-white underline-offset-4 hover:underline">Terms & Conditions</Link></li>
-            <li><Link to="/pages/refund-policy" className="hover:text-white underline-offset-4 hover:underline">Refund Policy</Link></li>
-            <li><Link to="/pages/accessibility" className="hover:text-white underline-offset-4 hover:underline">Accessibility Statement</Link></li>
-          </ul>
+            return (
+              <div key={column.id} className="space-y-4">
+                <h4 className="font-wondra text-lg tracking-wider text-white uppercase">
+                  {column.title}
+                </h4>
+                <ul className="space-y-2 text-xs font-poppins text-white/80">
+                  {activeLinks.map((link) => {
+                    const isExt = link.url.startsWith('http') || link.open_in_new_tab;
+                    return (
+                      <li key={link.id}>
+                        {isExt ? (
+                          <a
+                            href={link.url}
+                            target={link.open_in_new_tab ? '_blank' : undefined}
+                            rel={link.open_in_new_tab ? 'noreferrer noopener' : undefined}
+                            className="hover:text-white underline-offset-4 hover:underline transition-colors"
+                          >
+                            {link.label}
+                          </a>
+                        ) : (
+                          <Link
+                            to={link.url}
+                            className="hover:text-white underline-offset-4 hover:underline transition-colors"
+                          >
+                            {link.label}
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
 
-          <div className="pt-4">
-            <span className="text-[11px] font-poppins uppercase tracking-wider font-semibold text-white/90 block mb-2">
-              CUSTOMER CARE DESK
-            </span>
-            <p className="text-xs text-white/80 font-poppins">connectus.tanoah@gmail.com</p>
-            <p className="text-xs text-white/80 font-poppins mt-0.5">+91 8714141849 (Mon–Sat 10am–7pm)</p>
-          </div>
+                {/* Show Customer Care Desk on the last column */}
+                {isLastCol && (
+                  <div className="pt-4 border-t border-white/10 mt-6">
+                    <span className="text-[11px] font-poppins uppercase tracking-wider font-semibold text-white/90 block mb-2">
+                      CUSTOMER CARE DESK
+                    </span>
+                    <p className="text-xs text-white/80 font-poppins">connectus.tanoah@gmail.com</p>
+                    <p className="text-xs text-white/80 font-poppins mt-0.5">+91 8714141849 (Mon–Sat 10am–7pm)</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -183,12 +214,28 @@ export const Footer: React.FC = () => {
           © {new Date().getFullYear()} TANOAH MAISON INC. ALL RIGHTS RESERVED.
         </div>
         <div className="mt-4 md:mt-0 flex flex-wrap items-center justify-center gap-6">
-          <Link to="/pages/privacy-policy" className="hover:text-white">PRIVACY</Link>
-          <Link to="/pages/terms" className="hover:text-white">TERMS</Link>
-          <Link to="/pages/shipping-policy" className="hover:text-white">SHIPPING</Link>
-          <Link to="/pages/refund-policy" className="hover:text-white">REFUND</Link>
-          <Link to="/pages/accessibility" className="hover:text-white">ACCESSIBILITY</Link>
-          <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="hover:text-white">SITEMAP</a>
+          {bottomLinks.map((link) => {
+            const isExt = link.url.startsWith('http') || link.url.endsWith('.xml') || link.open_in_new_tab;
+            return isExt ? (
+              <a
+                key={link.id}
+                href={link.url}
+                target={link.open_in_new_tab ? '_blank' : undefined}
+                rel={link.open_in_new_tab ? 'noreferrer noopener' : undefined}
+                className="hover:text-white uppercase transition-colors"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.id}
+                to={link.url}
+                className="hover:text-white uppercase transition-colors"
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </footer>

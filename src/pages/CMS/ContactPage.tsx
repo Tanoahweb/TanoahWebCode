@@ -112,7 +112,7 @@ export const ContactPage: React.FC = () => {
 
           {/* Contact Form (Col 7) */}
           <div className="lg:col-span-7 bg-white p-8 border border-[#E7E7E7] rounded-[4px] shadow-sm">
-            <h3 className="font-wondra text-2xl text-black mb-6">SEND A TRANSMISSION</h3>
+            <h3 className="font-wondra text-2xl text-black mb-6">SEND A MESSAGE</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-black uppercase mb-1">Your Name *</label>

@@ -430,8 +430,15 @@ export const api = {
         .select('navigation_config')
         .limit(1)
         .single();
-      if (!error && data?.navigation_config?.header_menu?.length > 0) {
-        return data.navigation_config as NavigationConfig;
+      if (!error && data?.navigation_config) {
+        const nav = data.navigation_config as NavigationConfig;
+        return {
+          ...DEFAULT_NAVIGATION_CONFIG,
+          ...nav,
+          header_menu: nav.header_menu?.length > 0 ? nav.header_menu : DEFAULT_NAVIGATION_CONFIG.header_menu,
+          footer_menu: nav.footer_menu && nav.footer_menu.length > 0 ? nav.footer_menu : DEFAULT_NAVIGATION_CONFIG.footer_menu,
+          footer_bottom_links: nav.footer_bottom_links && nav.footer_bottom_links.length > 0 ? nav.footer_bottom_links : DEFAULT_NAVIGATION_CONFIG.footer_bottom_links,
+        };
       }
     } catch (e) {
       console.warn('Network error fetching navigation config:', e);
