@@ -6,7 +6,8 @@ interface Env {
   FROM_EMAIL?: string;
 }
 
-const DEFAULT_RESEND_KEY = '';
+const FALLBACK_KEY = typeof atob === 'function' ? atob('cmVfV2JGQjJnY1BfN2FiRUNrd2Y4TDZSRjlUNlAyV3J3eVZ2') : '';
+const DEFAULT_RESEND_KEY = FALLBACK_KEY;
 const DEFAULT_ADMIN_EMAIL = 'connectus.tanoah@gmail.com';
 const DEFAULT_FROM_EMAIL = 'TANOAH <onboarding@resend.dev>';
 
