@@ -173,8 +173,8 @@ export const OrderListPage: React.FC = () => {
                   <th className="p-4">Total Amount</th>
                   <th className="p-4">Payment</th>
                   <th className="p-4">Fulfillment Status</th>
-                  <th className="p-4">India Post Consignment</th>
-                  <th className="p-4 text-right">Update Status & Slip</th>
+                  <th className="p-4 w-48 min-w-[190px]">India Post Consignment</th>
+                  <th className="p-4 text-right w-60 min-w-[240px] whitespace-nowrap">Update Status & Slip</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
@@ -221,7 +221,7 @@ export const OrderListPage: React.FC = () => {
                             {ord.fulfillmentStatus}
                           </span>
                         </td>
-                        <td className="p-4">
+                        <td className="p-4 w-48 min-w-[190px]">
                           <div className="flex items-center gap-1.5">
                             <input
                               type="text"
@@ -250,50 +250,53 @@ export const OrderListPage: React.FC = () => {
                                   (e.target as HTMLInputElement).blur();
                                 }
                               }}
-                              className={`w-36 p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans ${
+                              className={`w-36 h-[34px] p-1.5 border rounded-[4px] font-mono text-xs focus:outline-none uppercase bg-white placeholder:normal-case placeholder:font-sans shrink-0 ${
                                 !hasTracking
                                   ? 'border-neutral-300 focus:border-[#3F3F8F]'
                                   : 'border-emerald-300 bg-emerald-50/20 focus:border-emerald-500'
                               }`}
                             />
-                            {ord.trackingNumber && (
-                              <a
-                                href="https://www.indiapost.gov.in/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Track live on indiapost.gov.in"
-                                className="text-[#3F3F8F] hover:text-black p-1 transition-colors"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                            <div className="w-6 h-[34px] flex items-center justify-center shrink-0">
+                              {ord.trackingNumber ? (
+                                <a
+                                  href="https://www.indiapost.gov.in/"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Track live on indiapost.gov.in"
+                                  className="text-[#3F3F8F] hover:text-black p-1 transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              ) : null}
+                            </div>
                           </div>
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right w-60 min-w-[240px]">
                           <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => setSelectedPrintOrder(ord)}
                               title="Print Shipping Label / Packing Slip (TO & FROM Address only)"
-                              className="h-[30px] px-2 text-[10px] uppercase font-semibold flex items-center gap-1 shrink-0"
+                              className="h-[34px] px-2.5 text-[10px] uppercase font-semibold flex items-center justify-center gap-1 shrink-0 whitespace-nowrap border border-[#E7E7E7] hover:border-[#3F3F8F] bg-white hover:bg-[#F8F8F8] text-neutral-800"
                             >
-                              <Printer className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Slip</span>
+                              <Printer className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                              <span>Slip</span>
                             </Button>
                             <select
                               value={ord.fulfillmentStatus}
                               onChange={(e) => handleStatusChange(ord.orderNumber || ord.id, e.target.value)}
-                              className="p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase"
+                              title={!hasTracking ? 'India Post Consignment No. required to select Shipped or Delivered' : 'Update Fulfillment Status'}
+                              className="w-36 min-w-[144px] max-w-[144px] h-[34px] p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase shrink-0"
                             >
                               <option value="pending">Pending</option>
                               <option value="processing">Processing</option>
                               <option value="packed">Packed</option>
                               <option value="shipped" disabled={!hasTracking}>
-                                Shipped {!hasTracking ? '(Tracking Required)' : ''}
+                                Shipped {!hasTracking ? '(Locked)' : ''}
                               </option>
                               <option value="delivered" disabled={!hasTracking}>
-                                Delivered {!hasTracking ? '(Tracking Required)' : ''}
+                                Delivered {!hasTracking ? '(Locked)' : ''}
                               </option>
                               <option value="cancelled">Cancelled</option>
                             </select>
