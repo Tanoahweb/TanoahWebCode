@@ -23,6 +23,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-
 /**
  * Validates an email address.
  * Ensures the email is non-empty, properly structured, and contains a valid domain.
+ * Provides specific, actionable error messages for each failure mode.
  */
 export function validateEmail(email?: string | null): EmailValidationResult {
   if (!email || typeof email !== 'string') {
@@ -54,34 +55,61 @@ export function validateEmail(email?: string | null): EmailValidationResult {
   if (!trimmed.includes('@')) {
     return {
       isValid: false,
-      error: 'Email address must include an "@" symbol.',
+      error: 'Please include an "@" in your email address.',
       normalized: trimmed.toLowerCase(),
     };
   }
 
-  const parts = trimmed.split('@');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+  const atParts = trimmed.split('@');
+  if (atParts.length > 2) {
     return {
       isValid: false,
-      error: 'Please enter a complete email address (e.g. name@example.com).',
+      error: 'Email address cannot contain multiple "@" symbols.',
       normalized: trimmed.toLowerCase(),
     };
   }
 
-  const domain = parts[1];
+  const [username, domain] = atParts;
+
+  if (!username) {
+    return {
+      isValid: false,
+      error: 'Please enter a username before the "@" sign.',
+      normalized: trimmed.toLowerCase(),
+    };
+  }
+
+  if (!domain) {
+    return {
+      isValid: false,
+      error: 'Please enter a domain after the "@" sign (e.g. gmail.com).',
+      normalized: trimmed.toLowerCase(),
+    };
+  }
+
   if (!domain.includes('.')) {
     return {
       isValid: false,
-      error: 'Email domain must include a valid extension (e.g. .com, .in).',
+      error: 'Domain must include an extension (e.g. .com or .in).',
       normalized: trimmed.toLowerCase(),
     };
   }
 
-  const tld = domain.split('.').pop() || '';
+  const domainParts = domain.split('.');
+  const tld = domainParts[domainParts.length - 1] || '';
+
   if (tld.length < 2) {
     return {
       isValid: false,
-      error: 'Email domain extension must be at least 2 letters.',
+      error: 'Domain extension must be at least 2 characters (e.g. .com).',
+      normalized: trimmed.toLowerCase(),
+    };
+  }
+
+  if (domain.startsWith('.') || domain.endsWith('.')) {
+    return {
+      isValid: false,
+      error: 'Please enter a valid email domain (e.g. gmail.com).',
       normalized: trimmed.toLowerCase(),
     };
   }
@@ -113,6 +141,8 @@ export function isValidEmail(email?: string | null): boolean {
  * - 10-digit Indian mobile numbers (e.g., 9876543210 starting with 6, 7, 8, or 9)
  * - Country code prefix: +91, 91, or leading 0 (e.g., +91 98765 43210, 09876543210)
  * - International numbers: 10 to 15 digits according to E.164 standard
+ * 
+ * Provides distinct, accurate error messages matching the user's specific input mistake.
  */
 export function validatePhone(phone?: string | null): PhoneValidationResult {
   if (!phone || typeof phone !== 'string') {
@@ -137,74 +167,226 @@ export function validatePhone(phone?: string | null): PhoneValidationResult {
     };
   }
 
-  // Remove spaces, hyphens, brackets, and non-digit characters
-  const digitsOnly = trimmed.replace(/\D/g, '');
-
-  if (digitsOnly.length < 10) {
+  // Check if input contains letters
+  if (/[a-zA-Z]/.test(trimmed)) {
     return {
       isValid: false,
-      error: 'Please enter a valid 10-digit mobile number.',
+      error: 'Mobile number cannot contain letters.',
+      cleanDigits: trimmed.replace(/\D/g, ''),
+      formatted: trimmed,
+      normalized: trimmed.replace(/\D/g, ''),
+    };
+  }
+
+  // Check if input contains invalid symbols (only digits, +, spaces, hyphens, parentheses allowed)
+  if (/[^0-9+\s\-()]/.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'Mobile number contains invalid characters.',
+      cleanDigits: trimmed.replace(/\D/g, ''),
+      formatted: trimmed,
+      normalized: trimmed.replace(/\D/g, ''),
+    };
+  }
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+
+  if (digitsOnly.length === 0) {
+    return {
+      isValid: false,
+      error: 'Mobile phone number is required.',
+      cleanDigits: '',
+      formatted: '',
+      normalized: '',
+    };
+  }
+
+  // 1. User explicitly entered '+' (International or Indian with country code)
+  if (trimmed.startsWith('+')) {
+    // If it's India (+91)
+    if (digitsOnly.startsWith('91')) {
+      const core = digitsOnly.slice(2);
+      if (core.length === 0) {
+        return {
+          isValid: false,
+          error: 'Please enter your 10-digit mobile number after +91.',
+          cleanDigits: digitsOnly,
+          formatted: trimmed,
+          normalized: digitsOnly,
+        };
+      }
+      if (core.length < 10) {
+        return {
+          isValid: false,
+          error: `Mobile number must be 10 digits (currently ${core.length} digits after +91).`,
+          cleanDigits: core,
+          formatted: trimmed,
+          normalized: core,
+        };
+      }
+      if (core.length > 10) {
+        return {
+          isValid: false,
+          error: `Mobile number cannot exceed 10 digits (currently ${core.length} digits after +91).`,
+          cleanDigits: core,
+          formatted: trimmed,
+          normalized: core,
+        };
+      }
+      // Exactly 10 digits after +91
+      const firstDigit = core[0];
+      if (!['6', '7', '8', '9'].includes(firstDigit)) {
+        return {
+          isValid: false,
+          error: 'Mobile number must start with 6, 7, 8, or 9.',
+          cleanDigits: core,
+          formatted: trimmed,
+          normalized: core,
+        };
+      }
+      return {
+        isValid: true,
+        cleanDigits: core,
+        formatted: `+91 ${core.slice(0, 5)} ${core.slice(5)}`,
+        normalized: core,
+      };
+    }
+
+    // Other International numbers (+1, +44, +971, etc.)
+    if (digitsOnly.length < 10) {
+      return {
+        isValid: false,
+        error: `International number must be at least 10 digits (currently ${digitsOnly.length} digits).`,
+        cleanDigits: digitsOnly,
+        formatted: trimmed,
+        normalized: digitsOnly,
+      };
+    }
+    if (digitsOnly.length > 15) {
+      return {
+        isValid: false,
+        error: `International number cannot exceed 15 digits (currently ${digitsOnly.length} digits).`,
+        cleanDigits: digitsOnly,
+        formatted: trimmed,
+        normalized: digitsOnly,
+      };
+    }
+    return {
+      isValid: true,
+      cleanDigits: digitsOnly,
+      formatted: `+${digitsOnly}`,
+      normalized: digitsOnly,
+    };
+  }
+
+  // 2. Trunk prefix '0' (e.g. 09745334644 -> 11 digits)
+  if (digitsOnly.startsWith('0')) {
+    const core = digitsOnly.slice(1);
+    if (core.length < 10) {
+      return {
+        isValid: false,
+        error: `Mobile number must be 10 digits (currently ${core.length} digits).`,
+        cleanDigits: core,
+        formatted: trimmed,
+        normalized: core,
+      };
+    }
+    if (core.length > 10) {
+      return {
+        isValid: false,
+        error: `Mobile number cannot exceed 10 digits (currently ${core.length} digits).`,
+        cleanDigits: core,
+        formatted: trimmed,
+        normalized: core,
+      };
+    }
+    const firstDigit = core[0];
+    if (!['6', '7', '8', '9'].includes(firstDigit)) {
+      return {
+        isValid: false,
+        error: 'Mobile number must start with 6, 7, 8, or 9.',
+        cleanDigits: core,
+        formatted: trimmed,
+        normalized: core,
+      };
+    }
+    return {
+      isValid: true,
+      cleanDigits: core,
+      formatted: `+91 ${core.slice(0, 5)} ${core.slice(5)}`,
+      normalized: core,
+    };
+  }
+
+  // 3. Indian number with '91' prefix without '+' (e.g. 919876543210 -> 12 digits starting with 91, next digit 6-9)
+  if (digitsOnly.startsWith('91') && digitsOnly.length >= 12) {
+    const core = digitsOnly.slice(2);
+    if (core.length === 10 && ['6', '7', '8', '9'].includes(core[0])) {
+      return {
+        isValid: true,
+        cleanDigits: core,
+        formatted: `+91 ${core.slice(0, 5)} ${core.slice(5)}`,
+        normalized: core,
+      };
+    }
+    if (core.length > 10) {
+      return {
+        isValid: false,
+        error: `Mobile number cannot exceed 10 digits (currently ${core.length} digits).`,
+        cleanDigits: core,
+        formatted: trimmed,
+        normalized: core,
+      };
+    }
+  }
+
+  // 4. Standard Indian mobile numbers (10 digits expected)
+  if (digitsOnly.length > 10) {
+    return {
+      isValid: false,
+      error: `Mobile number cannot exceed 10 digits (currently ${digitsOnly.length} digits).`,
       cleanDigits: digitsOnly,
       formatted: trimmed,
       normalized: digitsOnly,
     };
   }
 
-  // If prefixed with 91 (12 digits) or 0 (11 digits), extract the canonical 10 digits
-  let canonical10 = digitsOnly;
-  if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
-    canonical10 = digitsOnly.slice(2);
-  } else if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
-    canonical10 = digitsOnly.slice(1);
-  } else if (digitsOnly.length > 10) {
-    canonical10 = digitsOnly.slice(-10);
-  }
-
-  // Check Indian standard 10-digit mobile (starts with 6, 7, 8, or 9)
-  if (canonical10.length === 10) {
-    const firstDigit = canonical10[0];
-    if (!['6', '7', '8', '9'].includes(firstDigit)) {
-      // If it's a general international number (10-15 digits), allow it
-      if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && trimmed.startsWith('+')) {
-        return {
-          isValid: true,
-          cleanDigits: digitsOnly,
-          formatted: `+${digitsOnly}`,
-          normalized: `+${digitsOnly}`,
-        };
-      }
+  if (digitsOnly.length < 10) {
+    const first = digitsOnly[0];
+    if (['6', '7', '8', '9'].includes(first)) {
       return {
         isValid: false,
-        error: 'Please enter a valid mobile number starting with 6, 7, 8, or 9.',
-        cleanDigits: canonical10,
+        error: `Mobile number must be 10 digits (currently ${digitsOnly.length} digits).`,
+        cleanDigits: digitsOnly,
         formatted: trimmed,
-        normalized: canonical10,
+        normalized: digitsOnly,
       };
     }
-
     return {
-      isValid: true,
-      cleanDigits: canonical10,
-      formatted: `+91 ${canonical10.slice(0, 5)} ${canonical10.slice(5)}`,
-      normalized: canonical10,
+      isValid: false,
+      error: 'Mobile number must be 10 digits and start with 6, 7, 8, or 9.',
+      cleanDigits: digitsOnly,
+      formatted: trimmed,
+      normalized: digitsOnly,
     };
   }
 
-  // General E.164 international format check (10 to 15 digits)
-  if (digitsOnly.length >= 10 && digitsOnly.length <= 15) {
+  // Exactly 10 digits
+  const firstDigit = digitsOnly[0];
+  if (!['6', '7', '8', '9'].includes(firstDigit)) {
     return {
-      isValid: true,
+      isValid: false,
+      error: 'Mobile number must start with 6, 7, 8, or 9.',
       cleanDigits: digitsOnly,
-      formatted: trimmed.startsWith('+') ? trimmed : `+${digitsOnly}`,
+      formatted: trimmed,
       normalized: digitsOnly,
     };
   }
 
   return {
-    isValid: false,
-    error: 'Phone number must be between 10 and 15 digits.',
+    isValid: true,
     cleanDigits: digitsOnly,
-    formatted: trimmed,
+    formatted: `+91 ${digitsOnly.slice(0, 5)} ${digitsOnly.slice(5)}`,
     normalized: digitsOnly,
   };
 }

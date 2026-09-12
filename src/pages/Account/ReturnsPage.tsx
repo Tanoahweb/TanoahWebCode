@@ -246,9 +246,9 @@ export const ReturnsPage: React.FC = () => {
       return;
     }
 
-    const cleanInputDigits = rawPhone.replace(/\D/g, '');
-    if (cleanInputDigits.length < 10) {
-      setVerificationError('Please enter a valid 10-digit mobile number.');
+    const phoneValidation = validatePhone(rawPhone);
+    if (!phoneValidation.isValid) {
+      setVerificationError(phoneValidation.error || 'Please enter a valid 10-digit mobile number.');
       return;
     }
 

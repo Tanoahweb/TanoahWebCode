@@ -73,12 +73,12 @@ export const RegisterPage: React.FC = () => {
 
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
+        email: emailValidation.normalized,
         password: formData.password,
         options: {
           data: {
-            full_name: formData.fullName,
-            phone: formData.phone,
+            full_name: formData.fullName.trim(),
+            phone: phoneValidation.normalized,
           },
         },
       });
