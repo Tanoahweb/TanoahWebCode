@@ -186,6 +186,11 @@ const sanitizeProduct = (p: Product): Product => {
         ? (() => { try { return JSON.parse((p.structured_attributes as any).similar_category_ids); } catch { return []; } })()
         : []));
 
+  const sizeChartId =
+    p.size_chart_id ||
+    (p.structured_attributes as any)?.size_chart_id ||
+    '';
+
   const collections: string[] = Array.isArray(p.collections) && p.collections.length > 0
     ? p.collections
     : (Array.isArray((p.structured_attributes as any)?.collections)

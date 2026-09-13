@@ -23,6 +23,7 @@ import {
   Sparkles,
   Copy,
   Ruler,
+  Loader2,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
