@@ -63,6 +63,7 @@ const getSavedScroll = (loc: { pathname: string; search?: string }): number => {
 export const useSmoothScroll = () => {
   const location = useLocation();
   const currentLocationRef = useRef(location);
+  const prevPathnameRef = useRef(location.pathname);
 
   // 1. Continuous scroll position tracker during active user scrolling
   useEffect(() => {
@@ -122,6 +123,13 @@ export const useSmoothScroll = () => {
       } catch {
         // Silently ignore non-selector hashes (like query/auth fragments)
       }
+    }
+
+    // In-page query parameter / filter updates on the same page should NEVER reset scroll to top!
+    const isSamePathname = prevPathnameRef.current === location.pathname;
+    prevPathnameRef.current = location.pathname;
+    if (!isPop && isSamePathname) {
+      return;
     }
 
     if (isPop) {

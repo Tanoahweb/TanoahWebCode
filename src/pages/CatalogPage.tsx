@@ -55,9 +55,18 @@ export const CatalogPage: React.FC = () => {
   const { collection: routeCollection } = useParams<{ collection: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const currentCollection = (routeCollection || searchParams.get('collection') || 'all').toLowerCase();
   const searchParam = searchParams.get('search') || '';
   const pageParam = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+
+  // Multi-select collection filter state initialized from route or query params
+  const [selectedCollections, setSelectedCollections] = useState<string[]>(() => {
+    const fromQuery = searchParams.get('collections');
+    if (fromQuery) {
+      return fromQuery.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    }
+    const single = (routeCollection || searchParams.get('collection') || '').toLowerCase();
+    return single && single !== 'all' ? [single] : [];
+  });
 
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -77,6 +86,21 @@ export const CatalogPage: React.FC = () => {
 
   const catalogTopRef = useRef<HTMLDivElement>(null);
   const containerRef = useGsapReveal({ stagger: 0.06 });
+
+  // Sync if routeCollection changes (e.g. user clicked a navigation link in the header)
+  useEffect(() => {
+    if (routeCollection && routeCollection !== 'all') {
+      setSelectedCollections([routeCollection.toLowerCase()]);
+    } else if (routeCollection === 'all') {
+      const fromQuery = searchParams.get('collections');
+      if (fromQuery) {
+        setSelectedCollections(fromQuery.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+      } else {
+        const single = (searchParams.get('collection') || '').toLowerCase();
+        setSelectedCollections(single && single !== 'all' ? [single] : []);
+      }
+    }
+  }, [routeCollection]);
 
   // Collections & Realtime Updates
   useEffect(() => {
@@ -102,6 +126,43 @@ export const CatalogPage: React.FC = () => {
     };
   }, []);
 
+  const handleToggleCollection = (colSlug: string) => {
+    const slug = colSlug.toLowerCase();
+    setSelectedCollections((prev) => {
+      const isAlready = prev.includes(slug);
+      const next = isAlready ? prev.filter((s) => s !== slug) : [...prev, slug];
+
+      setSearchParams((params) => {
+        const nextParams = new URLSearchParams(params);
+        if (next.length === 0) {
+          nextParams.delete('collections');
+          nextParams.delete('collection');
+        } else if (next.length === 1) {
+          nextParams.delete('collections');
+          nextParams.set('collection', next[0]);
+        } else {
+          nextParams.delete('collection');
+          nextParams.set('collections', next.join(','));
+        }
+        nextParams.set('page', '1');
+        return nextParams;
+      });
+
+      return next;
+    });
+  };
+
+  const handleSelectAllCollections = () => {
+    setSelectedCollections([]);
+    setSearchParams((params) => {
+      const nextParams = new URLSearchParams(params);
+      nextParams.delete('collections');
+      nextParams.delete('collection');
+      nextParams.set('page', '1');
+      return nextParams;
+    });
+  };
+
   // Paginated Product Loading (12 per batch, reducing unwanted API calls)
   useEffect(() => {
     let isMounted = true;
@@ -111,7 +172,8 @@ export const CatalogPage: React.FC = () => {
       .getPaginatedProducts({
         page: pageParam,
         limit: 12,
-        collection: currentCollection,
+        collections: selectedCollections.length > 0 ? selectedCollections : undefined,
+        collection: selectedCollections.length === 0 ? 'all' : undefined,
         search: searchParam || undefined,
         maxPrice: priceRange < 10000 ? priceRange : undefined,
         sizes: selectedSizes.length > 0 ? selectedSizes : undefined,
@@ -137,7 +199,7 @@ export const CatalogPage: React.FC = () => {
       isMounted = false;
     };
   }, [
-    currentCollection,
+    selectedCollections,
     pageParam,
     priceRange,
     inStockOnly,
@@ -159,39 +221,76 @@ export const CatalogPage: React.FC = () => {
     }
   }, [isLoading, totalPages, pageParam, setSearchParams]);
 
-  const activeCollection = collectionsList.find(
-    (c) => c.slug.toLowerCase() === currentCollection
-  ) || (
-    currentCollection === 'men' ? {
-      title: "MEN'S COLLECTION",
-      description: 'Handcrafted luxury tailoring, structured tees, relaxed linen shirts and trousers.',
-      banner_image: '/Assets/hero/hero-landscape.jpg',
-    } : currentCollection === 'women' ? {
-      title: "WOMEN'S COLLECTION",
-      description: 'Fluid drape dresses, artisanal sarees, silk tops and sculptural tailored silhouettes.',
-      banner_image: '/Assets/hero/hero-mobile.jpg',
-    } : currentCollection === 'sale' ? {
-      title: 'SPECIAL ARCHIVAL OFFERS',
-      description: 'Seasonal reductions and archival pieces crafted with exceptional heritage precision.',
-      banner_image: '/Assets/hero/hero-landscape.jpg',
-    } : currentCollection === 'new-arrivals' ? {
-      title: 'NEW ARRIVALS SS26',
-      description: 'The latest silhouettes, handwoven textiles, and modern minimalist essentials.',
-      banner_image: '/Assets/hero/hero-mobile.jpg',
-    } : currentCollection === 'best-sellers' ? {
-      title: 'TANOAH BEST SELLERS',
-      description: 'Our most sought-after signature pieces, worn and cherished by patrons worldwide.',
-      banner_image: '/Assets/hero/hero-landscape.jpg',
-    } : currentCollection === 'monochrome' ? {
-      title: 'THE MONOCHROME EDIT',
-      description: 'Pure tonal minimalism in noir black, slate navy, and optical ivory.',
-      banner_image: '/Assets/hero/hero-mobile.jpg',
-    } : {
-      title: 'THE COMPLETE WARDROBE',
-      description: 'Explore all timeless bespoke designs, tailored essentials, and modern silhouettes.',
-      banner_image: '/Assets/hero/hero-landscape.jpg',
+  const activeCollection = useMemo(() => {
+    if (selectedCollections.length === 0) {
+      return {
+        title: 'THE COMPLETE WARDROBE',
+        description: 'Explore all timeless bespoke designs, tailored essentials, and modern silhouettes.',
+        banner_image: '/Assets/hero/hero-landscape.jpg',
+      };
     }
-  );
+    if (selectedCollections.length === 1) {
+      const targetSlug = selectedCollections[0];
+      const found = collectionsList.find((c) => c.slug.toLowerCase() === targetSlug);
+      if (found) return found;
+      if (targetSlug === 'men') {
+        return {
+          title: "MEN'S COLLECTION",
+          description: 'Handcrafted luxury tailoring, structured tees, relaxed linen shirts and trousers.',
+          banner_image: '/Assets/hero/hero-landscape.jpg',
+        };
+      }
+      if (targetSlug === 'women') {
+        return {
+          title: "WOMEN'S COLLECTION",
+          description: 'Fluid drape dresses, artisanal sarees, silk tops and sculptural tailored silhouettes.',
+          banner_image: '/Assets/hero/hero-mobile.jpg',
+        };
+      }
+      if (targetSlug === 'sale') {
+        return {
+          title: 'SPECIAL ARCHIVAL OFFERS',
+          description: 'Seasonal reductions and archival pieces crafted with exceptional heritage precision.',
+          banner_image: '/Assets/hero/hero-landscape.jpg',
+        };
+      }
+      if (targetSlug === 'new-arrivals') {
+        return {
+          title: 'NEW ARRIVALS SS26',
+          description: 'The latest silhouettes, handwoven textiles, and modern minimalist essentials.',
+          banner_image: '/Assets/hero/hero-mobile.jpg',
+        };
+      }
+      if (targetSlug === 'best-sellers') {
+        return {
+          title: 'TANOAH BEST SELLERS',
+          description: 'Our most sought-after signature pieces, worn and cherished by patrons worldwide.',
+          banner_image: '/Assets/hero/hero-landscape.jpg',
+        };
+      }
+      if (targetSlug === 'monochrome') {
+        return {
+          title: 'THE MONOCHROME EDIT',
+          description: 'Pure tonal minimalism in noir black, slate navy, and optical ivory.',
+          banner_image: '/Assets/hero/hero-mobile.jpg',
+        };
+      }
+      return {
+        title: targetSlug.toUpperCase().replace(/-/g, ' '),
+        description: 'Curated artisanal pieces crafted with exceptional heritage precision.',
+        banner_image: '/Assets/hero/hero-landscape.jpg',
+      };
+    }
+    // Multiple collections selected
+    const titles = selectedCollections.map(
+      (slug) => collectionsList.find((c) => c.slug.toLowerCase() === slug)?.title || slug.toUpperCase().replace(/-/g, ' ')
+    );
+    return {
+      title: titles.join(' & '),
+      description: `Curated showcase combining pieces from ${selectedCollections.length} collections: ${titles.join(', ')}.`,
+      banner_image: '/Assets/hero/hero-landscape.jpg',
+    };
+  }, [selectedCollections, collectionsList]);
 
   // Available filter choices (curated defaults combined with live loaded product traits)
   const allSizes = useMemo(() => {
@@ -233,18 +332,19 @@ export const CatalogPage: React.FC = () => {
   };
 
   const clearAllFilters = () => {
+    setSelectedCollections([]);
     setSelectedSizes([]);
     setSelectedColors([]);
     setPriceRange(10000);
     setInStockOnly(false);
     setSearchParams({});
-    if (currentCollection !== 'all') {
+    if (routeCollection && routeCollection !== 'all') {
       navigate('/collections/all');
     }
   };
 
   const hasActiveFilters =
-    currentCollection !== 'all' ||
+    selectedCollections.length > 0 ||
     selectedSizes.length > 0 ||
     selectedColors.length > 0 ||
     inStockOnly ||
@@ -260,9 +360,9 @@ export const CatalogPage: React.FC = () => {
       <SEOHead
         title={`${activeCollection.title} | TANOAH`}
         description={activeCollection.description}
-        canonical={normalizeCanonicalUrl(`/collections/${currentCollection}`)}
+        canonical={normalizeCanonicalUrl(`/collections/${selectedCollections.length === 1 ? selectedCollections[0] : 'all'}`)}
         type="website"
-        jsonLd={generateCollectionJsonLd(activeCollection.title, productsList, `/collections/${currentCollection}`)}
+        jsonLd={generateCollectionJsonLd(activeCollection.title, productsList, `/collections/${selectedCollections.length === 1 ? selectedCollections[0] : 'all'}`)}
       />
       {/* Editorial Collection Header Banner */}
       <div className="relative bg-[#F8F8F8] py-16 sm:py-24 border-b border-[#E7E7E7] overflow-hidden">
@@ -271,7 +371,7 @@ export const CatalogPage: React.FC = () => {
           <div className="flex justify-center items-center gap-2 text-[11px] text-[#666666] tracking-widest uppercase mb-4">
             <Link to="/" className="hover:text-black">Home</Link>
             <span>/</span>
-            <Link to="/collections/all" className="hover:text-black">Collections</Link>
+            <Link to="/collections/all" onClick={handleSelectAllCollections} className="hover:text-black">Collections</Link>
             <span>/</span>
             <span className="text-[#3F3F8F] font-semibold">{activeCollection.title}</span>
           </div>
@@ -352,14 +452,21 @@ export const CatalogPage: React.FC = () => {
           {/* Active Filter Tags */}
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center gap-2">
-              {currentCollection !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
-                  {activeCollection.title}
-                  <button onClick={() => { navigate('/collections/all'); resetPageParam(); }}>
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
+              {selectedCollections.map((colSlug) => {
+                const colObj = collectionsList.find((c) => c.slug.toLowerCase() === colSlug);
+                const colTitle = colObj?.title || colSlug.toUpperCase().replace(/-/g, ' ');
+                return (
+                  <span
+                    key={colSlug}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase"
+                  >
+                    {colTitle}
+                    <button onClick={() => handleToggleCollection(colSlug)}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
               {selectedSizes.map((s) => (
                 <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
                   Size: {s}
@@ -451,38 +558,44 @@ export const CatalogPage: React.FC = () => {
                   COLLECTIONS
                 </h4>
                 <span className="text-[10px] text-[#888888] font-medium uppercase">
-                  {collectionsList.length} Active
+                  {selectedCollections.length > 0 ? `${selectedCollections.length} Selected` : `${collectionsList.length} Active`}
                 </span>
               </div>
-              <div className="space-y-1.5 text-[#444444]">
-                <Link
-                  to="/collections/all"
-                  onClick={resetPageParam}
-                  className={`flex items-center justify-between px-3 py-2 rounded-[4px] transition-all text-xs ${
-                    currentCollection === 'all'
-                      ? 'bg-[#3F3F8F] text-white font-medium shadow-xs'
-                      : 'hover:bg-[#F4F4F8] hover:text-[#3F3F8F]'
-                  }`}
-                >
-                  <span>All Collections</span>
-                  {currentCollection === 'all' && <Check className="w-3.5 h-3.5 shrink-0" />}
-                </Link>
+              <div className="space-y-2 text-[#444444]">
+                {/* All Collections Checkbox */}
+                <label className="flex items-center gap-2.5 cursor-pointer hover:text-[#3F3F8F] select-none text-xs py-0.5">
+                  <input
+                    type="checkbox"
+                    checked={selectedCollections.length === 0}
+                    onChange={handleSelectAllCollections}
+                    className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer shrink-0"
+                  />
+                  <span className={`font-medium ${selectedCollections.length === 0 ? 'text-[#3F3F8F] font-semibold' : ''}`}>
+                    All Collections
+                  </span>
+                </label>
+
+                {/* Individual Collection Checkboxes */}
                 {collectionsList.map((col) => {
-                  const isSelected = currentCollection === col.slug.toLowerCase();
+                  const isChecked = selectedCollections.includes(col.slug.toLowerCase());
                   return (
-                    <Link
+                    <label
                       key={col.id || col.slug}
-                      to={`/collections/${col.slug}`}
-                      onClick={resetPageParam}
-                      className={`flex items-center justify-between px-3 py-2 rounded-[4px] transition-all text-xs ${
-                        isSelected
-                          ? 'bg-[#3F3F8F] text-white font-medium shadow-xs'
-                          : 'hover:bg-[#F4F4F8] hover:text-[#3F3F8F]'
-                      }`}
+                      className="flex items-center justify-between gap-2 cursor-pointer hover:text-[#3F3F8F] select-none text-xs py-0.5"
                     >
-                      <span className="truncate">{col.title}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                    </Link>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleCollection(col.slug.toLowerCase())}
+                          className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer shrink-0"
+                        />
+                        <span className={`truncate ${isChecked ? 'text-[#3F3F8F] font-semibold' : ''}`}>
+                          {col.title}
+                        </span>
+                      </div>
+                      {isChecked && <Check className="w-3.5 h-3.5 text-[#3F3F8F] shrink-0" />}
+                    </label>
                   );
                 })}
               </div>
@@ -751,44 +864,44 @@ export const CatalogPage: React.FC = () => {
                     COLLECTIONS
                   </h4>
                   <span className="text-[10px] text-[#888888] font-medium uppercase">
-                    {collectionsList.length} Active
+                    {selectedCollections.length > 0 ? `${selectedCollections.length} Selected` : `${collectionsList.length} Active`}
                   </span>
                 </div>
-                <div className="space-y-1.5">
-                  <Link
-                    to="/collections/all"
-                    onClick={() => {
-                      setIsFilterDrawerOpen(false);
-                      resetPageParam();
-                    }}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-[4px] text-xs transition-all ${
-                      currentCollection === 'all'
-                        ? 'bg-[#3F3F8F] text-white font-medium'
-                        : 'bg-[#F8F8F8] text-[#444444] hover:text-[#3F3F8F]'
-                    }`}
-                  >
-                    <span>All Collections</span>
-                    {currentCollection === 'all' && <Check className="w-3.5 h-3.5 shrink-0" />}
-                  </Link>
+                <div className="space-y-2">
+                  {/* All Collections Checkbox */}
+                  <label className="flex items-center gap-2.5 cursor-pointer hover:text-[#3F3F8F] select-none text-xs py-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedCollections.length === 0}
+                      onChange={handleSelectAllCollections}
+                      className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer shrink-0"
+                    />
+                    <span className={`font-medium ${selectedCollections.length === 0 ? 'text-[#3F3F8F] font-semibold' : 'text-[#444444]'}`}>
+                      All Collections
+                    </span>
+                  </label>
+
+                  {/* Individual Collection Checkboxes */}
                   {collectionsList.map((col) => {
-                    const isSelected = currentCollection === col.slug.toLowerCase();
+                    const isChecked = selectedCollections.includes(col.slug.toLowerCase());
                     return (
-                      <Link
+                      <label
                         key={col.id || col.slug}
-                        to={`/collections/${col.slug}`}
-                        onClick={() => {
-                          setIsFilterDrawerOpen(false);
-                          resetPageParam();
-                        }}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-[4px] text-xs transition-all ${
-                          isSelected
-                            ? 'bg-[#3F3F8F] text-white font-medium'
-                            : 'bg-[#F8F8F8] text-[#444444] hover:text-[#3F3F8F]'
-                        }`}
+                        className="flex items-center justify-between gap-2 cursor-pointer hover:text-[#3F3F8F] select-none text-xs py-1"
                       >
-                        <span className="truncate">{col.title}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                      </Link>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleCollection(col.slug.toLowerCase())}
+                            className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer shrink-0"
+                          />
+                          <span className={`truncate ${isChecked ? 'text-[#3F3F8F] font-semibold' : 'text-[#444444]'}`}>
+                            {col.title}
+                          </span>
+                        </div>
+                        {isChecked && <Check className="w-3.5 h-3.5 text-[#3F3F8F] shrink-0" />}
+                      </label>
                     );
                   })}
                 </div>

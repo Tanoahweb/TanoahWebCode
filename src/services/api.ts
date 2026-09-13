@@ -29,6 +29,7 @@ export interface PaginatedProductsOptions {
   page?: number;
   limit?: number;
   collection?: string;
+  collections?: string[];
   type?: string;
   types?: string[];
   search?: string;
@@ -1336,22 +1337,49 @@ export const api = {
         query = query.eq('status', 'active');
       }
 
-      // Collection filter
-      const coll = (options.collection || 'all').toLowerCase();
-      if (coll !== 'all') {
-        if (coll === 'men') {
-          query = query.in('gender', ['men', 'unisex']);
-        } else if (coll === 'women') {
-          query = query.in('gender', ['women', 'unisex']);
-        } else if (coll === 'sale') {
-          query = query.not('sale_price', 'is', null);
-        } else if (coll === 'new-arrivals') {
-          query = query.eq('is_new_arrival', true);
-        } else if (coll === 'best-sellers') {
-          query = query.or('is_best_seller.eq.true,tags.cs.{"best-sellers"}');
+      // Collection filter (Supports both single and multi-select collections)
+      const selectedCols = options.collections && options.collections.length > 0
+        ? options.collections.filter((c) => c && c.toLowerCase() !== 'all').map((c) => c.toLowerCase())
+        : (options.collection && options.collection.toLowerCase() !== 'all' ? [options.collection.toLowerCase()] : []);
+
+      if (selectedCols.length > 0) {
+        if (selectedCols.length === 1) {
+          const coll = selectedCols[0];
+          if (coll === 'men') {
+            query = query.in('gender', ['men', 'unisex']);
+          } else if (coll === 'women') {
+            query = query.in('gender', ['women', 'unisex']);
+          } else if (coll === 'sale') {
+            query = query.not('sale_price', 'is', null);
+          } else if (coll === 'new-arrivals') {
+            query = query.eq('is_new_arrival', true);
+          } else if (coll === 'best-sellers') {
+            query = query.or('is_best_seller.eq.true,tags.cs.{"best-sellers"}');
+          } else {
+            // Custom collection: check tags contains collection slug or product_type matches
+            query = query.or(`tags.cs.{"${coll}"},product_type.ilike.%${coll}%`);
+          }
         } else {
-          // Custom collection: check tags contains collection slug or product_type matches
-          query = query.or(`tags.cs.{"${coll}"},product_type.ilike.%${coll}%`);
+          // Multi-collection matching
+          const orClauses: string[] = [];
+          for (const coll of selectedCols) {
+            if (coll === 'men') {
+              orClauses.push('gender.eq.men', 'gender.eq.unisex');
+            } else if (coll === 'women') {
+              orClauses.push('gender.eq.women', 'gender.eq.unisex');
+            } else if (coll === 'sale') {
+              orClauses.push('sale_price.not.is.null');
+            } else if (coll === 'new-arrivals') {
+              orClauses.push('is_new_arrival.eq.true');
+            } else if (coll === 'best-sellers') {
+              orClauses.push('is_best_seller.eq.true', 'tags.cs.{"best-sellers"}');
+            } else {
+              orClauses.push(`tags.cs.{"${coll}"}`, `product_type.ilike.%${coll}%`);
+            }
+          }
+          if (orClauses.length > 0) {
+            query = query.or(orClauses.join(','));
+          }
         }
       }
 
@@ -1435,25 +1463,24 @@ export const api = {
 
     // Fallback: slice filtered products
     const sample = await this.getProducts(options.statusFilter || 'active');
-    const coll = (options.collection || 'all').toLowerCase();
+    const selectedCols = options.collections && options.collections.length > 0
+      ? options.collections.filter((c) => c && c.toLowerCase() !== 'all').map((c) => c.toLowerCase())
+      : (options.collection && options.collection.toLowerCase() !== 'all' ? [options.collection.toLowerCase()] : []);
+
     let filtered = sample.filter((p) => {
-      if (coll !== 'all') {
-        if (coll === 'men') {
-          if (p.gender !== 'men' && p.gender !== 'unisex') return false;
-        } else if (coll === 'women') {
-          if (p.gender !== 'women' && p.gender !== 'unisex') return false;
-        } else if (coll === 'sale') {
-          if (!p.sale_price && (!p.compare_at_price || p.compare_at_price <= p.base_price)) return false;
-        } else if (coll === 'new-arrivals') {
-          if (!p.is_new_arrival) return false;
-        } else if (coll === 'best-sellers') {
-          if (!p.is_best_seller && !p.tags?.some((t) => t.toLowerCase() === 'best-sellers')) return false;
-        } else {
+      if (selectedCols.length > 0) {
+        const matchesAny = selectedCols.some((coll) => {
+          if (coll === 'men') return p.gender === 'men' || p.gender === 'unisex';
+          if (coll === 'women') return p.gender === 'women' || p.gender === 'unisex';
+          if (coll === 'sale') return !!p.sale_price || (!!p.compare_at_price && p.compare_at_price > p.base_price);
+          if (coll === 'new-arrivals') return !!p.is_new_arrival;
+          if (coll === 'best-sellers') return !!p.is_best_seller || (p.tags && p.tags.some((t) => t.toLowerCase() === 'best-sellers'));
           const inCols = p.collections && p.collections.some((c) => c.toLowerCase() === coll);
           const inTags = p.tags && p.tags.some((t) => t.toLowerCase() === coll);
           const inType = p.product_type && p.product_type.toLowerCase().includes(coll);
-          if (!inCols && !inTags && !inType) return false;
-        }
+          return inCols || inTags || inType;
+        });
+        if (!matchesAny) return false;
       }
       if (options.gender && options.gender !== 'all' && p.gender !== options.gender && p.gender !== 'unisex') return false;
       if (options.types && options.types.length > 0 && !options.types.includes(p.product_type)) return false;
