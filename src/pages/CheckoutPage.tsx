@@ -82,9 +82,14 @@ export const CheckoutPage: React.FC = () => {
     paymentService.getPublicPaymentConfig().then((cfg) => {
       if (isMounted && cfg) {
         setPaymentConfig(cfg);
-        if (cfg.active_gateway === 'cashfree' && cfg.cashfree.enabled) {
+        const canUseCashfree = Boolean(cfg.cashfree?.enabled && (cfg.active_gateway === 'both' || cfg.active_gateway === 'cashfree'));
+        const canUseRazorpay = Boolean(cfg.razorpay?.enabled && (cfg.active_gateway === 'both' || cfg.active_gateway === 'razorpay'));
+
+        if (canUseCashfree && !canUseRazorpay) {
           setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
-        } else if (!cfg.razorpay.enabled && cfg.cashfree.enabled) {
+        } else if (canUseRazorpay && !canUseCashfree) {
+          setFormData((prev) => ({ ...prev, paymentMethod: 'razorpay' }));
+        } else if (cfg.active_gateway === 'cashfree') {
           setFormData((prev) => ({ ...prev, paymentMethod: 'cashfree' }));
         } else {
           setFormData((prev) => ({ ...prev, paymentMethod: 'razorpay' }));
@@ -1030,9 +1035,16 @@ export const CheckoutPage: React.FC = () => {
             <div className="p-6 bg-white border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-4">
               <h3 className="font-wondra text-xl text-black">4. PAYMENT GATEWAY</h3>
               <div className="space-y-3">
+                {/* Loading State */}
+                {!paymentConfig && (
+                  <div className="p-4 border border-[#E7E7E7] rounded-[4px] text-xs text-neutral-400 animate-pulse">
+                    Loading payment options...
+                  </div>
+                )}
+
                 {/* Razorpay Option */}
-                {(!paymentConfig ||
-                  (paymentConfig.active_gateway !== 'cashfree' && paymentConfig.razorpay?.enabled !== false)) && (
+                {paymentConfig?.razorpay?.enabled &&
+                  (paymentConfig.active_gateway === 'both' || paymentConfig.active_gateway === 'razorpay') && (
                   <label
                     className={`flex items-center justify-between p-4 border rounded-[4px] cursor-pointer transition-all ${
                       formData.paymentMethod === 'razorpay'

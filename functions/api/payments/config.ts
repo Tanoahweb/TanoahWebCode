@@ -39,15 +39,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     // Strict sanitization: Only return public IDs, enabled states, and environments
     const sanitized = {
-      active_gateway: dbConfig?.active_gateway || 'both',
+      active_gateway: dbConfig?.active_gateway || (cf?.enabled ? 'cashfree' : 'razorpay'),
       razorpay: {
-        enabled: rzp?.enabled !== false,
+        enabled: Boolean(rzp?.enabled === true),
         environment: rzp?.environment || 'test',
-        key_id: rzp?.key_id || context.env.RAZORPAY_KEY_ID || 'rzp_test_simulated_key',
+        key_id: rzp?.key_id || context.env.RAZORPAY_KEY_ID || '',
       },
       cashfree: {
-        enabled: !!cf?.enabled && !!cf?.app_id,
-        environment: cf?.environment || 'sandbox',
+        enabled: Boolean(cf?.enabled === true),
+        environment: cf?.environment || 'production',
         app_id: cf?.app_id || '',
         api_version: cf?.api_version || '2023-08-01',
       },
@@ -68,9 +68,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   } catch (err: any) {
     return new Response(
       JSON.stringify({
-        active_gateway: 'both',
-        razorpay: { enabled: true, environment: 'test', key_id: 'rzp_test_simulated_key' },
-        cashfree: { enabled: false, environment: 'sandbox', app_id: '', api_version: '2023-08-01' },
+        active_gateway: 'cashfree',
+        razorpay: { enabled: false, environment: 'test', key_id: '' },
+        cashfree: { enabled: true, environment: 'production', app_id: '', api_version: '2023-08-01' },
         cod: { enabled: true, extra_fee: 99 },
       }),
       { headers: { 'Content-Type': 'application/json' } }

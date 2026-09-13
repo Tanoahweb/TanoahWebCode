@@ -29,15 +29,15 @@ export const paymentService = {
       if (!error && data?.payment_gateways_config) {
         const cfg = data.payment_gateways_config as PaymentGatewaysConfig;
         return {
-          active_gateway: cfg.active_gateway || 'both',
+          active_gateway: cfg.active_gateway || (cfg.cashfree?.enabled ? 'cashfree' : 'razorpay'),
           razorpay: {
-            enabled: cfg.razorpay?.enabled !== false,
+            enabled: Boolean(cfg.razorpay?.enabled === true),
             environment: cfg.razorpay?.environment || 'test',
-            key_id: cfg.razorpay?.key_id || 'rzp_test_simulated_key',
+            key_id: cfg.razorpay?.key_id || '',
           },
           cashfree: {
-            enabled: !!cfg.cashfree?.enabled && !!cfg.cashfree?.app_id,
-            environment: cfg.cashfree?.environment || 'sandbox',
+            enabled: Boolean(cfg.cashfree?.enabled === true && cfg.cashfree?.app_id),
+            environment: cfg.cashfree?.environment || 'production',
             app_id: cfg.cashfree?.app_id || '',
             api_version: cfg.cashfree?.api_version || '2023-08-01',
           },
@@ -54,9 +54,9 @@ export const paymentService = {
     }
 
     return {
-      active_gateway: 'both',
-      razorpay: { enabled: true, environment: 'test', key_id: 'rzp_test_simulated_key' },
-      cashfree: { enabled: false, environment: 'sandbox', app_id: '', api_version: '2023-08-01' },
+      active_gateway: 'cashfree',
+      razorpay: { enabled: false, environment: 'test', key_id: '' },
+      cashfree: { enabled: true, environment: 'production', app_id: '', api_version: '2023-08-01' },
       cod: { enabled: true, extra_fee: 99 },
     };
   },

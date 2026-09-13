@@ -84,6 +84,22 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
     }
   };
 
+  const handleQuickUpdate = async (
+    newConfig: PaymentGatewaysConfig,
+    toastTitle?: string,
+    toastDesc?: string
+  ) => {
+    setConfig(newConfig);
+    const success = await paymentService.saveAdminPaymentGatewaysConfig(newConfig);
+    if (success && toastTitle) {
+      addToast({
+        type: 'success',
+        title: toastTitle,
+        description: toastDesc || 'Settings updated and synced successfully.',
+      });
+    }
+  };
+
   const handleTestRazorpay = async () => {
     setIsTestingRazorpay(true);
     setRazorpayTestResult(null);
@@ -218,7 +234,13 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
           <div className="flex items-center gap-2 bg-white p-1 rounded border border-[#E7E7E7]">
             <button
               type="button"
-              onClick={() => setConfig((prev) => ({ ...prev, active_gateway: 'razorpay' }))}
+              onClick={() =>
+                handleQuickUpdate(
+                  { ...config, active_gateway: 'razorpay' },
+                  'Checkout: Razorpay Only',
+                  'Only Razorpay will be offered to customers on checkout.'
+                )
+              }
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 config.active_gateway === 'razorpay'
                   ? 'bg-[#3F3F8F] text-white font-semibold shadow-xs'
@@ -229,7 +251,13 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setConfig((prev) => ({ ...prev, active_gateway: 'cashfree' }))}
+              onClick={() =>
+                handleQuickUpdate(
+                  { ...config, active_gateway: 'cashfree' },
+                  'Checkout: Cashfree Only',
+                  'Only Cashfree will be offered to customers on checkout.'
+                )
+              }
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 config.active_gateway === 'cashfree'
                   ? 'bg-[#3F3F8F] text-white font-semibold shadow-xs'
@@ -240,7 +268,13 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setConfig((prev) => ({ ...prev, active_gateway: 'both' }))}
+              onClick={() =>
+                handleQuickUpdate(
+                  { ...config, active_gateway: 'both' },
+                  'Both Gateways Active',
+                  'Customers can choose between Razorpay and Cashfree on checkout.'
+                )
+              }
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 config.active_gateway === 'both'
                   ? 'bg-[#3F3F8F] text-white font-semibold shadow-xs'
@@ -318,12 +352,25 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={config.razorpay.enabled}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      razorpay: { ...prev.razorpay, enabled: e.target.checked },
-                    }))
-                  }
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    const newActive = !isChecked
+                      ? 'cashfree'
+                      : config.cashfree.enabled
+                      ? 'both'
+                      : 'razorpay';
+                    handleQuickUpdate(
+                      {
+                        ...config,
+                        razorpay: { ...config.razorpay, enabled: isChecked },
+                        active_gateway: newActive,
+                      },
+                      isChecked ? 'Razorpay Enabled' : 'Razorpay Turned Off',
+                      isChecked
+                        ? 'Razorpay is now enabled on checkout.'
+                        : 'Razorpay has been disabled and hidden from customer checkout.'
+                    );
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3F3F8F]"></div>
@@ -596,12 +643,25 @@ export const PaymentGatewaysSettingsTab: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={config.cashfree.enabled}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      cashfree: { ...prev.cashfree, enabled: e.target.checked },
-                    }))
-                  }
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    const newActive = !isChecked
+                      ? 'razorpay'
+                      : config.razorpay.enabled
+                      ? 'both'
+                      : 'cashfree';
+                    handleQuickUpdate(
+                      {
+                        ...config,
+                        cashfree: { ...config.cashfree, enabled: isChecked },
+                        active_gateway: newActive,
+                      },
+                      isChecked ? 'Cashfree Enabled' : 'Cashfree Turned Off',
+                      isChecked
+                        ? 'Cashfree is now enabled on checkout.'
+                        : 'Cashfree has been disabled and hidden from customer checkout.'
+                    );
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3F3F8F]"></div>
