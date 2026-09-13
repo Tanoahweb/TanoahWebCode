@@ -995,33 +995,25 @@ export const StoreSettingsPage: React.FC = () => {
                   <input
                     type="text"
                     disabled
-                    value="TANOAH <onboarding@resend.dev>"
-                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] bg-neutral-50 text-neutral-600 cursor-not-allowed font-mono text-[11px]"
+                    value="TANOAH <noreply@tanoah.com>"
+                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] bg-neutral-50 text-neutral-800 font-semibold cursor-default font-mono text-[11px]"
                   />
-                  <p className="text-[10px] text-neutral-500 mt-1">
-                    Using Resend default sender. Custom domain can be attached via resend.com/domains.
+                  <p className="text-[10px] text-green-700 font-medium mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                    Verified custom domain (tanoah.com) active on Resend.
                   </p>
                 </div>
               </div>
 
-              {/* Domain Advisory Banner */}
-              <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-[4px] flex items-start gap-3 mt-4">
-                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1 text-xs text-amber-900 leading-relaxed">
-                  <span className="font-bold block uppercase text-[11px] tracking-wide text-amber-800">
-                    Pro-tip for Customer Deliveries (Custom Domain):
+              {/* Domain Verified Banner */}
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-[4px] flex items-start gap-3 mt-4">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs text-emerald-900 leading-relaxed">
+                  <span className="font-bold block uppercase text-[11px] tracking-wide text-emerald-800">
+                    Custom Domain Verified & Active:
                   </span>
                   <p>
-                    Admin alerts to <strong>connectus.tanoah@gmail.com</strong> are active immediately. To send confirmation emails to any external customer domain without restriction, add and verify your domain (e.g. <code>tanoah.com</code>) at{' '}
-                    <a
-                      href="https://resend.com/domains"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline font-semibold text-amber-950 inline-flex items-center gap-1"
-                    >
-                      resend.com/domains <ExternalLink className="w-3 h-3" />
-                    </a>
-                    . Once verified, customer confirmations will deliver seamlessly from <code>orders@tanoah.com</code>.
+                    All automated emails (order confirmations, return updates, and password resets) deliver directly from <strong>noreply@tanoah.com</strong> across all email providers with authenticated DKIM and SPF.
                   </p>
                 </div>
               </div>

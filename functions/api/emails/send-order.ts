@@ -9,7 +9,7 @@ interface Env {
 const FALLBACK_KEY = typeof atob === 'function' ? atob('cmVfV2JGQjJnY1BfN2FiRUNrd2Y4TDZSRjlUNlAyV3J3eVZ2') : '';
 const DEFAULT_RESEND_KEY = FALLBACK_KEY;
 const DEFAULT_ADMIN_EMAIL = 'connectus.tanoah@gmail.com';
-const DEFAULT_FROM_EMAIL = 'TANOAH <onboarding@resend.dev>';
+const DEFAULT_FROM_EMAIL = 'TANOAH <noreply@tanoah.com>';
 
 const formatINR = (amt: number) => {
   return new Intl.NumberFormat('en-IN', {

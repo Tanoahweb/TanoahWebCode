@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const FALLBACK_KEY = atob('cmVfV2JGQjJnY1BfN2FiRUNrd2Y4TDZSRjlUNlAyV3J3eVZ2');
 const DEFAULT_ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL') || 'connectus.tanoah@gmail.com';
-const DEFAULT_FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'TANOAH <onboarding@resend.dev>';
+const DEFAULT_FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'TANOAH <noreply@tanoah.com>';
 
 async function sendResend(
   params: { from: string; to: string | string[]; reply_to?: string; subject: string; html: string },
