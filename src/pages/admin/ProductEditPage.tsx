@@ -163,6 +163,10 @@ export const ProductEditPage: React.FC = () => {
   const [availableCollections, setAvailableCollections] = useState<Collection[]>([]);
   const [selectedCollectionSlugs, setSelectedCollectionSlugs] = useState<string[]>([]);
   const [collectionSearch, setCollectionSearch] = useState('');
+  const [isAddingNewCollection, setIsAddingNewCollection] = useState(false);
+  const [newColTitle, setNewColTitle] = useState('');
+  const [newColDescription, setNewColDescription] = useState('');
+  const [isCreatingCol, setIsCreatingCol] = useState(false);
   const [gender, setGender] = useState<'men' | 'women' | 'unisex'>('unisex');
   const [status, setStatus] = useState<'active' | 'draft' | 'archived'>('active');
   const [basePrice, setBasePrice] = useState<number>(2499);
@@ -1026,6 +1030,72 @@ export const ProductEditPage: React.FC = () => {
     });
   };
 
+  const handleCreateNewCollection = async () => {
+    const trimmed = newColTitle.trim();
+    if (!trimmed) {
+      setIsAddingNewCollection(false);
+      return;
+    }
+    setIsCreatingCol(true);
+    const generatedSlug =
+      trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || `col-${Date.now()}`;
+
+    const existing = availableCollections.find(
+      (c) => c.slug === generatedSlug || c.title.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      if (!selectedCollectionSlugs.includes(existing.slug)) {
+        setSelectedCollectionSlugs((prev) => [...prev, existing.slug]);
+      }
+      setIsAddingNewCollection(false);
+      setNewColTitle('');
+      setNewColDescription('');
+      setIsCreatingCol(false);
+      addToast({
+        type: 'info',
+        title: 'Collection Selected',
+        description: `Selected existing collection "${existing.title}".`,
+      });
+      return;
+    }
+
+    const newCol: Collection = {
+      id: crypto.randomUUID(),
+      title: trimmed,
+      slug: generatedSlug,
+      description: newColDescription.trim() || undefined,
+      banner_image: '/Assets/hero/hero-landscape.jpg',
+      is_smart: false,
+      is_active: true,
+      sort_order: availableCollections.length + 1,
+    };
+
+    const res = await api.saveCollection(newCol);
+    if (res?.success) {
+      const savedCol = res.collection || newCol;
+      setAvailableCollections((prev) => [...prev, savedCol]);
+      setSelectedCollectionSlugs((prev) => [...prev, savedCol.slug]);
+      setIsAddingNewCollection(false);
+      setNewColTitle('');
+      setNewColDescription('');
+      addToast({
+        type: 'success',
+        title: 'Collection Created',
+        description: `Collection "${savedCol.title}" created and assigned to this product.`,
+      });
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Creation Failed',
+        description: 'Could not create collection. Please try again.',
+      });
+    }
+    setIsCreatingCol(false);
+  };
+
   // Auto-generate SKU helper for simple single products
   const handleGenerateSingleSku = () => {
     const prefix = (slug || title || 'ITEM')
@@ -1131,14 +1201,17 @@ export const ProductEditPage: React.FC = () => {
       };
     });
 
+    const primaryCol = availableCollections.find((c) => selectedCollectionSlugs.includes(c.slug));
+    const effectiveProductType = primaryCol?.title || productType || 'Collection';
+
     const productPayload: Product = {
       id: id && id !== 'new' ? id : `p_${Date.now()}`,
       title: title.trim(),
       slug: slug.trim(),
       brand: brand.trim(),
-      product_type: productType,
-      category_id: categoryId,
-      gender,
+      product_type: effectiveProductType,
+      category_id: undefined,
+      gender: gender || 'unisex',
       base_price: basePrice,
       sale_price: basePrice < compareAtPrice ? basePrice : undefined,
       compare_at_price: compareAtPrice,
@@ -2285,143 +2358,7 @@ export const ProductEditPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Department & Organization */}
-            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3">
-              <h3 className="font-semibold text-black uppercase tracking-wider text-xs">
-                ORGANIZATION
-              </h3>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  Category (Department Registry)
-                </label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer font-medium"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  Product Type
-                </label>
-                <select
-                  value={isAddingNewType ? '__add_new__' : productType}
-                  onChange={(e) => {
-                    if (e.target.value === '__add_new__') {
-                      setIsAddingNewType(true);
-                    } else {
-                      setIsAddingNewType(false);
-                      setProductType(e.target.value);
-                    }
-                  }}
-                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer font-medium"
-                >
-                  {productTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                  <option disabled value="divider">──────────</option>
-                  <option value="__add_new__" className="font-semibold text-[#3F3F8F]">
-                    + Add new product type...
-                  </option>
-                </select>
-
-                {/* Inline Creation for New Product Type (User Request 2) */}
-                {isAddingNewType && (
-                  <div className="mt-2 p-3 bg-[#F8F8FC] border border-[#3F3F8F]/30 rounded-[4px] space-y-2 animate-in fade-in duration-150">
-                    <label className="block text-[10px] font-bold text-[#3F3F8F] uppercase tracking-wider">
-                      Create New Product Type
-                    </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="E.g. Lehengas, Kurtas, Scarves..."
-                        value={newTypeInput}
-                        onChange={(e) => setNewTypeInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSaveNewProductType();
-                          } else if (e.key === 'Escape') {
-                            setIsAddingNewType(false);
-                            setNewTypeInput('');
-                          }
-                        }}
-                        className="flex-1 p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveNewProductType}
-                        className="px-3 py-1.5 bg-[#3F3F8F] hover:bg-[#343476] text-white rounded-[4px] text-xs font-semibold shadow-xs"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingNewType(false);
-                          setNewTypeInput('');
-                        }}
-                        className="px-2.5 py-1.5 border border-[#E7E7E7] text-neutral-600 hover:bg-neutral-100 rounded-[4px] text-xs"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  Department
-                </label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value as any)}
-                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer uppercase"
-                >
-                  <option value="women">Women</option>
-                  <option value="men">Men</option>
-                  <option value="unisex">Unisex</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  Tags (Comma separated)
-                </label>
-                <input
-                  type="text"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-[#E7E7E7]">
-                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  HSN Tax Code
-                </label>
-                <input
-                  type="text"
-                  value={hsnCode}
-                  onChange={(e) => setHsnCode(e.target.value)}
-                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
-                />
-              </div>
-            </div>
-
-            {/* Collections Selection Card (User Request 1) */}
+            {/* Collections Management Card (Collections-First Architecture) */}
             <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3">
               <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
                 <div>
@@ -2430,18 +2367,96 @@ export const ProductEditPage: React.FC = () => {
                     <span>COLLECTIONS</span>
                   </h3>
                   <p className="text-[10px] text-[#666666] mt-0.5">
-                    Choose which collections this product belongs to.
+                    Choose or create which collections this product belongs to.
                   </p>
                 </div>
-                <Link
-                  to="/admin/collections"
-                  target="_blank"
-                  className="text-[10px] text-[#3F3F8F] hover:underline font-semibold flex items-center gap-0.5"
-                >
-                  <span>Manage</span>
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNewCollection((v) => !v)}
+                    className="text-[10px] bg-[#3F3F8F] text-white hover:bg-[#343476] px-2.5 py-1 rounded-[3px] font-semibold flex items-center gap-1 shadow-xs transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>{isAddingNewCollection ? 'Close' : 'New Collection'}</span>
+                  </button>
+                  <Link
+                    to="/admin/collections"
+                    target="_blank"
+                    className="text-[10px] text-[#3F3F8F] hover:underline font-semibold flex items-center gap-0.5"
+                  >
+                    <span>Manage</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
               </div>
+
+              {/* Inline Collection Creation Form */}
+              {isAddingNewCollection && (
+                <div className="p-3 bg-[#F8F8FC] border border-[#3F3F8F]/30 rounded-[4px] space-y-2 animate-in fade-in duration-150">
+                  <label className="block text-[10px] font-bold text-[#3F3F8F] uppercase tracking-wider">
+                    Create New Collection
+                  </label>
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Collection title (e.g., Banarasi Silk, Linen Essentials)..."
+                    value={newColTitle}
+                    onChange={(e) => setNewColTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateNewCollection();
+                      } else if (e.key === 'Escape') {
+                        setIsAddingNewCollection(false);
+                        setNewColTitle('');
+                        setNewColDescription('');
+                      }
+                    }}
+                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-medium"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Editorial description (optional)..."
+                    value={newColDescription}
+                    onChange={(e) => setNewColDescription(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateNewCollection();
+                      }
+                    }}
+                    className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white text-neutral-600"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingNewCollection(false);
+                        setNewColTitle('');
+                        setNewColDescription('');
+                      }}
+                      className="px-2.5 py-1.5 border border-[#E7E7E7] text-neutral-600 hover:bg-neutral-100 rounded-[4px] text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCreatingCol || !newColTitle.trim()}
+                      onClick={handleCreateNewCollection}
+                      className="px-3 py-1.5 bg-[#3F3F8F] hover:bg-[#343476] disabled:opacity-50 text-white rounded-[4px] text-xs font-semibold shadow-xs flex items-center gap-1.5"
+                    >
+                      {isCreatingCol ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Creating...</span>
+                        </>
+                      ) : (
+                        <span>Create & Assign</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Selected Collection Badges */}
               {selectedCollectionSlugs.length > 0 && (
@@ -2451,7 +2466,7 @@ export const ProductEditPage: React.FC = () => {
                     return (
                       <span
                         key={slug}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] rounded-full text-[11px] font-semibold"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] rounded-full text-[11px] font-semibold border border-[#3F3F8F]/20"
                       >
                         <span>{col?.title || slug}</span>
                         <button
@@ -2459,7 +2474,7 @@ export const ProductEditPage: React.FC = () => {
                           onClick={() =>
                             setSelectedCollectionSlugs((prev) => prev.filter((s) => s !== slug))
                           }
-                          className="hover:text-black ml-0.5"
+                          className="hover:text-black ml-0.5 cursor-pointer"
                           title="Remove from collection"
                         >
                           <X className="w-3 h-3" />
@@ -2471,7 +2486,7 @@ export const ProductEditPage: React.FC = () => {
               )}
 
               {/* Collection Search (Filter for ease of use) */}
-              {availableCollections.length > 4 && (
+              {availableCollections.length > 3 && (
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -2518,18 +2533,42 @@ export const ProductEditPage: React.FC = () => {
                           className="accent-[#3F3F8F] w-4 h-4 rounded cursor-pointer"
                         />
                         <span className="flex-1 truncate">{col.title}</span>
+                        <span className="text-[10px] text-neutral-400 font-mono">/collections/{col.slug}</span>
                       </label>
                     );
                   })}
 
                 {availableCollections.length === 0 && (
-                  <div className="p-3 text-center text-[11px] text-[#888888]">
-                    No collections found.{' '}
-                    <Link to="/admin/collections" className="text-[#3F3F8F] hover:underline font-semibold">
-                      Create Collection
-                    </Link>
+                  <div className="p-4 text-center text-[11px] text-[#888888] space-y-2">
+                    <p>No collections found yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingNewCollection(true)}
+                      className="px-3 py-1.5 bg-[#3F3F8F] text-white rounded text-xs font-semibold"
+                    >
+                      + Create First Collection
+                    </button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Tax & Compliance Card */}
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3">
+              <h3 className="font-semibold text-black uppercase tracking-wider text-xs">
+                TAX & COMPLIANCE
+              </h3>
+              <div>
+                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
+                  HSN Tax Code
+                </label>
+                <input
+                  type="text"
+                  value={hsnCode}
+                  onChange={(e) => setHsnCode(e.target.value)}
+                  placeholder="E.g. 62044220"
+                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
+                />
               </div>
             </div>
 

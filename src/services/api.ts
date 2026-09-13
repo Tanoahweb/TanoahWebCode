@@ -186,13 +186,17 @@ const sanitizeProduct = (p: Product): Product => {
         ? (() => { try { return JSON.parse((p.structured_attributes as any).similar_category_ids); } catch { return []; } })()
         : []));
 
-  const sizeChartId =
-    p.size_chart_id ||
-    (p.structured_attributes as any)?.size_chart_id ||
-    '';
+  const collections: string[] = Array.isArray(p.collections) && p.collections.length > 0
+    ? p.collections
+    : (Array.isArray((p.structured_attributes as any)?.collections)
+      ? (p.structured_attributes as any).collections
+      : (typeof (p.structured_attributes as any)?.collections === 'string'
+        ? (() => { try { return JSON.parse((p.structured_attributes as any).collections); } catch { return []; } })()
+        : []));
 
   return {
     ...p,
+    collections,
     size_chart_id: sizeChartId,
     custom_sections: cleanSections,
     images: validImgs,
@@ -597,13 +601,16 @@ export const api = {
   },
 
   // Collections Catalog (Direct Supabase)
-  async getCollections(): Promise<Collection[]> {
+  async getCollections(includeInactive: boolean = false): Promise<Collection[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('collections')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+        .select('*');
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      query = query.order('sort_order', { ascending: true });
+      const { data, error } = await query;
       if (!error && data) {
         return data as Collection[];
       }
@@ -613,16 +620,17 @@ export const api = {
     return SAMPLE_COLLECTIONS;
   },
 
-  async saveCollection(collection: Collection): Promise<boolean> {
+  async saveCollection(collection: Collection): Promise<{ success: boolean; collection?: Collection }> {
     try {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collection.id);
       const targetId = isUUID ? collection.id : crypto.randomUUID();
+      const slugClean = (collection.slug?.trim() || collection.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) || `collection-${Date.now()}`;
 
       // Check if slug changed to record automated 301 redirect
       try {
         const { data: existingColl } = await supabase.from('collections').select('slug').eq('id', targetId).maybeSingle();
-        if (existingColl?.slug && existingColl.slug !== collection.slug) {
-          await recordRedirectIfSlugChanged('collections', existingColl.slug, collection.slug, collection.title);
+        if (existingColl?.slug && existingColl.slug !== slugClean) {
+          await recordRedirectIfSlugChanged('collections', existingColl.slug, slugClean, collection.title);
         }
       } catch (e) {
         console.warn('Could not check collection slug for redirect:', e);
@@ -630,12 +638,12 @@ export const api = {
 
       const payload: any = {
         id: targetId,
-        title: collection.title,
-        slug: collection.slug,
-        description: collection.description || null,
+        title: collection.title.trim(),
+        slug: slugClean,
+        description: collection.description?.trim() || null,
         banner_image: collection.banner_image || null,
         is_smart: !!collection.is_smart,
-        sort_order: collection.sort_order || 0,
+        sort_order: typeof collection.sort_order === 'number' ? collection.sort_order : 0,
         is_active: collection.is_active !== false,
         seo_title: collection.seo_title || null,
         seo_description: collection.seo_description || null,
@@ -645,29 +653,37 @@ export const api = {
       const { error } = await supabase.from('collections').upsert([payload], { onConflict: 'slug' });
       if (error) {
         console.error('Failed to save collection to Supabase:', error);
-        return false;
+        return { success: false };
       }
+      const savedCollection: Collection = {
+        ...collection,
+        id: targetId,
+        slug: slugClean,
+        is_active: payload.is_active,
+        sort_order: payload.sort_order,
+      };
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { collection: { ...collection, id: targetId } } }));
+        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { collection: savedCollection } }));
       }
-      return true;
+      return { success: true, collection: savedCollection };
     } catch (err) {
       console.error('Error saving collection:', err);
-      return false;
+      return { success: false };
     }
   },
 
-  async deleteCollection(id: string): Promise<boolean> {
+  async deleteCollection(id: string, slug?: string): Promise<boolean> {
     try {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      const query = supabase.from('collections').delete();
-      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
-      if (error) {
-        console.error('Failed to delete collection from Supabase:', error);
-        return false;
+      if (isUUID) {
+        await supabase.from('collections').delete().eq('id', id);
+      }
+      if (slug || !isUUID) {
+        const targetSlug = slug || id;
+        await supabase.from('collections').delete().eq('slug', targetSlug);
       }
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { deletedId: id } }));
+        window.dispatchEvent(new CustomEvent('tanoah_collections_updated', { detail: { deletedId: id, deletedSlug: slug } }));
       }
       return true;
     } catch (err) {
@@ -1032,12 +1048,16 @@ export const api = {
       ? sanitized.category_id
       : null;
 
+    const cols = Array.isArray(sanitized.collections) ? sanitized.collections : [];
+    const mergedTags = new Set(sanitized.tags || []);
+    cols.forEach((c) => mergedTags.add(c));
+
     const productRow = {
       id: targetId,
       title: sanitized.title,
       slug: sanitized.slug,
       brand: sanitized.brand || 'TANOAH',
-      product_type: sanitized.product_type || 'Apparel',
+      product_type: sanitized.product_type || (cols[0] ? cols[0] : 'Collection'),
       category_id: validCategoryId,
       gender: sanitized.gender || 'unisex',
       base_price: sanitized.base_price,
@@ -1052,7 +1072,7 @@ export const api = {
       is_new_arrival: !!sanitized.is_new_arrival,
       description: sanitized.description || '',
       short_description: sanitized.short_description || '',
-      tags: sanitized.tags || [],
+      tags: Array.from(mergedTags),
       custom_sections: sanitized.custom_sections || [],
       seo_title: sanitized.seo_title || null,
       seo_description: sanitized.seo_description || null,
@@ -1061,6 +1081,7 @@ export const api = {
       size_chart_id: sanitized.size_chart_id || null,
       structured_attributes: {
         ...(sanitized.structured_attributes || {}),
+        collections: cols,
         size_chart_id: sanitized.size_chart_id || '',
         similar_product_ids: sanitized.similar_product_ids || [],
         similar_category_ids: sanitized.similar_category_ids || [],
@@ -1412,11 +1433,22 @@ export const api = {
     const coll = (options.collection || 'all').toLowerCase();
     let filtered = sample.filter((p) => {
       if (coll !== 'all') {
-        if (coll === 'men' && p.gender !== 'men' && p.gender !== 'unisex') return false;
-        if (coll === 'women' && p.gender !== 'women' && p.gender !== 'unisex') return false;
-        if (coll === 'sale' && !p.sale_price && (!p.compare_at_price || p.compare_at_price <= p.base_price)) return false;
-        if (coll === 'new-arrivals' && !p.is_new_arrival) return false;
-        if (coll === 'best-sellers' && !p.is_best_seller) return false;
+        if (coll === 'men') {
+          if (p.gender !== 'men' && p.gender !== 'unisex') return false;
+        } else if (coll === 'women') {
+          if (p.gender !== 'women' && p.gender !== 'unisex') return false;
+        } else if (coll === 'sale') {
+          if (!p.sale_price && (!p.compare_at_price || p.compare_at_price <= p.base_price)) return false;
+        } else if (coll === 'new-arrivals') {
+          if (!p.is_new_arrival) return false;
+        } else if (coll === 'best-sellers') {
+          if (!p.is_best_seller && !p.tags?.some((t) => t.toLowerCase() === 'best-sellers')) return false;
+        } else {
+          const inCols = p.collections && p.collections.some((c) => c.toLowerCase() === coll);
+          const inTags = p.tags && p.tags.some((t) => t.toLowerCase() === coll);
+          const inType = p.product_type && p.product_type.toLowerCase().includes(coll);
+          if (!inCols && !inTags && !inType) return false;
+        }
       }
       if (options.gender && options.gender !== 'all' && p.gender !== options.gender && p.gender !== 'unisex') return false;
       if (options.types && options.types.length > 0 && !options.types.includes(p.product_type)) return false;

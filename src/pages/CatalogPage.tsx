@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams, useParams, Link } from 'react-router-dom';
+import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Filter,
   SlidersHorizontal,
@@ -22,19 +22,6 @@ import { api } from '../services/api';
 import { Product, Collection } from '../types';
 import { SEOHead } from '../components/common/SEOHead';
 import { generateCollectionJsonLd, normalizeCanonicalUrl } from '../services/seoEngine';
-
-const DEFAULT_PRODUCT_TYPES = [
-  'T-Shirt',
-  'Oversized Tee',
-  'Shirt',
-  'Trousers',
-  'Dress',
-  'Sarees',
-  'Kurtas',
-  'A-Line top',
-  'Co-ord Set',
-  'Jacket',
-];
 
 const DEFAULT_CATALOG_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
 
@@ -67,8 +54,8 @@ const getPaginationPages = (currentPage: number, total: number): (number | strin
 export const CatalogPage: React.FC = () => {
   const { collection: routeCollection } = useParams<{ collection: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const currentCollection = (routeCollection || searchParams.get('collection') || 'all').toLowerCase();
-  const typeParam = searchParams.get('type') || '';
   const searchParam = searchParams.get('search') || '';
   const pageParam = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
 
@@ -79,8 +66,6 @@ export const CatalogPage: React.FC = () => {
   const [collectionsList, setCollectionsList] = useState<Collection[]>(SAMPLE_COLLECTIONS);
   const [refreshNonce, setRefreshNonce] = useState<number>(0);
 
-  const [selectedGender, setSelectedGender] = useState<string>('all');
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(typeParam ? [typeParam] : []);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<number>(10000);
@@ -117,12 +102,6 @@ export const CatalogPage: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeParam) {
-      setSelectedTypes([typeParam]);
-    }
-  }, [typeParam]);
-
   // Paginated Product Loading (12 per batch, reducing unwanted API calls)
   useEffect(() => {
     let isMounted = true;
@@ -133,8 +112,6 @@ export const CatalogPage: React.FC = () => {
         page: pageParam,
         limit: 12,
         collection: currentCollection,
-        types: selectedTypes.length > 0 ? selectedTypes : undefined,
-        gender: selectedGender !== 'all' ? selectedGender : undefined,
         search: searchParam || undefined,
         maxPrice: priceRange < 10000 ? priceRange : undefined,
         sizes: selectedSizes.length > 0 ? selectedSizes : undefined,
@@ -162,8 +139,6 @@ export const CatalogPage: React.FC = () => {
   }, [
     currentCollection,
     pageParam,
-    selectedGender,
-    selectedTypes,
     priceRange,
     inStockOnly,
     selectedSizes,
@@ -219,11 +194,6 @@ export const CatalogPage: React.FC = () => {
   );
 
   // Available filter choices (curated defaults combined with live loaded product traits)
-  const allProductTypes = useMemo(() => {
-    const fromLoaded = productsList.map((p) => p.product_type).filter(Boolean);
-    return Array.from(new Set([...DEFAULT_PRODUCT_TYPES, ...fromLoaded]));
-  }, [productsList]);
-
   const allSizes = useMemo(() => {
     const fromLoaded = productsList.flatMap((p) => p.variants.map((v) => v.size)).filter(Boolean);
     return Array.from(new Set([...DEFAULT_CATALOG_SIZES, ...fromLoaded]));
@@ -263,18 +233,18 @@ export const CatalogPage: React.FC = () => {
   };
 
   const clearAllFilters = () => {
-    setSelectedGender('all');
-    setSelectedTypes([]);
     setSelectedSizes([]);
     setSelectedColors([]);
     setPriceRange(10000);
     setInStockOnly(false);
     setSearchParams({});
+    if (currentCollection !== 'all') {
+      navigate('/collections/all');
+    }
   };
 
   const hasActiveFilters =
-    selectedGender !== 'all' ||
-    selectedTypes.length > 0 ||
+    currentCollection !== 'all' ||
     selectedSizes.length > 0 ||
     selectedColors.length > 0 ||
     inStockOnly ||
@@ -382,18 +352,38 @@ export const CatalogPage: React.FC = () => {
           {/* Active Filter Tags */}
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center gap-2">
-              {selectedGender !== 'all' && (
+              {currentCollection !== 'all' && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
-                  {selectedGender}
-                  <button onClick={() => { setSelectedGender('all'); resetPageParam(); }}><X className="w-3 h-3" /></button>
+                  {activeCollection.title}
+                  <button onClick={() => { navigate('/collections/all'); resetPageParam(); }}>
+                    <X className="w-3 h-3" />
+                  </button>
                 </span>
               )}
-              {selectedTypes.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
-                  {t}
-                  <button onClick={() => { setSelectedTypes(selectedTypes.filter((x) => x !== t)); resetPageParam(); }}><X className="w-3 h-3" /></button>
+              {selectedSizes.map((s) => (
+                <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
+                  Size: {s}
+                  <button onClick={() => { setSelectedSizes(selectedSizes.filter((x) => x !== s)); resetPageParam(); }}>
+                    <X className="w-3 h-3" />
+                  </button>
                 </span>
               ))}
+              {selectedColors.map((c) => (
+                <span key={c} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
+                  Color: {c}
+                  <button onClick={() => { setSelectedColors(selectedColors.filter((x) => x !== c)); resetPageParam(); }}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {inStockOnly && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EEEEF8] text-[#3F3F8F] text-[11px] rounded-[2px] font-medium uppercase">
+                  In Stock Only
+                  <button onClick={() => { setInStockOnly(false); resetPageParam(); }}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
               <button
                 onClick={clearAllFilters}
                 className="text-[11px] text-[#666666] hover:text-red-500 underline uppercase"
@@ -454,54 +444,47 @@ export const CatalogPage: React.FC = () => {
               </label>
             </div>
 
-            {/* Gender Section */}
+            {/* Collections Section */}
             <div className="space-y-3 pb-6 border-b border-[#E7E7E7]">
-              <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
-                DEPARTMENT
-              </h4>
-              <div className="space-y-2 text-[#444444]">
-                {['all', 'men', 'women', 'unisex'].map((g) => (
-                  <label key={g} className="flex items-center gap-2 cursor-pointer hover:text-[#3F3F8F]">
-                    <input
-                      type="radio"
-                      name="gender"
-                      checked={selectedGender === g}
-                      onChange={() => {
-                        setSelectedGender(g);
-                        resetPageParam();
-                      }}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <span className="uppercase">{g === 'all' ? 'All Collections' : g}</span>
-                  </label>
-                ))}
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
+                  COLLECTIONS
+                </h4>
+                <span className="text-[10px] text-[#888888] font-medium uppercase">
+                  {collectionsList.length} Active
+                </span>
               </div>
-            </div>
-
-            {/* Category Type Section */}
-            <div className="space-y-3 pb-6 border-b border-[#E7E7E7]">
-              <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
-                PRODUCT TYPE
-              </h4>
-              <div className="space-y-2 text-[#444444]">
-                {allProductTypes.map((type) => (
-                  <label key={type} className="flex items-center gap-2 cursor-pointer hover:text-[#3F3F8F]">
-                    <input
-                      type="checkbox"
-                      checked={selectedTypes.includes(type)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedTypes([...selectedTypes, type]);
-                        } else {
-                          setSelectedTypes(selectedTypes.filter((t) => t !== type));
-                        }
-                        resetPageParam();
-                      }}
-                      className="accent-[#3F3F8F]"
-                    />
-                    <span>{type}</span>
-                  </label>
-                ))}
+              <div className="space-y-1.5 text-[#444444]">
+                <Link
+                  to="/collections/all"
+                  onClick={resetPageParam}
+                  className={`flex items-center justify-between px-3 py-2 rounded-[4px] transition-all text-xs ${
+                    currentCollection === 'all'
+                      ? 'bg-[#3F3F8F] text-white font-medium shadow-xs'
+                      : 'hover:bg-[#F4F4F8] hover:text-[#3F3F8F]'
+                  }`}
+                >
+                  <span>All Collections</span>
+                  {currentCollection === 'all' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                </Link>
+                {collectionsList.map((col) => {
+                  const isSelected = currentCollection === col.slug.toLowerCase();
+                  return (
+                    <Link
+                      key={col.id || col.slug}
+                      to={`/collections/${col.slug}`}
+                      onClick={resetPageParam}
+                      className={`flex items-center justify-between px-3 py-2 rounded-[4px] transition-all text-xs ${
+                        isSelected
+                          ? 'bg-[#3F3F8F] text-white font-medium shadow-xs'
+                          : 'hover:bg-[#F4F4F8] hover:text-[#3F3F8F]'
+                      }`}
+                    >
+                      <span className="truncate">{col.title}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
 
@@ -761,54 +744,53 @@ export const CatalogPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Department */}
-              <div className="space-y-2 pb-5 border-b border-[#E7E7E7]">
-                <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
-                  DEPARTMENT
-                </h4>
-                <div className="space-y-2 text-[#444444]">
-                  {['all', 'men', 'women', 'unisex'].map((g) => (
-                    <label key={g} className="flex items-center gap-2 cursor-pointer hover:text-[#3F3F8F]">
-                      <input
-                        type="radio"
-                        name="mobile_gender"
-                        checked={selectedGender === g}
-                        onChange={() => {
-                          setSelectedGender(g);
-                          resetPageParam();
-                        }}
-                        className="accent-[#3F3F8F] w-4 h-4"
-                      />
-                      <span className="uppercase text-xs">{g === 'all' ? 'All Collections' : g}</span>
-                    </label>
-                  ))}
+              {/* Collections Mobile Section */}
+              <div className="space-y-3 pb-5 border-b border-[#E7E7E7]">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
+                    COLLECTIONS
+                  </h4>
+                  <span className="text-[10px] text-[#888888] font-medium uppercase">
+                    {collectionsList.length} Active
+                  </span>
                 </div>
-              </div>
-
-              {/* Product Type */}
-              <div className="space-y-2 pb-5 border-b border-[#E7E7E7]">
-                <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
-                  PRODUCT TYPE
-                </h4>
-                <div className="space-y-2 text-[#444444]">
-                  {allProductTypes.map((type) => (
-                    <label key={type} className="flex items-center gap-2 cursor-pointer hover:text-[#3F3F8F]">
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(type)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedTypes([...selectedTypes, type]);
-                          } else {
-                            setSelectedTypes(selectedTypes.filter((t) => t !== type));
-                          }
+                <div className="space-y-1.5">
+                  <Link
+                    to="/collections/all"
+                    onClick={() => {
+                      setIsFilterDrawerOpen(false);
+                      resetPageParam();
+                    }}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-[4px] text-xs transition-all ${
+                      currentCollection === 'all'
+                        ? 'bg-[#3F3F8F] text-white font-medium'
+                        : 'bg-[#F8F8F8] text-[#444444] hover:text-[#3F3F8F]'
+                    }`}
+                  >
+                    <span>All Collections</span>
+                    {currentCollection === 'all' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  </Link>
+                  {collectionsList.map((col) => {
+                    const isSelected = currentCollection === col.slug.toLowerCase();
+                    return (
+                      <Link
+                        key={col.id || col.slug}
+                        to={`/collections/${col.slug}`}
+                        onClick={() => {
+                          setIsFilterDrawerOpen(false);
                           resetPageParam();
                         }}
-                        className="accent-[#3F3F8F] w-4 h-4 rounded"
-                      />
-                      <span className="text-xs">{type}</span>
-                    </label>
-                  ))}
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-[4px] text-xs transition-all ${
+                          isSelected
+                            ? 'bg-[#3F3F8F] text-white font-medium'
+                            : 'bg-[#F8F8F8] text-[#444444] hover:text-[#3F3F8F]'
+                        }`}
+                      >
+                        <span className="truncate">{col.title}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
 

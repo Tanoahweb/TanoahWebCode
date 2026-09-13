@@ -342,28 +342,30 @@ export const ProductDetailPage: React.FC = () => {
       }
     }
 
-    // 2. Curated similar categories specified by admin
-    if (result.length < 4 && Array.isArray(product.similar_category_ids) && product.similar_category_ids.length > 0) {
-      for (const catId of product.similar_category_ids) {
-        const matching = candidates.filter(
-          (p) => !addedIds.has(p.id) && (p.category_id === catId || (p as any).category?.id === catId)
-        );
-        for (const p of matching) {
-          if (result.length >= 4) break;
-          result.push(p);
-          addedIds.add(p.id);
-        }
+    // 2. Fallback: products sharing the same collection(s)
+    if (result.length < 4 && Array.isArray(product.collections) && product.collections.length > 0) {
+      const prodCollections = product.collections.map((c: string) => c.toLowerCase());
+      const matching = candidates.filter(
+        (p) =>
+          !addedIds.has(p.id) &&
+          Array.isArray(p.collections) &&
+          p.collections.some((c: string) => prodCollections.includes(c.toLowerCase()))
+      );
+      for (const p of matching) {
         if (result.length >= 4) break;
+        result.push(p);
+        addedIds.add(p.id);
       }
     }
 
-    // 3. Fallback: products in same category or product type
+    // 3. Fallback: products in same product type
     if (result.length < 4) {
       const sameCategoryOrType = candidates.filter(
         (p) =>
           !addedIds.has(p.id) &&
-          ((product.category_id && p.category_id === product.category_id) ||
-            (product.product_type && p.product_type && p.product_type.toLowerCase() === product.product_type.toLowerCase()))
+          product.product_type &&
+          p.product_type &&
+          p.product_type.toLowerCase() === product.product_type.toLowerCase()
       );
       for (const p of sameCategoryOrType) {
         if (result.length >= 4) break;
@@ -895,10 +897,12 @@ export const ProductDetailPage: React.FC = () => {
 
   const productMeta = product ? getProductMeta(product) : null;
   const productJsonLd = product ? generateProductJsonLd(product, reviews) : undefined;
+  const primaryCollection = (product?.collections && product.collections[0]) || 'Collections';
+  const primaryCollectionSlug = primaryCollection.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   const breadcrumbJsonLd = product
     ? generateBreadcrumbJsonLd([
         { name: 'Home', path: '/' },
-        { name: product.category_name || 'Collections', path: '/collections/all' },
+        { name: primaryCollection, path: `/collections/${primaryCollectionSlug || 'all'}` },
         { name: product.title, path: `/products/${product.slug}` },
       ])
     : undefined;
@@ -922,7 +926,7 @@ export const ProductDetailPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <Link to="/" className="hover:text-black">Home</Link>
           <span>/</span>
-          <Link to="/collections/all" className="hover:text-black">Collections</Link>
+          <Link to={`/collections/${primaryCollectionSlug || 'all'}`} className="hover:text-black">{primaryCollection}</Link>
           <span>/</span>
           <span className="text-[#3F3F8F] font-semibold">{product.title}</span>
         </div>
@@ -1021,7 +1025,9 @@ export const ProductDetailPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-poppins font-semibold text-[#888888] tracking-widest uppercase">
-                  {product.category_name ? `${product.category_name.toUpperCase()} • ` : ''}{product.gender?.toUpperCase() || 'UNISEX'}
+                  {product.collections && product.collections.length > 0
+                    ? product.collections.join(' • ').toUpperCase()
+                    : 'TANOAH ATELIER'}
                 </span>
                 <div 
                   onClick={() => {

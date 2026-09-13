@@ -9,14 +9,16 @@ import { Badge } from '../../components/common/Badge';
 
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
-import { Product } from '../../types';
+import { Product, Collection } from '../../types';
 
 export const ProductListPage: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useUIStore();
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [collectionFilter, setCollectionFilter] = useState('all');
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const loadProducts = () => {
@@ -27,11 +29,22 @@ export const ProductListPage: React.FC = () => {
     });
   };
 
+  const loadCollections = () => {
+    api.getCollections().then((cols) => {
+      if (cols) {
+        setCollections(cols);
+      }
+    });
+  };
+
   React.useEffect(() => {
     loadProducts();
+    loadCollections();
     window.addEventListener('tanoah_products_updated', loadProducts);
+    window.addEventListener('tanoah_collections_updated', loadCollections);
     return () => {
       window.removeEventListener('tanoah_products_updated', loadProducts);
+      window.removeEventListener('tanoah_collections_updated', loadCollections);
     };
   }, []);
 
@@ -77,7 +90,14 @@ export const ProductListPage: React.FC = () => {
       p.variants.some((v) => v.sku.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    const matchesCollection =
+      collectionFilter === 'all' ||
+      p.collections?.some((c) => c.toLowerCase() === collectionFilter.toLowerCase()) ||
+      p.tags?.some((t) => t.toLowerCase() === collectionFilter.toLowerCase()) ||
+      (p.product_type && p.product_type.toLowerCase().includes(collectionFilter.toLowerCase()));
+
+    return matchesSearch && matchesStatus && matchesCollection;
   });
 
   return (
@@ -120,18 +140,36 @@ export const ProductListPage: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[#888888] uppercase text-[10px] font-semibold">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-[#E7E7E7] rounded-[4px] py-2 px-3 focus:outline-none focus:border-[#3F3F8F] bg-white font-medium cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="draft">Draft</option>
-              <option value="archived">Archived</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[#888888] uppercase text-[10px] font-semibold">Collection:</span>
+              <select
+                value={collectionFilter}
+                onChange={(e) => setCollectionFilter(e.target.value)}
+                className="border border-[#E7E7E7] rounded-[4px] py-2 px-3 focus:outline-none focus:border-[#3F3F8F] bg-white font-medium cursor-pointer"
+              >
+                <option value="all">All Collections</option>
+                {collections.map((c) => (
+                  <option key={c.id || c.slug} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[#888888] uppercase text-[10px] font-semibold">Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border border-[#E7E7E7] rounded-[4px] py-2 px-3 focus:outline-none focus:border-[#3F3F8F] bg-white font-medium cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -142,7 +180,7 @@ export const ProductListPage: React.FC = () => {
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
                 <tr>
                   <th className="p-4">Product Details</th>
-                  <th className="p-4">Category</th>
+                  <th className="p-4">Collections</th>
                   <th className="p-4">Price</th>
                   <th className="p-4">Variants</th>
                   <th className="p-4">Total Stock</th>
@@ -180,7 +218,25 @@ export const ProductListPage: React.FC = () => {
                           </div>
                         </Link>
                       </td>
-                      <td className="p-4 text-[#666666] font-medium">{product.category_name || 'Men'}</td>
+                      <td className="p-4 text-[#666666]">
+                        {product.collections && product.collections.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {product.collections.map((slug) => {
+                              const matchCol = collections.find((c) => c.slug.toLowerCase() === slug.toLowerCase());
+                              return (
+                                <span
+                                  key={slug}
+                                  className="inline-block px-2 py-0.5 bg-[#EEEEF8] text-[#3F3F8F] rounded text-[10px] font-semibold"
+                                >
+                                  {matchCol?.title || slug}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-neutral-400 italic text-[11px]">Unassigned</span>
+                        )}
+                      </td>
                       <td className="p-4 font-semibold text-black">
                         {formatPrice(product.sale_price ?? product.base_price)}
                         {product.sale_price && (
