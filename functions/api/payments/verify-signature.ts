@@ -86,7 +86,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         );
       }
 
-      const isProd = environment === 'production' || appId.length > 30;
+      const isProd = environment === 'production' && !appId.toLowerCase().startsWith('test');
       const baseUrl = isProd ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com';
 
       // Query Cashfree order status directly from Cashfree servers

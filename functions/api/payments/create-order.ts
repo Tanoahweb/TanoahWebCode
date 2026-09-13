@@ -65,7 +65,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       const apiVersion = cfConfig?.api_version || '2023-08-01';
 
       if (appId && secretKey) {
-        const isProd = environment === 'production' || appId.length > 30;
+        const isProd = environment === 'production' && !appId.toLowerCase().startsWith('test');
         const baseUrl = isProd ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com';
 
         const cleanPhone = (customer_phone || '').replace(/[^0-9]/g, '').slice(-10) || '9876543210';
