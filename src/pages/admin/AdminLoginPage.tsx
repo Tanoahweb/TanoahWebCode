@@ -14,7 +14,17 @@ export const AdminLoginPage: React.FC = () => {
   const { user, isAdmin, isLoading: authLoading, initialize } = useAuthStore();
   const { addToast } = useUIStore();
 
-  const [email, setEmail] = useState('');
+  const [rememberDevice, setRememberDevice] = useState<boolean>(() => {
+    const savedPref = localStorage.getItem('tanoah_admin_remember_device');
+    return savedPref !== null ? savedPref === 'true' : true;
+  });
+  const [email, setEmail] = useState<string>(() => {
+    return localStorage.getItem('tanoah_admin_saved_email') || '';
+  });
+  const [savedDeviceRecognized, setSavedDeviceRecognized] = useState<boolean>(() => {
+    return Boolean(localStorage.getItem('tanoah_admin_saved_email') && localStorage.getItem('tanoah_admin_remember_device') === 'true');
+  });
+
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,10 +140,25 @@ export const AdminLoginPage: React.FC = () => {
       setFailedAttempts(0);
       setLockedUntil(0);
 
+      // Handle "Remember this device"
+      if (rememberDevice) {
+        localStorage.setItem('tanoah_admin_remember_device', 'true');
+        localStorage.setItem('tanoah_admin_saved_email', cleanEmail);
+        localStorage.setItem('tanoah_admin_trusted_until', String(Date.now() + 30 * 24 * 60 * 60 * 1000)); // 30 days
+        sessionStorage.removeItem('tanoah_admin_session_only');
+      } else {
+        localStorage.removeItem('tanoah_admin_remember_device');
+        localStorage.removeItem('tanoah_admin_saved_email');
+        localStorage.removeItem('tanoah_admin_trusted_until');
+        sessionStorage.setItem('tanoah_admin_session_only', 'true');
+      }
+
       addToast({
         type: 'success',
         title: 'Authentication Verified',
-        description: 'Welcome to Tanoah Store Management OS.',
+        description: rememberDevice
+          ? 'Welcome to Tanoah Admin OS. This device is remembered for 30 days.'
+          : 'Welcome to Tanoah Admin OS.',
       });
 
       const destination = (location.state as any)?.from || '/admin';
@@ -143,6 +168,20 @@ export const AdminLoginPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleForgetDevice = () => {
+    localStorage.removeItem('tanoah_admin_remember_device');
+    localStorage.removeItem('tanoah_admin_saved_email');
+    localStorage.removeItem('tanoah_admin_trusted_until');
+    setEmail('');
+    setRememberDevice(false);
+    setSavedDeviceRecognized(false);
+    addToast({
+      type: 'info',
+      title: 'Device Removed',
+      description: 'This device is no longer remembered. You can sign in manually.',
+    });
   };
 
   const formatLockTime = (secs: number) => {
@@ -210,9 +249,27 @@ export const AdminLoginPage: React.FC = () => {
           <form onSubmit={handleAdminLogin} className="space-y-4">
             {/* Email / Username */}
             <div>
-              <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                Admin Username / Email
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider">
+                  Admin Username / Email
+                </label>
+                {savedDeviceRecognized && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                      <ShieldCheck className="w-3 h-3" />
+                      Recognized Device
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleForgetDevice}
+                      className="text-[10px] text-neutral-500 hover:text-neutral-300 underline"
+                      title="Forget this device and clear saved email"
+                    >
+                      Forget
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -255,6 +312,33 @@ export const AdminLoginPage: React.FC = () => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            {/* Remember This Device Toggle */}
+            <div className="flex items-center justify-between pt-1 pb-1 select-none">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  disabled={isLocked || isSubmitting}
+                  className="w-4 h-4 rounded bg-[#0E0E1A] border border-white/20 text-[#3F3F8F] focus:ring-0 focus:ring-offset-0 cursor-pointer transition-colors"
+                />
+                <span className="text-xs text-neutral-300 group-hover:text-white transition-colors font-medium">
+                  Remember this device
+                </span>
+              </label>
+
+              {rememberDevice ? (
+                <span className="text-[10px] text-[#D4AF37] font-medium flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Trusted for 30 days</span>
+                </span>
+              ) : (
+                <span className="text-[10px] text-neutral-500">
+                  Auto-locks after 30m idle
+                </span>
+              )}
             </div>
 
             {/* Submit Button */}

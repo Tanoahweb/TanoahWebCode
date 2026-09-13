@@ -15,9 +15,19 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   const location = useLocation();
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 30-Minute Idle Inactivity Auto-Lock
+  // 30-Minute Idle Inactivity Auto-Lock (Only applied on untrusted / non-remembered devices)
   useEffect(() => {
     if (!user || !isAdmin) return;
+
+    // Check if this device is trusted / remembered
+    const isRemembered = localStorage.getItem('tanoah_admin_remember_device') === 'true';
+    const trustedUntil = parseInt(localStorage.getItem('tanoah_admin_trusted_until') || '0', 10);
+    const isTrustedDevice = isRemembered && trustedUntil > Date.now();
+
+    // If this is a trusted, remembered device, do not auto-logout on idle inactivity
+    if (isTrustedDevice) {
+      return;
+    }
 
     const resetIdleTimer = () => {
       if (idleTimerRef.current) {
