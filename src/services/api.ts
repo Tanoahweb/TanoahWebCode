@@ -1886,32 +1886,75 @@ export const api = {
 
   // Coupon Management (Dual-sync)
   async getCoupons(): Promise<Coupon[]> {
+    const isUuid = (str?: string): boolean =>
+      Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+
+    // 1. Get tombstoned (deleted) coupons list
+    let deletedCodes: string[] = [];
+    try {
+      const raw = localStorage.getItem('tanoah_deleted_coupons');
+      if (raw) {
+        deletedCodes = (JSON.parse(raw) as string[]).map((c) => c.trim().toUpperCase());
+      }
+    } catch {}
+
+    // 2. Fetch custom coupons from local storage
     let customCoupons: Coupon[] = [];
     try {
       const raw = localStorage.getItem('tanoah_custom_coupons');
-      if (raw) customCoupons = JSON.parse(raw);
+      if (raw) {
+        customCoupons = (JSON.parse(raw) as Coupon[]).filter(
+          (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
+        );
+      }
     } catch {}
 
+    // 3. Fetch remote coupons from Supabase
     let remoteCoupons: Coupon[] = [];
     try {
-      const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
-      if (!error && data) remoteCoupons = data as Coupon[];
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        remoteCoupons = (data as Coupon[]).filter(
+          (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
+        );
+      }
+    } catch (e) {
+      console.warn('Supabase fetch coupons warning:', e);
+    }
+
+    // 4. Merge: Supabase is authoritative for records in DB
+    const mergedMap = new Map<string, Coupon>();
+
+    remoteCoupons.forEach((rc) => {
+      mergedMap.set(rc.code.trim().toUpperCase(), rc);
+    });
+
+    customCoupons.forEach((cc) => {
+      const upper = cc.code.trim().toUpperCase();
+      if (!mergedMap.has(upper)) {
+        mergedMap.set(upper, cc);
+      }
+    });
+
+    // 5. Sample coupons: include only if NOT in deletedCodes AND not already present
+    SAMPLE_COUPONS.forEach((sc) => {
+      const upper = sc.code.trim().toUpperCase();
+      if (!deletedCodes.includes(upper) && !mergedMap.has(upper)) {
+        mergedMap.set(upper, sc);
+      }
+    });
+
+    const result = Array.from(mergedMap.values());
+
+    // Keep local storage synchronized
+    try {
+      localStorage.setItem('tanoah_custom_coupons', JSON.stringify(result));
     } catch {}
 
-    const merged = [...customCoupons];
-    remoteCoupons.forEach((rc) => {
-      if (!merged.some((m) => m.code.toLowerCase() === rc.code.toLowerCase())) {
-        merged.push(rc);
-      }
-    });
-
-    SAMPLE_COUPONS.forEach((sc) => {
-      if (!merged.some((m) => m.code.toLowerCase() === sc.code.toLowerCase())) {
-        merged.push(sc);
-      }
-    });
-
-    return merged;
+    return result;
   },
 
   async createCoupon(coupon: {
@@ -1927,8 +1970,31 @@ export const api = {
     per_customer_limit?: number;
     eligible_collections?: string[];
     is_active?: boolean;
-  }): Promise<{ success: boolean; coupon: Coupon }> {
+  }): Promise<{ success: boolean; coupon?: Coupon; error?: string }> {
     const cleanCode = coupon.code.trim().toUpperCase();
+    if (!cleanCode) {
+      return { success: false, error: 'Coupon code cannot be empty.' };
+    }
+
+    // Check if code is already present
+    const existing = await this.getCoupons();
+    if (existing.some((c) => c.code.trim().toUpperCase() === cleanCode)) {
+      return {
+        success: false,
+        error: `Coupon code "${cleanCode}" already exists. Please choose a different code or edit the existing one.`,
+      };
+    }
+
+    // If previously deleted, un-tombstone it
+    try {
+      const raw = localStorage.getItem('tanoah_deleted_coupons');
+      if (raw) {
+        const list: string[] = JSON.parse(raw);
+        const filtered = list.filter((c) => c.trim().toUpperCase() !== cleanCode);
+        localStorage.setItem('tanoah_deleted_coupons', JSON.stringify(filtered));
+      }
+    } catch {}
+
     const newCoupon: Coupon = {
       id: `cpn_${Date.now()}`,
       code: cleanCode,
@@ -1942,60 +2008,110 @@ export const api = {
       total_usage_limit: coupon.total_usage_limit || undefined,
       per_customer_limit: coupon.per_customer_limit || undefined,
       usage_count: 0,
-      eligible_collections: coupon.eligible_collections && coupon.eligible_collections.length > 0 ? coupon.eligible_collections : undefined,
+      eligible_collections:
+        coupon.eligible_collections && coupon.eligible_collections.length > 0
+          ? coupon.eligible_collections
+          : undefined,
       is_automatic: false,
       is_active: coupon.is_active !== undefined ? coupon.is_active : true,
     };
 
-    // Store in browser storage immediately
+    // Remote insert into Supabase and capture DB UUID
     try {
-      const existing = await this.getCoupons();
-      const updated = [newCoupon, ...existing.filter((c) => c.code.toLowerCase() !== cleanCode.toLowerCase())];
+      const { data: inserted, error: dbErr } = await supabase
+        .from('coupons')
+        .insert([
+          {
+            code: newCoupon.code,
+            description: newCoupon.description || null,
+            discount_type: newCoupon.discount_type,
+            discount_value: newCoupon.discount_value,
+            min_spend: newCoupon.min_spend,
+            max_discount: newCoupon.max_discount || null,
+            start_date: newCoupon.start_date || null,
+            end_date: newCoupon.end_date || null,
+            total_usage_limit: newCoupon.total_usage_limit || null,
+            per_customer_limit: newCoupon.per_customer_limit || null,
+            usage_count: 0,
+            eligible_collections: newCoupon.eligible_collections || [],
+            is_active: newCoupon.is_active,
+          },
+        ])
+        .select()
+        .single();
+
+      if (dbErr) {
+        console.error('Supabase coupon insert error:', dbErr);
+        if (dbErr.code === '23505') {
+          return {
+            success: false,
+            error: `Coupon code "${cleanCode}" already exists in the database.`,
+          };
+        }
+      } else if (inserted && inserted.id) {
+        newCoupon.id = inserted.id;
+        newCoupon.created_at = inserted.created_at;
+      }
+    } catch (dbErr) {
+      console.warn('Remote coupon insert notice:', dbErr);
+    }
+
+    // Save to browser storage with real UUID
+    try {
+      const raw = localStorage.getItem('tanoah_custom_coupons');
+      const list: Coupon[] = raw ? JSON.parse(raw) : [];
+      const updated = [newCoupon, ...list.filter((c) => c.code.trim().toUpperCase() !== cleanCode)];
       localStorage.setItem('tanoah_custom_coupons', JSON.stringify(updated));
     } catch (e) {
       console.error('Error saving custom coupon:', e);
     }
 
-    // Best-effort remote insert
-    try {
-      await supabase.from('coupons').insert([{
-        code: newCoupon.code,
-        description: newCoupon.description || null,
-        discount_type: newCoupon.discount_type,
-        discount_value: newCoupon.discount_value,
-        min_spend: newCoupon.min_spend,
-        max_discount: newCoupon.max_discount || null,
-        start_date: newCoupon.start_date || null,
-        end_date: newCoupon.end_date || null,
-        total_usage_limit: newCoupon.total_usage_limit || null,
-        per_customer_limit: newCoupon.per_customer_limit || null,
-        usage_count: 0,
-        eligible_collections: newCoupon.eligible_collections || [],
-        is_active: newCoupon.is_active,
-      }]);
-    } catch (dbErr) {
-      console.warn('Remote coupon insert notice:', dbErr);
-    }
-
     return { success: true, coupon: newCoupon };
   },
 
-  async updateCoupon(couponId: string, updates: Partial<Coupon>): Promise<boolean> {
+  async updateCoupon(
+    couponId: string,
+    updates: Partial<Coupon>,
+    couponCode?: string
+  ): Promise<boolean> {
     try {
+      const isUuid = (str?: string): boolean =>
+        Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+
+      const codeUpper = (couponCode || updates.code || (!isUuid(couponId) ? couponId : '')).trim().toUpperCase();
+
+      // 1. Update in local storage
       const raw = localStorage.getItem('tanoah_custom_coupons');
       if (raw) {
         const list: Coupon[] = JSON.parse(raw);
-        const updated = list.map((c) => (c.id === couponId || c.code === couponId ? { ...c, ...updates } : c));
+        const updated = list.map((c) => {
+          const matchId = c.id === couponId;
+          const matchCode = codeUpper && c.code.trim().toUpperCase() === codeUpper;
+          return matchId || matchCode ? { ...c, ...updates } : c;
+        });
         localStorage.setItem('tanoah_custom_coupons', JSON.stringify(updated));
       }
 
+      // 2. Prepare payload for Supabase
       const payload: any = { ...updates };
       delete payload.id;
       delete payload.created_at;
-      if (payload.eligible_collections && !Array.isArray(payload.eligible_collections)) {
-        payload.eligible_collections = [];
+      if (payload.eligible_collections !== undefined) {
+        payload.eligible_collections = Array.isArray(payload.eligible_collections)
+          ? payload.eligible_collections
+          : [];
       }
-      await supabase.from('coupons').update(payload).or(`id.eq.${couponId},code.eq.${couponId}`);
+
+      // 3. Update Supabase safely without casting errors
+      if (isUuid(couponId)) {
+        const { error } = await supabase.from('coupons').update(payload).eq('id', couponId);
+        if (error) console.warn('Supabase update coupon by ID notice:', error);
+      }
+      if (codeUpper) {
+        const { error } = await supabase.from('coupons').update(payload).ilike('code', codeUpper);
+        if (error) console.warn('Supabase update coupon by code notice:', error);
+      }
+
       return true;
     } catch (e) {
       console.error('Error updating coupon:', e);
@@ -2003,17 +2119,58 @@ export const api = {
     }
   },
 
-  async deleteCoupon(couponId: string): Promise<boolean> {
+  async deleteCoupon(couponId: string, couponCode?: string): Promise<boolean> {
     try {
-      const raw = localStorage.getItem('tanoah_custom_coupons');
-      if (raw) {
-        const list: Coupon[] = JSON.parse(raw);
-        const filtered = list.filter((c) => c.id !== couponId && c.code !== couponId);
-        localStorage.setItem('tanoah_custom_coupons', JSON.stringify(filtered));
+      const isUuid = (str?: string): boolean =>
+        Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+
+      const codeUpper = (couponCode || (!isUuid(couponId) ? couponId : '')).trim().toUpperCase();
+
+      // 1. Record in persistent tombstone list so neither SAMPLE_COUPONS nor caches resurrect it
+      if (codeUpper) {
+        try {
+          const rawDeleted = localStorage.getItem('tanoah_deleted_coupons');
+          const deletedList: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+          if (!deletedList.includes(codeUpper)) {
+            deletedList.push(codeUpper);
+            localStorage.setItem('tanoah_deleted_coupons', JSON.stringify(deletedList));
+          }
+        } catch {}
       }
-      await supabase.from('coupons').delete().or(`id.eq.${couponId},code.eq.${couponId}`);
-    } catch {}
-    return true;
+
+      // 2. Remove from local storage custom coupons
+      try {
+        const raw = localStorage.getItem('tanoah_custom_coupons');
+        if (raw) {
+          const list: Coupon[] = JSON.parse(raw);
+          const filtered = list.filter((c) => {
+            if (c.id === couponId) return false;
+            if (codeUpper && c.code.trim().toUpperCase() === codeUpper) return false;
+            return true;
+          });
+          localStorage.setItem('tanoah_custom_coupons', JSON.stringify(filtered));
+        }
+      } catch {}
+
+      // 3. Remove from Supabase safely without UUID casting errors
+      try {
+        if (isUuid(couponId)) {
+          const { error } = await supabase.from('coupons').delete().eq('id', couponId);
+          if (error) console.warn('Supabase delete coupon by ID error:', error);
+        }
+        if (codeUpper) {
+          const { error } = await supabase.from('coupons').delete().ilike('code', codeUpper);
+          if (error) console.warn('Supabase delete coupon by code error:', error);
+        }
+      } catch (dbErr) {
+        console.warn('Supabase delete coupon notice:', dbErr);
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Error deleting coupon:', e);
+      return false;
+    }
   },
 
   // Coupon Validation
@@ -2023,12 +2180,29 @@ export const api = {
     items?: CartItem[]
   ): Promise<{ valid: boolean; coupon?: Coupon; message: string }> {
     try {
-      const cleanCode = code.trim().toLowerCase();
+      const cleanCode = code.trim().toUpperCase();
+
+      // Check tombstoned deleted list first
+      try {
+        const rawDeleted = localStorage.getItem('tanoah_deleted_coupons');
+        if (rawDeleted) {
+          const deletedCodes: string[] = JSON.parse(rawDeleted);
+          if (deletedCodes.some((d) => d.trim().toUpperCase() === cleanCode)) {
+            return { valid: false, message: 'Invalid promo code.' };
+          }
+        }
+      } catch {}
+
       const allCoupons = await this.getCoupons();
-      const match = allCoupons.find((c) => c.code.toLowerCase() === cleanCode);
+      const match = allCoupons.find((c) => c.code.trim().toUpperCase() === cleanCode);
 
       if (!match) {
         return { valid: false, message: 'Invalid promo code.' };
+      }
+
+      // Check if paused / inactive
+      if (match.is_active === false) {
+        return { valid: false, message: 'This promo code is currently inactive or paused.' };
       }
 
       // Check if expired by date first
@@ -2037,23 +2211,18 @@ export const api = {
         return { valid: false, message: `The coupon is expired on ${dateStr}.` };
       }
 
+      // Date Range Validation (start date)
+      if (isCouponNotStarted(match)) {
+        const dateStr = formatCouponDate(match.start_date);
+        return { valid: false, message: `This coupon is not active yet (Starts ${dateStr}).` };
+      }
+
       // Total Usage Limit Validation
       if (match.total_usage_limit && match.total_usage_limit > 0) {
         const usageCount = match.usage_count || 0;
         if (usageCount >= match.total_usage_limit) {
           return { valid: false, message: 'This promo code has reached its maximum redemption limit.' };
         }
-      }
-
-      // Date Range Validation (Valid Between - start date)
-      if (isCouponNotStarted(match)) {
-        const dateStr = formatCouponDate(match.start_date);
-        return { valid: false, message: `This coupon is not active yet (Starts ${dateStr}).` };
-      }
-
-      // Inactive coupon check
-      if (match.is_active === false) {
-        return { valid: false, message: 'This promo code is currently inactive.' };
       }
 
       // Collection-specific validation
@@ -2113,10 +2282,10 @@ export const api = {
     try {
       const cleanCode = code.trim().toUpperCase();
       const allCoupons = await this.getCoupons();
-      const target = allCoupons.find((c) => c.code.toUpperCase() === cleanCode);
+      const target = allCoupons.find((c) => c.code.trim().toUpperCase() === cleanCode);
       if (target) {
         const newCount = (target.usage_count || 0) + 1;
-        await this.updateCoupon(target.id, { usage_count: newCount });
+        await this.updateCoupon(target.id, { usage_count: newCount }, target.code);
       }
     } catch (e) {
       console.warn('Could not record coupon usage:', e);

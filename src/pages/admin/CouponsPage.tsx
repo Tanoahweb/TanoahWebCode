@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Plus, Trash2, Edit2, Globe, Layers, X, Check, Power, Calendar, Info } from 'lucide-react';
+import { Tag, Plus, Trash2, Edit2, Globe, Layers, X, Check, Power, Calendar, Info, Copy, Search } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
@@ -11,6 +11,7 @@ export const CouponsPage: React.FC = () => {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // New Coupon Form States
   const [newCode, setNewCode] = useState('');
@@ -131,7 +132,7 @@ export const CouponsPage: React.FC = () => {
       is_active: true,
     });
 
-    if (res.success) {
+    if (res.success && res.coupon) {
       addToast({
         type: 'success',
         title: 'Coupon Created & Active',
@@ -151,17 +152,38 @@ export const CouponsPage: React.FC = () => {
       setLimitTotalUses(false);
       setTotalUsageLimit('');
       loadData();
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Creation Failed',
+        description: res.error || 'Could not create coupon. Please try again.',
+      });
     }
   };
 
   const handleToggleStatus = async (coupon: Coupon) => {
-    const newStatus = !coupon.is_active;
-    const success = await api.updateCoupon(coupon.id, { is_active: newStatus });
+    const newStatus = coupon.is_active === false ? true : false;
+    // Optimistic UI update
+    setCoupons((prev) =>
+      prev.map((c) =>
+        c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase()
+          ? { ...c, is_active: newStatus }
+          : c
+      )
+    );
+    const success = await api.updateCoupon(coupon.id, { is_active: newStatus }, coupon.code);
     if (success) {
       addToast({
         type: 'info',
         title: newStatus ? 'Coupon Activated' : 'Coupon Paused',
-        description: `Code ${coupon.code} is now ${newStatus ? 'active' : 'paused'}.`,
+        description: `Code "${coupon.code}" is now ${newStatus ? 'active' : 'paused'}.`,
+      });
+      loadData();
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Status Update Failed',
+        description: `Could not change status for code "${coupon.code}".`,
       });
       loadData();
     }
@@ -228,7 +250,7 @@ export const CouponsPage: React.FC = () => {
       is_active: editForm.is_active,
     };
 
-    const success = await api.updateCoupon(editingCoupon.id, updates);
+    const success = await api.updateCoupon(editingCoupon.id, updates, editingCoupon.code);
     if (success) {
       addToast({
         type: 'success',
@@ -247,13 +269,28 @@ export const CouponsPage: React.FC = () => {
   };
 
   const handleDeleteCoupon = async (coupon: Coupon) => {
-    if (window.confirm(`Are you sure you want to delete code "${coupon.code}"?`)) {
-      await api.deleteCoupon(coupon.id);
-      addToast({
-        type: 'info',
-        title: 'Coupon Removed',
-        description: `Code ${coupon.code} has been removed.`,
-      });
+    if (window.confirm(`Are you sure you want to permanently delete code "${coupon.code}"?`)) {
+      // Optimistic removal from UI state immediately
+      setCoupons((prev) =>
+        prev.filter(
+          (c) => c.id !== coupon.id && c.code.toUpperCase() !== coupon.code.toUpperCase()
+        )
+      );
+
+      const ok = await api.deleteCoupon(coupon.id, coupon.code);
+      if (ok) {
+        addToast({
+          type: 'info',
+          title: 'Coupon Removed',
+          description: `Code "${coupon.code}" has been permanently deleted.`,
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Delete Failed',
+          description: `Could not delete coupon code "${coupon.code}". Please try again.`,
+        });
+      }
       loadData();
     }
   };
@@ -562,12 +599,22 @@ export const CouponsPage: React.FC = () => {
 
         {/* Coupons List */}
         <div className="bg-white border border-[#E7E7E7] rounded-[6px] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#E7E7E7] bg-[#FAFAFA] flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-[#E7E7E7] bg-[#FAFAFA] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Tag className="w-4 h-4 text-[#3F3F8F]" />
               <span className="font-semibold text-xs text-neutral-800 uppercase tracking-wider">
                 Active & Saved Promotions ({coupons.length})
               </span>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by code or note..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-[#E0E0E0] rounded-[4px] text-xs placeholder:text-neutral-400 focus:outline-none focus:border-[#3F3F8F]"
+              />
             </div>
           </div>
 
@@ -598,133 +645,174 @@ export const CouponsPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  coupons.map((c) => {
-                    const label =
-                      c.discount_type === 'percentage'
-                        ? `${c.discount_value}% OFF`
-                        : c.discount_type === 'free_shipping'
-                        ? 'FREE SHIPPING'
-                        : `₹${c.discount_value} OFF`;
+                  coupons
+                    .filter((c) => {
+                      if (!searchTerm.trim()) return true;
+                      const term = searchTerm.toLowerCase().trim();
+                      return (
+                        c.code.toLowerCase().includes(term) ||
+                        (c.description && c.description.toLowerCase().includes(term))
+                      );
+                    })
+                    .map((c) => {
+                      const label =
+                        c.discount_type === 'percentage'
+                          ? `${c.discount_value}% OFF`
+                          : c.discount_type === 'free_shipping'
+                          ? 'FREE SHIPPING'
+                          : `₹${c.discount_value} OFF`;
 
-                    const hasCollections = Boolean(c.eligible_collections && c.eligible_collections.length > 0);
+                      const hasCollections = Boolean(c.eligible_collections && c.eligible_collections.length > 0);
 
-                    // Validity calculation
-                    const sDate = c.start_date ? new Date(c.start_date) : null;
-                    const eDate = c.end_date ? new Date(c.end_date) : null;
-                    const now = new Date();
-                    let isExpired = false;
-                    if (eDate) {
-                      const eDateEnd = new Date(eDate);
-                      eDateEnd.setHours(23, 59, 59, 999);
-                      isExpired = now > eDateEnd;
-                    }
+                      // Validity calculation
+                      const sDate = c.start_date ? new Date(c.start_date) : null;
+                      const eDate = c.end_date ? new Date(c.end_date) : null;
+                      const now = new Date();
+                      let isExpired = false;
+                      if (eDate) {
+                        const eDateEnd = new Date(eDate);
+                        eDateEnd.setHours(23, 59, 59, 999);
+                        isExpired = now > eDateEnd;
+                      }
+                      let isUpcoming = false;
+                      if (sDate) {
+                        const sDateStart = new Date(sDate);
+                        sDateStart.setHours(0, 0, 0, 0);
+                        isUpcoming = now < sDateStart;
+                      }
+                      const isUsageDepleted = Boolean(c.total_usage_limit && (c.usage_count || 0) >= c.total_usage_limit);
 
-                    return (
-                      <tr key={c.id || c.code} className="hover:bg-[#FAFAFA] transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-sm text-[#3F3F8F] bg-[#3F3F8F]/5 border border-[#3F3F8F]/20 px-2.5 py-1 rounded">
-                              {c.code}
-                            </span>
-                          </div>
-                          {c.description && (
-                            <p className="text-[11px] text-neutral-500 mt-1 max-w-xs">{c.description}</p>
-                          )}
-                        </td>
-
-                        <td className="p-4">
-                          <span className="font-semibold text-neutral-900 text-sm">{label}</span>
-                          {c.max_discount && (
-                            <p className="text-[10px] text-neutral-500">Max ₹{c.max_discount.toLocaleString('en-IN')}</p>
-                          )}
-                        </td>
-
-                        <td className="p-4">
-                          <div className="font-mono text-neutral-700 font-medium">
-                            {c.min_spend ? `Min ₹${c.min_spend.toLocaleString('en-IN')}` : 'No min spend'}
-                          </div>
-                          {c.total_usage_limit ? (
-                            <div className="text-[10px] text-[#3F3F8F] font-medium mt-0.5">
-                              Limit: {c.usage_count || 0} / {c.total_usage_limit} used
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-neutral-400 mt-0.5">Unlimited uses</div>
-                          )}
-                        </td>
-
-                        <td className="p-4">
-                          {eDate ? (
-                            <div>
-                              <span
-                                className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-                                  isExpired ? 'text-rose-600' : 'text-neutral-800'
-                                }`}
+                      return (
+                        <tr key={c.id || c.code} className="hover:bg-[#FAFAFA] transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-sm text-[#3F3F8F] bg-[#3F3F8F]/5 border border-[#3F3F8F]/20 px-2.5 py-1 rounded">
+                                {c.code}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(c.code);
+                                  addToast({
+                                    type: 'info',
+                                    title: 'Code Copied',
+                                    description: `Copied "${c.code}" to clipboard.`,
+                                  });
+                                }}
+                                className="p-1 text-neutral-400 hover:text-[#3F3F8F] hover:bg-[#3F3F8F]/10 rounded transition-colors"
+                                title="Copy promo code"
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-rose-600' : 'bg-emerald-500'}`} />
-                                {isExpired ? 'Expired' : 'Active Range'}
-                              </span>
-                              <p className="text-[10px] text-neutral-500 mt-0.5">
-                                {sDate ? sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Live'} –{' '}
-                                {eDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </p>
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          ) : (
-                            <div>
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                                Never expires
-                              </span>
-                              <p className="text-[10px] text-neutral-400 mt-0.5">
-                                {sDate ? `From ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No end date'}
-                              </p>
-                            </div>
-                          )}
-                        </td>
+                            {c.description && (
+                              <p className="text-[11px] text-neutral-500 mt-1 max-w-xs">{c.description}</p>
+                            )}
+                          </td>
 
-                        <td className="p-4">
-                          {hasCollections ? (
-                            <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                                <Layers className="w-3 h-3" />
-                                {c.eligible_collections!.length} Collection{c.eligible_collections!.length > 1 ? 's' : ''}
-                              </span>
-                              <div className="flex flex-wrap gap-1 max-w-xs">
-                                {c.eligible_collections!.map((slug) => (
-                                  <span
-                                    key={slug}
-                                    className="bg-neutral-100 text-neutral-600 text-[10px] px-1.5 py-0.5 rounded"
-                                  >
-                                    {getCollectionName(slug)}
-                                  </span>
-                                ))}
+                          <td className="p-4">
+                            <span className="font-semibold text-neutral-900 text-sm">{label}</span>
+                            {c.max_discount && (
+                              <p className="text-[10px] text-neutral-500">Max ₹{c.max_discount.toLocaleString('en-IN')}</p>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <div className="font-mono text-neutral-700 font-medium">
+                              {c.min_spend ? `Min ₹${c.min_spend.toLocaleString('en-IN')}` : 'No min spend'}
+                            </div>
+                            {c.total_usage_limit ? (
+                              <div className="text-[10px] text-[#3F3F8F] font-medium mt-0.5">
+                                Limit: {c.usage_count || 0} / {c.total_usage_limit} used
                               </div>
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                              <Globe className="w-3 h-3" />
-                              All Products
-                            </span>
-                          )}
-                        </td>
+                            ) : (
+                              <div className="text-[10px] text-neutral-400 mt-0.5">Unlimited uses</div>
+                            )}
+                          </td>
 
-                        <td className="p-4">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(c)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
-                              c.is_active !== false
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                                : 'bg-neutral-100 text-neutral-500 border border-neutral-300 hover:bg-neutral-200'
-                            }`}
-                            title="Click to toggle status"
-                          >
-                            <Power className="w-3 h-3" />
-                            {c.is_active !== false ? 'ACTIVE' : 'PAUSED'}
-                          </button>
-                        </td>
+                          <td className="p-4">
+                            {isUsageDepleted ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                                  Limit Reached
+                                </span>
+                                <p className="text-[10px] text-neutral-500 mt-0.5">
+                                  {c.usage_count} / {c.total_usage_limit} uses
+                                </p>
+                              </div>
+                            ) : eDate ? (
+                              <div>
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                                    isExpired ? 'text-rose-600' : isUpcoming ? 'text-amber-600' : 'text-neutral-800'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-rose-600' : isUpcoming ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                  {isExpired ? 'Expired' : isUpcoming ? 'Upcoming' : 'Active Range'}
+                                </span>
+                                <p className="text-[10px] text-neutral-500 mt-0.5">
+                                  {sDate ? sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Live'} –{' '}
+                                  {eDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                  Never expires
+                                </span>
+                                <p className="text-[10px] text-neutral-400 mt-0.5">
+                                  {sDate ? `From ${sDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No end date'}
+                                </p>
+                              </div>
+                            )}
+                          </td>
 
-                        <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <td className="p-4">
+                            {hasCollections ? (
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
+                                  <Layers className="w-3 h-3" />
+                                  {c.eligible_collections!.length} Collection{c.eligible_collections!.length > 1 ? 's' : ''}
+                                </span>
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {c.eligible_collections!.map((slug) => (
+                                    <span
+                                      key={slug}
+                                      className="bg-neutral-100 text-neutral-600 text-[10px] px-1.5 py-0.5 rounded"
+                                    >
+                                      {getCollectionName(slug)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
+                                <Globe className="w-3 h-3" />
+                                All Products
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(c)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
+                                c.is_active !== false
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-neutral-100 text-neutral-500 border border-neutral-300 hover:bg-neutral-200'
+                              }`}
+                              title="Click to toggle status"
+                            >
+                              <Power className="w-3 h-3" />
+                              {c.is_active !== false ? 'ACTIVE' : 'PAUSED'}
+                            </button>
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditModal(c)}
                               className="p-1.5 text-neutral-500 hover:text-[#3F3F8F] hover:bg-[#3F3F8F]/5 rounded transition-colors"

@@ -282,6 +282,7 @@ export interface Coupon {
   eligible_products?: string[];
   is_automatic: boolean;
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface Banner {
