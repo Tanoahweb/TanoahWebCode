@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -24,11 +24,6 @@ export const LoginPage: React.FC = () => {
   const [isForgotSubmitted, setIsForgotSubmitted] = useState(false);
   const [accountNotFoundError, setAccountNotFoundError] = useState<string | null>(null);
 
-  // Direct OTP & Password reset states
-  const [otpCode, setOtpCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const { addToast } = useUIStore();
@@ -214,8 +209,8 @@ export const LoginPage: React.FC = () => {
         setResendCooldown(60);
         addToast({
           type: 'success',
-          title: 'Verification Code Dispatched',
-          description: `Verification details have been sent to ${cleanEmail}.`,
+          title: 'Reset Link Dispatched',
+          description: `A password reset link has been sent to ${cleanEmail}.`,
         });
       }
     } catch (err: any) {
@@ -235,70 +230,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleVerifyOtpAndReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = forgotEmail.trim().toLowerCase();
-
-    if (!otpCode || otpCode.trim().length < 6) {
-      addToast({ type: 'error', title: 'Invalid Code', description: 'Please enter the 6-digit code received in your email.' });
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      addToast({ type: 'error', title: 'Password Too Short', description: 'Password must be at least 6 characters.' });
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      addToast({ type: 'error', title: 'Passwords Mismatch', description: 'New passwords do not match.' });
-      return;
-    }
-
-    setIsResettingPassword(true);
-
-    try {
-      // 1. Verify OTP with Supabase recovery token
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: otpCode.trim(),
-        type: 'recovery',
-      });
-
-      if (error) {
-        addToast({
-          type: 'error',
-          title: 'Verification Failed',
-          description: error.message || 'The verification code is incorrect or has expired.',
-        });
-        setIsResettingPassword(false);
-        return;
-      }
-
-      // 2. Update user's password with new credentials
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateError) {
-        addToast({ type: 'error', title: 'Password Update Failed', description: updateError.message });
-        setIsResettingPassword(false);
-        return;
-      }
-
-      await initialize();
-      addToast({
-        type: 'success',
-        title: 'Password Reset Successful',
-        description: 'Welcome to your Tanoah account! You are now logged in.',
-      });
-      navigate('/account');
-    } catch (err: any) {
-      addToast({ type: 'error', title: 'Reset Error', description: err.message || 'Could not reset password.' });
-    } finally {
-      setIsResettingPassword(false);
-    }
-  };
-
   return (
     <div className="w-full bg-[#FAFAFA] font-poppins min-h-screen py-20 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white p-8 sm:p-10 border border-[#E7E7E7] rounded-[4px] shadow-sm space-y-6 text-left">
@@ -307,12 +238,16 @@ export const LoginPage: React.FC = () => {
             <img src="/Assets/brand/logo-blue.png" alt="TANOAH" className="h-9 w-auto mx-auto" />
           </Link>
           <h1 className="font-wondra text-2xl text-black">
-            {isForgotPassword ? 'RESET YOUR PASSWORD' : 'SIGN IN TO YOUR ACCOUNT'}
+            {isForgotPassword
+              ? isForgotSubmitted
+                ? 'CHECK YOUR EMAIL'
+                : 'RESET YOUR PASSWORD'
+              : 'SIGN IN TO YOUR ACCOUNT'}
           </h1>
           <p className="text-xs text-[#666666]">
             {isForgotPassword
               ? isForgotSubmitted
-                ? 'Enter the 6-digit code sent to your email to set a new password.'
+                ? 'A secure password reset link has been dispatched.'
                 : "Enter your account email and we'll send you instructions to reset your password."
               : 'Access your orders, bespoke wishlist and saved addresses.'}
           </p>
@@ -320,102 +255,76 @@ export const LoginPage: React.FC = () => {
 
         {isForgotPassword ? (
           isForgotSubmitted ? (
-            <div className="space-y-5">
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 space-y-1">
-                <div className="flex items-center gap-2 font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Verification Code Dispatched</span>
-                </div>
-                <p className="text-[11px] text-emerald-700 leading-relaxed pl-6">
-                  We sent a 6-digit code to <strong className="text-emerald-950 font-semibold">{forgotEmail}</strong>. You can enter the code below or click the link in your email.
+            <div className="space-y-5 text-center py-2">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
+                <Mail className="w-7 h-7" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="font-semibold text-sm text-black">Check Your Inbox</h3>
+                <p className="text-xs text-[#666666] leading-relaxed max-w-sm mx-auto">
+                  We've sent a secure password reset link to <strong className="text-neutral-900 font-semibold">{forgotEmail}</strong>. Click the button inside the email to set a new password.
                 </p>
               </div>
 
-              <form onSubmit={handleVerifyOtpAndReset} className="space-y-4 text-xs">
-                <div>
-                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                    6-Digit Verification Code *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    maxLength={10}
-                    placeholder="e.g. 123456"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] font-mono text-center tracking-widest text-base focus:outline-none focus:border-[#3F3F8F]"
-                    autoFocus
-                  />
-                </div>
+              <div className="p-3.5 bg-neutral-50 rounded border border-[#E7E7E7] text-[11px] text-neutral-600 leading-relaxed text-left space-y-1">
+                <p className="font-semibold text-neutral-800">Next Steps:</p>
+                <ul className="list-disc pl-4 space-y-0.5 text-neutral-500">
+                  <li>Open the email from <strong>TANOAH (noreply@tanoah.com)</strong>.</li>
+                  <li>Click <strong>Choose New Password</strong>.</li>
+                  <li>Link expires in 24 hours. Check Spam/Promotions if not visible.</li>
+                </ul>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                    New Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      required
-                      type="password"
-                      placeholder="At least 6 characters"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
-                    />
-                    <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-black uppercase mb-1">
-                    Confirm New Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      required
-                      type="password"
-                      placeholder="Re-enter new password"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className="w-full p-2.5 pl-9 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
-                    />
-                    <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
-
-                <Button
-                  variant="primary"
-                  size="lg"
-                  type="submit"
-                  isLoading={isResettingPassword}
-                  icon={<ArrowRight className="w-4 h-4" />}
-                  className="w-full py-3.5 font-semibold text-xs mt-2"
+              {forgotEmail.toLowerCase().includes('@gmail.com') && (
+                <a
+                  href="https://mail.google.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 bg-neutral-900 hover:bg-black text-white rounded-[4px] text-xs font-semibold tracking-wide uppercase transition-all"
                 >
-                  VERIFY & RESET PASSWORD
-                </Button>
+                  <span>Open Gmail</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
 
-                <div className="flex items-center justify-between pt-2 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    disabled={isForgotLoading || resendCooldown > 0}
-                    className={`font-medium transition-colors ${
-                      resendCooldown > 0 ? 'text-neutral-400 cursor-not-allowed' : 'text-[#3F3F8F] hover:underline'
-                    }`}
-                  >
-                    {resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForgotSubmitted(false);
-                      setOtpCode('');
-                    }}
-                    className="text-neutral-500 hover:text-black font-medium"
-                  >
-                    Change Email
-                  </button>
-                </div>
-              </form>
+              <div className="flex items-center justify-between pt-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isForgotLoading || resendCooldown > 0}
+                  className={`font-medium transition-colors ${
+                    resendCooldown > 0 ? 'text-neutral-400 cursor-not-allowed' : 'text-[#3F3F8F] hover:underline'
+                  }`}
+                >
+                  {resendCooldown > 0 ? `Resend Link (${resendCooldown}s)` : 'Resend Email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotSubmitted(false);
+                    setAccountNotFoundError(null);
+                  }}
+                  className="text-neutral-500 hover:text-black font-medium"
+                >
+                  Change Email
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-[#E7E7E7]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(false);
+                    setIsForgotSubmitted(false);
+                    setAccountNotFoundError(null);
+                  }}
+                  className="text-xs text-[#3F3F8F] font-semibold hover:underline inline-flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Sign In</span>
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
