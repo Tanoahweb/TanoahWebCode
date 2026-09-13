@@ -10,11 +10,13 @@ import {
   ArrowDown,
   Info,
   Layers,
+  Crop,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { ProductImage } from '../../types';
 import { formatBytes } from '../../utils/imageUtils';
 import { ProductImage as StorefrontImage } from '../common/ProductImage';
+import { ImageCropModal } from './ImageCropModal';
 
 export interface MediaUploaderProps {
   images: ProductImage[];
@@ -42,97 +44,203 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [preserveOriginal, setPreserveOriginal] = useState(false);
+  const [autoOpenCropper, setAutoOpenCropper] = useState(true);
   const [uploadQueue, setUploadQueue] = useState<UploadingItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reference to current images to prevent closure staleness during batch uploads
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+
+  // Cropper State
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[]>([]);
+  const [cropFileIndex, setCropFileIndex] = useState(0);
+  const [existingCropTarget, setExistingCropTarget] = useState<{ id: string; url: string } | null>(null);
+
+  const uploadSingleFile = async (file: File, replaceTargetId?: string) => {
+    const queueId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const queueItem: UploadingItem = {
+      id: queueId,
+      name: file.name,
+      progress: 10,
+      stage: 'Reading image...',
+      originalSize: file.size,
+      status: 'processing',
+    };
+
+    setUploadQueue((prev) => [...prev, queueItem]);
+
+    try {
+      const result = await api.uploadMediaFile(file, {
+        preserveOriginal,
+        mediaType: 'product',
+        onProgress: (p) => {
+          setUploadQueue((prev) =>
+            prev.map((item) =>
+              item.id === queueId
+                ? {
+                    ...item,
+                    progress: p.percent,
+                    stage: p.message,
+                    status: p.stage === 'done' ? 'uploading' : 'processing',
+                  }
+                : item
+            )
+          );
+        },
+      });
+
+      if (replaceTargetId) {
+        // Replace existing photo in place
+        const updated = imagesRef.current.map((img) =>
+          img.id === replaceTargetId
+            ? {
+                ...img,
+                image_url: result.publicUrl,
+                media_id: result.media.id || img.media_id,
+              }
+            : img
+        );
+        imagesRef.current = updated;
+        onChange(updated);
+      } else {
+        // Add newly uploaded/deduplicated image to the product's image array
+        const currentList = imagesRef.current;
+        const newProductImage: ProductImage = {
+          id: result.media.id || `img_${Date.now()}`,
+          media_id: result.media.id,
+          image_url: result.publicUrl,
+          sort_order: currentList.length,
+          position: currentList.length,
+          is_primary: currentList.length === 0,
+          color_name: '',
+          alt_text: file.name.replace(/\.[^/.]+$/, ''),
+        };
+
+        const updated = [...currentList, newProductImage];
+        imagesRef.current = updated;
+        onChange(updated);
+      }
+
+      setUploadQueue((prev) =>
+        prev.map((item) =>
+          item.id === queueId
+            ? {
+                ...item,
+                progress: 100,
+                stage: result.isDuplicate ? 'Deduplicated (Reused Master)' : 'Complete',
+                optimizedSize: result.optimizedSize,
+                percentSaved: result.percentSaved,
+                isDuplicate: result.isDuplicate,
+                status: 'completed',
+              }
+            : item
+        )
+      );
+
+      // Remove from progress queue after a brief moment
+      setTimeout(() => {
+        setUploadQueue((prev) => prev.filter((item) => item.id !== queueId));
+      }, 3500);
+    } catch (err: any) {
+      setUploadQueue((prev) =>
+        prev.map((item) =>
+          item.id === queueId
+            ? {
+                ...item,
+                status: 'error',
+                errorMessage: err.message || 'Optimization failed',
+              }
+            : item
+        )
+      );
+    }
+  };
 
   const handleFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (fileArray.length === 0) return;
 
-    let currentImages = [...images];
-
-    for (const file of fileArray) {
-      const queueId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const queueItem: UploadingItem = {
-        id: queueId,
-        name: file.name,
-        progress: 10,
-        stage: 'Reading image...',
-        originalSize: file.size,
-        status: 'processing',
-      };
-
-      setUploadQueue((prev) => [...prev, queueItem]);
-
-      try {
-        const result = await api.uploadMediaFile(file, {
-          preserveOriginal,
-          mediaType: 'product',
-          onProgress: (p) => {
-            setUploadQueue((prev) =>
-              prev.map((item) =>
-                item.id === queueId
-                  ? {
-                      ...item,
-                      progress: p.percent,
-                      stage: p.message,
-                      status: p.stage === 'done' ? 'uploading' : 'processing',
-                    }
-                  : item
-              )
-            );
-          },
-        });
-
-        // Add newly uploaded/deduplicated image to the product's image array
-        const newProductImage: ProductImage = {
-          id: result.media.id || `img_${Date.now()}`,
-          media_id: result.media.id,
-          image_url: result.publicUrl,
-          sort_order: currentImages.length,
-          position: currentImages.length,
-          is_primary: currentImages.length === 0,
-          color_name: '',
-          alt_text: file.name.replace(/\.[^/.]+$/, ''),
-        };
-
-        currentImages = [...currentImages, newProductImage];
-        onChange(currentImages);
-
-        setUploadQueue((prev) =>
-          prev.map((item) =>
-            item.id === queueId
-              ? {
-                  ...item,
-                  progress: 100,
-                  stage: result.isDuplicate ? 'Deduplicated (Reused Master)' : 'Complete',
-                  optimizedSize: result.optimizedSize,
-                  percentSaved: result.percentSaved,
-                  isDuplicate: result.isDuplicate,
-                  status: 'completed',
-                }
-              : item
-          )
-        );
-
-        // Remove from progress queue after a brief moment
-        setTimeout(() => {
-          setUploadQueue((prev) => prev.filter((item) => item.id !== queueId));
-        }, 3500);
-      } catch (err: any) {
-        setUploadQueue((prev) =>
-          prev.map((item) =>
-            item.id === queueId
-              ? {
-                  ...item,
-                  status: 'error',
-                  errorMessage: err.message || 'Optimization failed',
-                }
-              : item
-          )
-        );
+    if (autoOpenCropper) {
+      // Launch ImageCropModal for the first image, queuing any additional photos
+      setExistingCropTarget(null);
+      setPendingCropFiles(fileArray);
+      setCropFileIndex(0);
+      setIsCropModalOpen(true);
+    } else {
+      // Direct batch upload without cropping
+      for (const file of fileArray) {
+        await uploadSingleFile(file);
       }
     }
+  };
+
+  // Modal Handlers
+  const handleCropApply = async (croppedFile: File) => {
+    if (existingCropTarget) {
+      await uploadSingleFile(croppedFile, existingCropTarget.id);
+      setIsCropModalOpen(false);
+      setExistingCropTarget(null);
+      return;
+    }
+
+    await uploadSingleFile(croppedFile);
+
+    const nextIdx = cropFileIndex + 1;
+    if (nextIdx < pendingCropFiles.length) {
+      setCropFileIndex(nextIdx);
+    } else {
+      setIsCropModalOpen(false);
+      setPendingCropFiles([]);
+      setCropFileIndex(0);
+    }
+  };
+
+  const handleCropSkip = async () => {
+    if (existingCropTarget) {
+      setIsCropModalOpen(false);
+      setExistingCropTarget(null);
+      return;
+    }
+
+    const currentFile = pendingCropFiles[cropFileIndex];
+    if (currentFile) {
+      await uploadSingleFile(currentFile);
+    }
+
+    const nextIdx = cropFileIndex + 1;
+    if (nextIdx < pendingCropFiles.length) {
+      setCropFileIndex(nextIdx);
+    } else {
+      setIsCropModalOpen(false);
+      setPendingCropFiles([]);
+      setCropFileIndex(0);
+    }
+  };
+
+  const handleUploadAllWithoutCrop = async () => {
+    const remaining = pendingCropFiles.slice(cropFileIndex);
+    setIsCropModalOpen(false);
+    setPendingCropFiles([]);
+    setCropFileIndex(0);
+    for (const file of remaining) {
+      await uploadSingleFile(file);
+    }
+  };
+
+  const handleCropModalClose = () => {
+    setIsCropModalOpen(false);
+    setPendingCropFiles([]);
+    setCropFileIndex(0);
+    setExistingCropTarget(null);
+  };
+
+  const handleStartCropExisting = (img: ProductImage) => {
+    setExistingCropTarget({ id: img.id, url: img.image_url });
+    setPendingCropFiles([]);
+    setCropFileIndex(0);
+    setIsCropModalOpen(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -236,20 +344,36 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
       </div>
 
       {/* Preservation & Settings Toggle */}
-      <div className="flex items-center justify-between p-3 rounded-[4px] bg-[#F8F8F8] border border-[#E7E7E7] text-xs">
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={preserveOriginal}
-            onChange={(e) => setPreserveOriginal(e.target.checked)}
-            className="w-4 h-4 text-[#3F3F8F] border-[#E7E7E7] rounded focus:ring-0 cursor-pointer"
-          />
-          <span className="text-black font-medium text-[11px]">
-            Preserve original uncompressed RAW file in R2 (<code className="text-[#666666]">originals/</code>)
-          </span>
-        </label>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-[4px] bg-[#F8F8F8] border border-[#E7E7E7] text-xs gap-2.5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoOpenCropper}
+              onChange={(e) => setAutoOpenCropper(e.target.checked)}
+              className="w-4 h-4 text-[#3F3F8F] border-[#E7E7E7] rounded focus:ring-0 cursor-pointer"
+            />
+            <span className="text-black font-semibold text-[11px] flex items-center gap-1">
+              <Crop className="w-3.5 h-3.5 text-[#3F3F8F]" />
+              Auto-open 3×4 Crop Studio on upload
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={preserveOriginal}
+              onChange={(e) => setPreserveOriginal(e.target.checked)}
+              className="w-4 h-4 text-[#3F3F8F] border-[#E7E7E7] rounded focus:ring-0 cursor-pointer"
+            />
+            <span className="text-black font-medium text-[11px]">
+              Preserve uncompressed RAW in R2 (<code className="text-[#666666]">originals/</code>)
+            </span>
+          </label>
+        </div>
+
         <span className="text-[10px] text-[#888888]">
-          {preserveOriginal ? '⚠️ Increases R2 storage usage' : 'Recommended: OFF (Saves 85-95% storage)'}
+          {preserveOriginal ? '⚠️ Increases R2 storage usage' : '3×4 Composition & 4:5 Master Ratio Preserved'}
         </span>
       </div>
 
@@ -348,6 +472,16 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
                     </button>
                   )}
 
+                  {/* Crop / Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleStartCropExisting(img)}
+                    className="absolute top-2 right-9 p-1.5 bg-white/90 hover:bg-white text-[#3F3F8F] rounded opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
+                    title="Crop / Edit Photo (3×4 Grid Studio)"
+                  >
+                    <Crop className="w-3.5 h-3.5" />
+                  </button>
+
                   {/* Delete Button */}
                   <button
                     type="button"
@@ -404,6 +538,35 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* 3×4 Grid Product Image Crop Modal */}
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        imageSource={
+          existingCropTarget
+            ? existingCropTarget.url
+            : pendingCropFiles[cropFileIndex] || null
+        }
+        onClose={handleCropModalClose}
+        onApply={handleCropApply}
+        defaultAspectRatio="3:4"
+        queueInfo={
+          !existingCropTarget && pendingCropFiles.length > 1
+            ? {
+                current: cropFileIndex + 1,
+                total: pendingCropFiles.length,
+                onSkip: handleCropSkip,
+                onUploadAllWithoutCrop: handleUploadAllWithoutCrop,
+              }
+            : !existingCropTarget && pendingCropFiles.length === 1
+            ? {
+                current: 1,
+                total: 1,
+                onSkip: handleCropSkip,
+              }
+            : undefined
+        }
+      />
     </div>
   );
 };
