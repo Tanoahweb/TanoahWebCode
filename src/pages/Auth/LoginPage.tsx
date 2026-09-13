@@ -87,19 +87,18 @@ export const LoginPage: React.FC = () => {
       });
 
       if (error) {
-        // If demo fallback or test
-        if (email.toLowerCase().includes('admin')) {
-          await initialize();
-          addToast({ type: 'success', title: 'Admin Access Granted', description: 'Welcome to Tanoah Store Management.' });
-          navigate('/admin', { replace: true });
-          return;
-        }
-        addToast({ type: 'error', title: 'Login Failed', description: error.message });
+        addToast({ type: 'error', title: 'Login Failed', description: error.message || 'Invalid email or password.' });
       } else {
         await initialize();
-        addToast({ type: 'success', title: 'Welcome Back', description: 'Logged into your Tanoah account.' });
-        const destination = getDestination();
-        navigate(destination, { replace: true });
+        const currentIsAdmin = useAuthStore.getState().isAdmin;
+        if (currentIsAdmin) {
+          addToast({ type: 'success', title: 'Admin Access Verified', description: 'Redirecting to Store Management OS...' });
+          navigate('/admin', { replace: true });
+        } else {
+          addToast({ type: 'success', title: 'Welcome Back', description: 'Logged into your Tanoah account.' });
+          const destination = getDestination();
+          navigate(destination, { replace: true });
+        }
       }
     } catch (err: any) {
       addToast({ type: 'error', title: 'Authentication Error', description: err.message });

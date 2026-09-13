@@ -63,6 +63,8 @@ import { BlogListPage } from './pages/Blog/BlogListPage';
 import { BlogPostPage } from './pages/Blog/BlogPostPage';
 import { FormSubmissionsPage } from './pages/admin/FormSubmissionsPage';
 import { SizeChartsPage } from './pages/admin/SizeChartsPage';
+import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { AdminGuard } from './components/admin/AdminGuard';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -128,27 +130,32 @@ const AppContent: React.FC = () => {
           <Route path="/pages/contact" element={<ContactPage />} />
           <Route path="/pages/:policyType" element={<PolicyPage />} />
 
-          {/* Admin Panel */}
-          <Route path="/admin" element={<DashboardPage />} />
-          <Route path="/admin/products" element={<ProductListPage />} />
-          <Route path="/admin/products/new" element={<ProductEditPage />} />
-          <Route path="/admin/products/:id" element={<ProductEditPage />} />
-          <Route path="/admin/inventory" element={<InventoryPage />} />
-          <Route path="/admin/size-charts" element={<SizeChartsPage />} />
-          <Route path="/admin/orders" element={<OrderListPage />} />
-          <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
-          <Route path="/admin/returns" element={<ReturnsQueuePage />} />
-          <Route path="/admin/customers" element={<CustomersPage />} />
-          <Route path="/admin/collections" element={<CollectionsPage />} />
-          <Route path="/admin/navigation" element={<NavigationPage />} />
-          <Route path="/admin/media" element={<MediaLibraryPage />} />
-          <Route path="/admin/coupons" element={<CouponsPage />} />
-          <Route path="/admin/reviews" element={<ReviewsPage />} />
-          <Route path="/admin/seo" element={<SeoDashboardPage />} />
-          <Route path="/admin/seo/redirects" element={<SeoRedirectsPage />} />
-          <Route path="/admin/forms" element={<FormSubmissionsPage />} />
-          <Route path="/admin/blog" element={<BlogAdminPage />} />
-          <Route path="/admin/settings" element={<StoreSettingsPage />} />
+          {/* Dedicated Admin Login Gateway (Unprotected) */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+
+          {/* Protected Admin Panel OS */}
+          <Route element={<AdminGuard />}>
+            <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/products" element={<ProductListPage />} />
+            <Route path="/admin/products/new" element={<ProductEditPage />} />
+            <Route path="/admin/products/:id" element={<ProductEditPage />} />
+            <Route path="/admin/inventory" element={<InventoryPage />} />
+            <Route path="/admin/size-charts" element={<SizeChartsPage />} />
+            <Route path="/admin/orders" element={<OrderListPage />} />
+            <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/admin/returns" element={<ReturnsQueuePage />} />
+            <Route path="/admin/customers" element={<CustomersPage />} />
+            <Route path="/admin/collections" element={<CollectionsPage />} />
+            <Route path="/admin/navigation" element={<NavigationPage />} />
+            <Route path="/admin/media" element={<MediaLibraryPage />} />
+            <Route path="/admin/coupons" element={<CouponsPage />} />
+            <Route path="/admin/reviews" element={<ReviewsPage />} />
+            <Route path="/admin/seo" element={<SeoDashboardPage />} />
+            <Route path="/admin/seo/redirects" element={<SeoRedirectsPage />} />
+            <Route path="/admin/forms" element={<FormSubmissionsPage />} />
+            <Route path="/admin/blog" element={<BlogAdminPage />} />
+            <Route path="/admin/settings" element={<StoreSettingsPage />} />
+          </Route>
 
           {/* 404 Catch-All Page for Unmatched URLs */}
           <Route path="*" element={<NotFoundPage />} />

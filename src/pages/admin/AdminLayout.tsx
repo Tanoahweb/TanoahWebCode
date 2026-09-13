@@ -201,7 +201,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <button
             onClick={async () => {
               await signOut();
-              navigate('/login');
+              navigate('/admin/login', { replace: true });
             }}
             className="p-1.5 text-neutral-500 hover:text-red-600 transition-colors"
             title="Log Out"
