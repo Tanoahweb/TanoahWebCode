@@ -9,6 +9,7 @@ import { r2Service } from './r2Service';
 import { safeSetItem, safeGetItem, sanitizeOrderForStorage } from '@/utils/safeStorage';
 import { formatCouponDate, isCouponDateExpired, isCouponNotStarted } from '@/utils/formatters';
 import { validateEmail, validatePhone } from '@/utils/validation';
+import { reservationService } from './reservationService';
 
 export type { ProductReview };
 
@@ -2219,7 +2220,9 @@ export const api = {
 
     saveCustomOrderToStorage(localOrder);
 
-    // Adjust inventory according to purchase (Issue 5)
+    // Atomically finalize stock reservation in PostgreSQL (Approach A)
+    await reservationService.finalizeOrderReservation(orderNumber);
+    // Fallback adjustment for any non-reserved or legacy items
     await this.adjustInventoryForOrder(params.items);
 
     try {

@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, Sparkles, LogOut, Check } from 'lucide-react';
+import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, Sparkles, LogOut, Check, Clock } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useUIStore } from '../store/useUIStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatPrice, isCouponAvailable } from '../utils/formatters';
 import { Button } from '../components/common/Button';
+import { Modal } from '../components/common/Modal';
 import { api, isProductInCollection } from '../services/api';
 import { openRazorpayPayment } from '../services/razorpay';
 import { openCashfreePayment } from '../services/cashfree';
 import { paymentService } from '../services/paymentService';
+import { reservationService } from '../services/reservationService';
 import { PublicPaymentConfig } from '../types/paymentGateway';
 import { emailService } from '../services/emailService';
 import { SavedAddress, DeliverySpeedTier, Coupon, Collection } from '../types';
@@ -58,6 +60,42 @@ export const CheckoutPage: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
+
+  // 7-Minute Stock Reservation State (Approach A)
+  const [reservationExpiry, setReservationExpiry] = useState<number | null>(() => {
+    const saved = sessionStorage.getItem('tanoah_reservation_expiry');
+    if (saved) {
+      const exp = parseInt(saved, 10);
+      if (exp > Date.now()) return exp;
+    }
+    return null;
+  });
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [blockedItemModal, setBlockedItemModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+  }>({ isOpen: false, title: '', description: '' });
+
+  useEffect(() => {
+    if (!reservationExpiry) {
+      setTimeRemaining(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const diff = Math.max(0, Math.floor((reservationExpiry - Date.now()) / 1000));
+      setTimeRemaining(diff);
+      if (diff <= 0) {
+        sessionStorage.removeItem('tanoah_reservation_expiry');
+        setReservationExpiry(null);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [reservationExpiry]);
 
   useEffect(() => {
     let isMounted = true;
@@ -479,6 +517,8 @@ export const CheckoutPage: React.FC = () => {
       console.warn('[CheckoutPage] Non-critical safeSetItem error:', storageErr);
     }
 
+    sessionStorage.removeItem('tanoah_reservation_expiry');
+    setReservationExpiry(null);
     clearCart();
     setIsProcessing(false);
     navigate(`/order-confirmation?order=${orderNum}`);
@@ -531,6 +571,27 @@ export const CheckoutPage: React.FC = () => {
     setIsProcessing(true);
 
     try {
+      // 1. Atomically lock and reserve inventory in PostgreSQL for 7 minutes (Approach A)
+      const reservation = await reservationService.reserveStock(items, 7);
+      if (!reservation.success) {
+        setIsProcessing(false);
+        const failingItem = items.find((it) => it.variant?.id === reservation.failingVariantId);
+        const itemTitle = failingItem ? failingItem.product?.title : 'An exclusive saree in your bag';
+        
+        setBlockedItemModal({
+          isOpen: true,
+          title: 'Piece Currently Held by Another Shopper',
+          description: `"${itemTitle}" is currently locked in another customer's checkout session. If their payment is not completed within 7 minutes, it will automatically be released back to the store. Your card has NOT been charged.`,
+        });
+        return;
+      }
+
+      // Record local reservation expiry for countdown banner
+      const expiryMs = reservation.expiresAt
+        ? new Date(reservation.expiresAt).getTime()
+        : Date.now() + 7 * 60 * 1000;
+      setReservationExpiry(expiryMs);
+      sessionStorage.setItem('tanoah_reservation_expiry', expiryMs.toString());
 
       // Online Cashfree Payment Flow
       if (formData.paymentMethod === 'cashfree') {
@@ -642,6 +703,38 @@ export const CheckoutPage: React.FC = () => {
             <span>SECURE 256-BIT CHECKOUT</span>
           </div>
         </div>
+
+        {/* 7-Minute Stock Hold Banner */}
+        {reservationExpiry && timeRemaining > 0 && (
+          <div className="mb-8 p-4 bg-gradient-to-r from-[#191846] to-[#2B2A6B] rounded-[6px] text-white shadow-md border border-[#D4AF37]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in text-left font-poppins">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37] flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-xs text-white uppercase tracking-wider">
+                    Stock Reserved Exclusively for You
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#D4AF37]/20 text-[#D4AF37] font-bold border border-[#D4AF37]/40">
+                    7-MIN HOLD ACTIVE
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/70 mt-0.5">
+                  Your selected items are blocked from other shoppers. Please complete your payment before the timer expires.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center bg-black/30 px-3.5 py-1.5 rounded-md border border-white/10 font-mono">
+              <span className="text-[10px] text-white/60 uppercase">Expires in:</span>
+              <span className="text-sm font-bold text-[#D4AF37] tracking-wider">
+                {Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:
+                {(timeRemaining % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-12 text-xs">
           <div className="lg:col-span-7 space-y-8 text-left">
@@ -1356,6 +1449,47 @@ export const CheckoutPage: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Blocked Item / Insufficient Stock Modal */}
+      <Modal
+        isOpen={blockedItemModal.isOpen}
+        onClose={() => setBlockedItemModal({ isOpen: false, title: '', description: '' })}
+        title={blockedItemModal.title}
+        maxWidth="md"
+      >
+        <div className="space-y-4 py-2 font-poppins text-left">
+          <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div className="text-center space-y-1.5">
+            <h4 className="font-semibold text-sm text-black">Temporarily Unavailable</h4>
+            <p className="text-xs text-[#555555] leading-relaxed">
+              {blockedItemModal.description}
+            </p>
+          </div>
+          <div className="pt-3 flex flex-col sm:flex-row gap-2.5 justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setBlockedItemModal({ isOpen: false, title: '', description: '' });
+                navigate('/collections/all');
+              }}
+              className="text-xs"
+            >
+              Explore Other Sarees
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setBlockedItemModal({ isOpen: false, title: '', description: '' })}
+              className="text-xs bg-[#3F3F8F]"
+            >
+              Keep In Bag & Try Again Shortly
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
