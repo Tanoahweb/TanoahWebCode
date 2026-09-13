@@ -452,6 +452,9 @@ export const api = {
           return false;
         }
       }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_settings_updated'));
+      }
       return true;
     } catch (err) {
       console.error('Error saving store settings:', err);
@@ -2066,6 +2069,9 @@ export const api = {
       console.error('Error saving custom coupon:', e);
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+    }
     return { success: true, coupon: newCoupon };
   },
 
@@ -2112,6 +2118,9 @@ export const api = {
         if (error) console.warn('Supabase update coupon by code notice:', error);
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
       return true;
     } catch (e) {
       console.error('Error updating coupon:', e);
@@ -2166,6 +2175,9 @@ export const api = {
         console.warn('Supabase delete coupon notice:', dbErr);
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
       return true;
     } catch (e) {
       console.error('Error deleting coupon:', e);

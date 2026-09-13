@@ -152,6 +152,9 @@ export const CouponsPage: React.FC = () => {
       setLimitTotalUses(false);
       setTotalUsageLimit('');
       loadData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
     } else {
       addToast({
         type: 'error',
@@ -179,6 +182,9 @@ export const CouponsPage: React.FC = () => {
         description: `Code "${coupon.code}" is now ${newStatus ? 'active' : 'paused'}.`,
       });
       loadData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
     } else {
       addToast({
         type: 'error',
@@ -259,6 +265,9 @@ export const CouponsPage: React.FC = () => {
       });
       setEditingCoupon(null);
       loadData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
     } else {
       addToast({
         type: 'error',
@@ -292,6 +301,9 @@ export const CouponsPage: React.FC = () => {
         });
       }
       loadData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
+      }
     }
   };
 

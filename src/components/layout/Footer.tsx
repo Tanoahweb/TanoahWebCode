@@ -10,6 +10,7 @@ import { validateEmail } from '../../utils/validation';
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(1599);
   const { addToast } = useUIStore();
   const { config, hasLoaded, fetchNavigation } = useNavigationStore();
 
@@ -17,6 +18,19 @@ export const Footer: React.FC = () => {
     if (!hasLoaded) {
       fetchNavigation();
     }
+    const loadSettings = async () => {
+      try {
+        const settings = await api.getStoreSettings();
+        if (settings?.free_shipping_threshold) {
+          setFreeShippingThreshold(Number(settings.free_shipping_threshold));
+        }
+      } catch {}
+    };
+    loadSettings();
+
+    const handleUpdate = () => loadSettings();
+    window.addEventListener('tanoah_settings_updated', handleUpdate);
+    return () => window.removeEventListener('tanoah_settings_updated', handleUpdate);
   }, [hasLoaded, fetchNavigation]);
 
   const activeColumns = (config?.footer_menu && config.footer_menu.length > 0
@@ -76,7 +90,7 @@ export const Footer: React.FC = () => {
             </div>
             <div>
               <h4 className="text-xs font-poppins font-semibold uppercase tracking-wider">COMPLIMENTARY SHIPPING</h4>
-              <p className="text-[11px] text-white/70 font-poppins mt-0.5">On all domestic orders over ₹1,999</p>
+              <p className="text-[11px] text-white/70 font-poppins mt-0.5">On all domestic orders over ₹{freeShippingThreshold.toLocaleString('en-IN')}</p>
             </div>
           </div>
 
