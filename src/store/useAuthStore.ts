@@ -74,6 +74,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         };
 
         set({ user, session, profile, isAdmin, isLoading: false });
+
+        // Clean up OAuth access_token hash from URL bar after session is saved
+        if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
       } else {
         set({ user: null, session: null, profile: null, isAdmin: false, isLoading: false });
       }
@@ -91,6 +96,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             role: isAdmin ? 'admin' : 'customer',
           };
           set({ user, session, profile, isAdmin, isLoading: false });
+
+          if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('access_token')) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
         } else {
           set({ user: null, session: null, profile: null, isAdmin: false, isLoading: false });
         }

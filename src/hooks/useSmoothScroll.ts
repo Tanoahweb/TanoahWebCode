@@ -110,12 +110,17 @@ export const useSmoothScroll = () => {
     const isPop = isPopNavigation || performance.now() - lastPopTimestamp < 500;
     isPopNavigation = false;
 
-    // Handle hash links (e.g., #contact)
-    if (location.hash) {
-      const targetElement = document.querySelector(location.hash);
-      if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth' });
-        return;
+    // Handle hash links (e.g., #contact), safely skipping OAuth tokens and invalid selectors
+    if (location.hash && !location.hash.includes('access_token') && !location.hash.includes('error=')) {
+      try {
+        const id = location.hash.replace(/^#/, '');
+        const targetElement = document.getElementById(id) || document.querySelector(location.hash);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      } catch {
+        // Silently ignore non-selector hashes (like query/auth fragments)
       }
     }
 
