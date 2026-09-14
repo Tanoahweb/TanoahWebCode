@@ -255,7 +255,7 @@ export const AdminOmniSearch: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([api.getProducts(), api.getAdminOrders()]).then(([p, o]) => {
+    Promise.all([api.getProducts('all'), api.getAdminOrders()]).then(([p, o]) => {
       if (isMounted) {
         setProducts(p || []);
         setOrders(o || []);

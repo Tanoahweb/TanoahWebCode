@@ -50,7 +50,7 @@ export const OrderDetailPage: React.FC = () => {
   });
 
   useEffect(() => {
-    api.getProducts().then((prods) => {
+    api.getProducts('all').then((prods) => {
       if (prods && prods.length > 0) {
         setAllProducts(prods);
       }

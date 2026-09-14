@@ -946,7 +946,7 @@ export const api = {
   },
 
   // Products with variants and images (Direct Supabase)
-  async getProducts(statusFilter?: string): Promise<Product[]> {
+  async getProducts(statusFilter: string = 'active'): Promise<Product[]> {
     try {
       let query = supabase
         .from('products')
@@ -1306,7 +1306,7 @@ export const api = {
       id: newProductId,
       title: newTitle,
       slug: candidateSlug,
-      status: 'draft', // Duplicated products start as draft until edited and published by admin
+      status: source.status || 'active', // Preserve source status so duplicated products remain active and visible in all collections
       seo_title: source.seo_title ? `${source.seo_title} (Copy)` : `${newTitle} | TANOAH`,
       seo_description: source.seo_description || source.short_description || source.description || '',
       images: newImages,
@@ -1421,10 +1421,12 @@ export const api = {
         query = query.gt('variants.stock_quantity', 0);
       }
 
-      // Search term
+      // Search term (safely strip reserved PostgREST chars like parentheses and commas)
       if (options.search && options.search.trim()) {
-        const q = options.search.trim();
-        query = query.or(`title.ilike.%${q}%,brand.ilike.%${q}%`);
+        const q = options.search.replace(/[(),]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (q) {
+          query = query.or(`title.ilike.%${q}%,brand.ilike.%${q}%`);
+        }
       }
 
       // Price filter
@@ -1903,7 +1905,7 @@ export const api = {
       if (!orders || orders.length === 0) return [];
 
       const purchasedMap = new Map<string, { id: string; title: string; image?: string }>();
-      const allProducts = await this.getProducts();
+      const allProducts = await this.getProducts('all');
 
       for (const order of orders) {
         const orderStatus = (order.status || '').toLowerCase();

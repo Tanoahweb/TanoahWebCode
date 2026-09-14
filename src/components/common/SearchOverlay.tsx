@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, X, TrendingUp, ArrowRight } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
-import { formatPrice } from '../../utils/formatters';
+import { formatPrice, computeProductPricing } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { Product } from '../../types';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
@@ -27,13 +27,27 @@ export const SearchOverlay: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    api.getProducts().then((data) => {
-      if (isMounted && data && data.length > 0) {
-        setCatalogProducts(data);
-      }
-    });
+    const loadProducts = () => {
+      api.getProducts('active').then((data) => {
+        if (isMounted && data && data.length > 0) {
+          setCatalogProducts(data);
+        }
+      });
+    };
+
+    loadProducts();
+
+    const handleUpdated = () => {
+      loadProducts();
+    };
+
+    window.addEventListener('tanoah_products_updated', handleUpdated);
+    window.addEventListener('storage', handleUpdated);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('tanoah_products_updated', handleUpdated);
+      window.removeEventListener('storage', handleUpdated);
     };
   }, []);
 
@@ -52,6 +66,11 @@ export const SearchOverlay: React.FC = () => {
       setTimeout(() => inputRef.current?.focus(), 100);
       document.body.style.overflow = 'hidden';
       lenis?.stop();
+      api.getProducts('active').then((data) => {
+        if (data && data.length > 0) {
+          setCatalogProducts(data);
+        }
+      });
     } else {
       document.body.style.overflow = '';
       lenis?.start();
@@ -78,22 +97,28 @@ export const SearchOverlay: React.FC = () => {
     ? catalogProducts
         .filter(
           (p) =>
-            p.title.toLowerCase().includes(query.toLowerCase()) ||
-            p.brand?.toLowerCase().includes(query.toLowerCase()) ||
-            p.category_name?.toLowerCase().includes(query.toLowerCase()) ||
-            p.product_type?.toLowerCase().includes(query.toLowerCase()) ||
-            p.tags?.some((t) => t.toLowerCase().includes(query.toLowerCase()))
+            (p.status === 'active' || !p.status) &&
+            (p.title.toLowerCase().includes(query.toLowerCase()) ||
+              p.brand?.toLowerCase().includes(query.toLowerCase()) ||
+              p.category_name?.toLowerCase().includes(query.toLowerCase()) ||
+              p.product_type?.toLowerCase().includes(query.toLowerCase()) ||
+              p.tags?.some((t) => t.toLowerCase().includes(query.toLowerCase())))
         )
         .slice(0, 8)
-        .map((p) => ({
-          id: p.id,
-          title: p.title,
-          category: p.category_name || p.gender || 'Collection',
-          price: p.variants?.[0]?.price ?? p.base_price,
-          sale_price: p.variants?.[0]?.sale_price ?? p.sale_price ?? null,
-          image: p.images?.[0]?.image_url || '/Assets/products/placeholder-product.svg',
-          slug: p.slug,
-        }))
+        .map((p) => {
+          const pricing = computeProductPricing(p);
+          return {
+            id: p.id,
+            title: p.title,
+            category: p.category_name || p.gender || 'Collection',
+            price: pricing.currentPrice,
+            originalPrice: pricing.originalPrice,
+            isSale: pricing.isSale,
+            discountPercent: pricing.discountPercent,
+            image: p.images?.[0]?.image_url || '/Assets/products/placeholder-product.svg',
+            slug: p.slug,
+          };
+        })
     : [];
 
   return (
@@ -203,11 +228,16 @@ export const SearchOverlay: React.FC = () => {
                           </h4>
                           <div className="mt-1 flex items-baseline gap-2">
                             <span className="font-semibold text-black">
-                              {formatPrice(product.sale_price ?? product.price)}
+                              {formatPrice(product.price)}
                             </span>
-                            {product.sale_price && (
+                            {product.isSale && (
                               <span className="text-[10px] text-[#888888] line-through">
-                                {formatPrice(product.price)}
+                                {formatPrice(product.originalPrice)}
+                              </span>
+                            )}
+                            {product.isSale && product.discountPercent > 0 && (
+                              <span className="text-[10px] text-[#3F3F8F] font-semibold">
+                                -{product.discountPercent}%
                               </span>
                             )}
                           </div>

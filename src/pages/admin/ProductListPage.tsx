@@ -22,7 +22,7 @@ export const ProductListPage: React.FC = () => {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const loadProducts = () => {
-    api.getProducts().then((data) => {
+    api.getProducts('all').then((data) => {
       if (data) {
         setProducts(data);
       }
@@ -68,7 +68,7 @@ export const ProductListPage: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Product Duplicated',
-          description: `"${res.product.title}" created as draft. Redirecting to edit...`,
+          description: `"${res.product.title}" created with unique SKU & slug. Redirecting to edit...`,
         });
         navigate(`/admin/products/${res.product.id}`);
       }

@@ -16,7 +16,7 @@ export const DashboardPage: React.FC = () => {
     try {
       const [loadedOrders, loadedProducts] = await Promise.all([
         api.getAdminOrders(),
-        api.getProducts(),
+        api.getProducts('all'),
       ]);
       setOrders(loadedOrders || []);
       setProducts(loadedProducts || []);

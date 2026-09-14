@@ -129,7 +129,7 @@ export const CustomerReviewsSection: React.FC = () => {
       try {
         const [featReviews, prods] = await Promise.all([
           api.getFeaturedTestimonials(),
-          api.getProducts(),
+          api.getProducts('active'),
         ]);
         if (isMounted) {
           if (featReviews && featReviews.length > 0) {

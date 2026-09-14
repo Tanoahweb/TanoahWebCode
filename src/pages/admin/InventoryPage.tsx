@@ -14,7 +14,7 @@ export const InventoryPage: React.FC = () => {
 
   const loadCatalog = () => {
     setIsLoading(true);
-    api.getProducts().then((liveProducts) => {
+    api.getProducts('all').then((liveProducts) => {
       setProducts(liveProducts || []);
       setIsLoading(false);
     });
