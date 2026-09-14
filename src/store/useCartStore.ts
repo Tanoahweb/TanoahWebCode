@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem, Product, ProductVariant, Coupon } from '../types';
 import { isProductInCollection } from '../services/api';
-import { isCouponExpired, isCouponNotStarted } from '../utils/formatters';
+import { isCouponExpired, isCouponNotStarted, computeProductPricing } from '../utils/formatters';
 
 export function isCouponEligible(coupon: Coupon | null, items: CartItem[]): boolean {
   if (!coupon || !items || items.length === 0) return false;
@@ -11,12 +11,7 @@ export function isCouponEligible(coupon: Coupon | null, items: CartItem[]): bool
   if (isCouponNotStarted(coupon)) return false;
 
   const subtotal = items.reduce((total, item) => {
-    const effectivePrice =
-      item.variant?.sale_price ??
-      item.variant?.price ??
-      item.product?.sale_price ??
-      item.product?.base_price ??
-      0;
+    const effectivePrice = computeProductPricing(item.product, item.variant).currentPrice;
     return total + effectivePrice * item.quantity;
   }, 0);
 
@@ -30,12 +25,7 @@ export function isCouponEligible(coupon: Coupon | null, items: CartItem[]): bool
     if (eligibleItems.length === 0) return false;
 
     const applicableSubtotal = eligibleItems.reduce((acc, item) => {
-      const price =
-        item.variant?.sale_price ??
-        item.variant?.price ??
-        item.product?.sale_price ??
-        item.product?.base_price ??
-        0;
+      const price = computeProductPricing(item.product, item.variant).currentPrice;
       return acc + price * item.quantity;
     }, 0);
 
@@ -177,7 +167,7 @@ export const useCartStore = create<CartState>()(
 
       getSubtotal: () => {
         return get().items.reduce((total, item) => {
-          const effectivePrice = item.variant.sale_price ?? item.variant.price;
+          const effectivePrice = computeProductPricing(item.product, item.variant).currentPrice;
           return total + effectivePrice * item.quantity;
         }, 0);
       },
@@ -197,7 +187,7 @@ export const useCartStore = create<CartState>()(
           if (eligibleItems.length === 0) return 0;
 
           applicableSubtotal = eligibleItems.reduce((acc, item) => {
-            const price = item.variant?.sale_price ?? item.variant?.price ?? 0;
+            const price = computeProductPricing(item.product, item.variant).currentPrice;
             return acc + price * item.quantity;
           }, 0);
 

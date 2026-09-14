@@ -4,7 +4,7 @@ import { Trash2, Heart, ArrowRight, ShoppingBag, ShieldCheck, Tag } from 'lucide
 import { useCartStore } from '../store/useCartStore';
 import { useWishlistStore } from '../store/useWishlistStore';
 import { useUIStore } from '../store/useUIStore';
-import { formatPrice } from '../utils/formatters';
+import { formatPrice, computeProductPricing } from '../utils/formatters';
 import { Button } from '../components/common/Button';
 import { FreeShippingProgressBar } from '../components/cart/FreeShippingProgressBar';
 import { api } from '../services/api';
@@ -114,7 +114,7 @@ export const CartPage: React.FC = () => {
                   item.product.images?.find((img) => img.is_primary)?.image_url ||
                   item.product.images?.[0]?.image_url ||
                   '/Assets/products/placeholder-product.svg';
-                const effectivePrice = item.variant.sale_price ?? item.variant.price;
+                const { currentPrice: effectivePrice, originalPrice, isSale } = computeProductPricing(item.product, item.variant);
 
                 return (
                   <div key={item.id} className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
@@ -154,9 +154,9 @@ export const CartPage: React.FC = () => {
                         <span className="font-semibold text-black text-sm">
                           {formatPrice(effectivePrice)}
                         </span>
-                        {item.variant.sale_price && (
+                        {isSale && (
                           <span className="text-xs text-[#888888] line-through">
-                            {formatPrice(item.variant.price)}
+                            {formatPrice(originalPrice)}
                           </span>
                         )}
                       </div>

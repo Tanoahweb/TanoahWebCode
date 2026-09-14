@@ -4,7 +4,7 @@ import { Heart, ShoppingBag, ArrowRight, Check, AlertCircle } from 'lucide-react
 import { useUIStore } from '../../store/useUIStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
-import { formatPrice, calculateDiscountPercentage } from '../../utils/formatters';
+import { formatPrice, calculateDiscountPercentage, computeProductPricing } from '../../utils/formatters';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 
@@ -45,10 +45,10 @@ export const QuickViewModal: React.FC = () => {
   const activeVariant =
     colorVariants.find((v) => v.size === activeSizeName) || colorVariants[0] || quickViewProduct.variants[0];
 
-  const currentPrice = activeVariant?.sale_price ?? activeVariant?.price ?? quickViewProduct.base_price;
-  const originalPrice = activeVariant?.compare_at_price ?? activeVariant?.price ?? quickViewProduct.base_price;
-  const isSale = activeVariant?.sale_price != null && activeVariant.sale_price < activeVariant.price;
-  const discountPercent = isSale ? calculateDiscountPercentage(activeVariant.price, activeVariant.sale_price!) : 0;
+  const { currentPrice, originalPrice, isSale, discountPercent } = computeProductPricing(
+    quickViewProduct,
+    activeVariant
+  );
 
   const validImages = (quickViewProduct.images || []).filter(
     (img) => img && typeof img.image_url === 'string' && img.image_url.trim().length > 0

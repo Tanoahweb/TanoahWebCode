@@ -4,7 +4,7 @@ import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2,
 import { useCartStore } from '../store/useCartStore';
 import { useUIStore } from '../store/useUIStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { formatPrice, isCouponAvailable } from '../utils/formatters';
+import { formatPrice, isCouponAvailable, computeProductPricing } from '../utils/formatters';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { api, isProductInCollection } from '../services/api';
@@ -274,12 +274,7 @@ export const CheckoutPage: React.FC = () => {
         descriptionText = `Add products from "${colNames}" to get this offer`;
       } else {
         eligibleSubtotal = matchingItems.reduce((acc, item) => {
-          const price =
-            item.variant?.sale_price ??
-            item.variant?.price ??
-            item.product?.sale_price ??
-            item.product?.base_price ??
-            0;
+          const price = computeProductPricing(item.product, item.variant).currentPrice;
           return acc + price * item.quantity;
         }, 0);
 
@@ -1229,7 +1224,7 @@ export const CheckoutPage: React.FC = () => {
                         {item.variant.color_name} • {item.variant.size} • Qty {item.quantity}
                       </div>
                       <div className="font-semibold text-black mt-0.5">
-                        {formatPrice((item.variant.sale_price ?? item.variant.price) * item.quantity)}
+                        {formatPrice(computeProductPricing(item.product, item.variant).currentPrice * item.quantity)}
                       </div>
                     </div>
                   </div>

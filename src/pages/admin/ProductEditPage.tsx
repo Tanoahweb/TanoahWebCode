@@ -24,6 +24,9 @@ import {
   Copy,
   Ruler,
   Loader2,
+  RefreshCw,
+  Percent,
+  Tag,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -337,6 +340,12 @@ export const ProductEditPage: React.FC = () => {
             images[0]?.image_url ||
             '';
 
+          const effectiveVarPrice = existing && Number(existing.price) > 0 ? existing.price : currentBasePrice;
+          const effectiveVarCompare = existing && existing.compare_at_price != null && Number(existing.compare_at_price) > 0
+            ? existing.compare_at_price
+            : (compareAtPrice > currentBasePrice ? compareAtPrice : undefined);
+          const isVarSale = effectiveVarCompare != null && effectiveVarCompare > effectiveVarPrice;
+
           generated.push({
             id: existing ? existing.id : `var_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             product_id: id || 'new',
@@ -347,9 +356,9 @@ export const ProductEditPage: React.FC = () => {
             color_hex: col.hex || '#000000',
             color_image_url: validVariantImgUrl,
             size: sz.name,
-            price: existing ? existing.price : currentBasePrice,
-            sale_price: currentBasePrice < compareAtPrice ? currentBasePrice : undefined,
-            compare_at_price: compareAtPrice,
+            price: effectiveVarPrice,
+            sale_price: isVarSale ? effectiveVarPrice : undefined,
+            compare_at_price: effectiveVarCompare,
             stock_quantity: existing ? existing.stock_quantity : 25,
             reserved_stock: 0,
             low_stock_threshold: 5,
@@ -365,6 +374,12 @@ export const ProductEditPage: React.FC = () => {
           (v) => v.title === choice.name || v.color_name === choice.name || v.size === choice.name
         );
 
+        const effectiveVarPrice = existing && Number(existing.price) > 0 ? existing.price : currentBasePrice;
+        const effectiveVarCompare = existing && existing.compare_at_price != null && Number(existing.compare_at_price) > 0
+          ? existing.compare_at_price
+          : (compareAtPrice > currentBasePrice ? compareAtPrice : undefined);
+        const isVarSale = effectiveVarCompare != null && effectiveVarCompare > effectiveVarPrice;
+
         generated.push({
           id: existing ? existing.id : `var_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           product_id: id || 'new',
@@ -374,9 +389,9 @@ export const ProductEditPage: React.FC = () => {
           color_name: choice.hex ? choice.name : 'Standard',
           color_hex: choice.hex || '#000000',
           size: choice.hex ? 'One Size' : choice.name,
-          price: existing ? existing.price : currentBasePrice,
-          sale_price: currentBasePrice < compareAtPrice ? currentBasePrice : undefined,
-          compare_at_price: compareAtPrice,
+          price: effectiveVarPrice,
+          sale_price: isVarSale ? effectiveVarPrice : undefined,
+          compare_at_price: effectiveVarCompare,
           stock_quantity: 25,
           reserved_stock: 0,
           low_stock_threshold: 5,
@@ -596,10 +611,46 @@ export const ProductEditPage: React.FC = () => {
         }
       });
     } else {
-      // New product: default to simple product without variations
+      // New product: completely reset all fields to clean slate
+      setTitle('');
+      setSlug('');
+      setBrand('TANOAH');
+      setProductType('Sarees');
+      setGender('unisex');
+      setStatus('active');
+      setBasePrice(2499);
+      setCompareAtPrice(2999);
+      setCostPrice(850);
+      setTaxRate(5);
+      setHsnCode('61091000');
+      setShortDescription('');
+      setDescription('');
+      setTags('Luxury, Handcrafted, Tanoah, Bespoke');
+      setIsFeatured(false);
+      setIsBestSeller(false);
+      setIsNewArrival(false);
+      setSeoTitle('');
+      setSeoDescription('');
+      setSocialImageUrl('');
+      setCanonicalUrlOverride('');
+      setIsNoindex(false);
+      setImages([]);
+      setSelectedCollectionSlugs([]);
+      setCustomSections([]);
+      setSimilarProductIds([]);
+      setSimilarCategoryIds([]);
+      setSelectedSizeChartId('');
       setHasVariations(false);
+      setSingleStockQuantity(25);
+      setSingleLowStockThreshold(5);
+      setSingleSku('');
+      setSingleBarcode('');
+      setSingleColorName('');
+      setSingleColorHex('#1C1C1C');
+      setSingleSizeName('One Size');
       setOptions([]);
       setVariants([]);
+      setSelectedVariantIds([]);
     }
 
     return () => {
@@ -1000,6 +1051,29 @@ export const ProductEditPage: React.FC = () => {
     );
   };
 
+  const handleBulkSetCompareAtPrice = (compareVal: number) => {
+    setVariants((prev) =>
+      prev.map((v) => (selectedVariantIds.includes(v.id) ? { ...v, compare_at_price: compareVal } : v))
+    );
+  };
+
+  const handleSyncAllVariantsWithMaster = () => {
+    const isDiscount = compareAtPrice > basePrice;
+    setVariants((prev) =>
+      prev.map((v) => ({
+        ...v,
+        price: basePrice,
+        compare_at_price: isDiscount ? compareAtPrice : undefined,
+        sale_price: isDiscount ? basePrice : undefined,
+      }))
+    );
+    addToast({
+      type: 'success',
+      title: 'Variants Synchronized',
+      description: `Updated all ${variants.length} variants to Selling Price ₹${basePrice}${isDiscount ? ` and MRP ₹${compareAtPrice} (${Math.round(((compareAtPrice - basePrice) / compareAtPrice) * 100)}% OFF)` : ''}.`,
+    });
+  };
+
   const handleSaveNewProductType = async () => {
     const trimmed = newTypeInput.trim();
     if (!trimmed) {
@@ -1131,6 +1205,10 @@ export const ProductEditPage: React.FC = () => {
 
     let finalVariants: ProductVariant[] = [];
 
+    const hasDiscount = compareAtPrice > basePrice;
+    const effectiveCompareAt = hasDiscount ? compareAtPrice : null;
+    const effectiveSalePrice = hasDiscount ? basePrice : null;
+
     if (hasVariations) {
       if (variants.length === 0) {
         addToast({
@@ -1140,7 +1218,19 @@ export const ProductEditPage: React.FC = () => {
         });
         return;
       }
-      finalVariants = variants;
+      finalVariants = variants.map((v) => {
+        const vPrice = Number(v.price) > 0 ? Number(v.price) : basePrice;
+        const vCompare = (v.compare_at_price != null && Number(v.compare_at_price) > 0)
+          ? Number(v.compare_at_price)
+          : effectiveCompareAt;
+        const vHasDiscount = vCompare != null && vCompare > vPrice;
+        return {
+          ...v,
+          price: vPrice,
+          compare_at_price: vHasDiscount ? vCompare : undefined,
+          sale_price: vHasDiscount ? vPrice : undefined,
+        };
+      });
     } else {
       // Build master single variant for simple product without variations
       const prefix = (slug || title || 'ITEM')
@@ -1164,8 +1254,8 @@ export const ProductEditPage: React.FC = () => {
         color_image_url: cleanedImages[0]?.image_url || '',
         size: singleSizeName.trim() || 'One Size',
         price: basePrice,
-        sale_price: basePrice < compareAtPrice ? basePrice : undefined,
-        compare_at_price: compareAtPrice,
+        sale_price: effectiveSalePrice ?? undefined,
+        compare_at_price: effectiveCompareAt ?? undefined,
         stock_quantity: Math.max(0, Number(singleStockQuantity) || 0),
         reserved_stock: 0,
         low_stock_threshold: Math.max(0, Number(singleLowStockThreshold) || 0),
@@ -1214,8 +1304,8 @@ export const ProductEditPage: React.FC = () => {
       category_id: undefined,
       gender: gender || 'unisex',
       base_price: basePrice,
-      sale_price: basePrice < compareAtPrice ? basePrice : undefined,
-      compare_at_price: compareAtPrice,
+      sale_price: effectiveSalePrice ?? undefined,
+      compare_at_price: effectiveCompareAt ?? undefined,
       cost_price: costPrice,
       tax_rate: taxRate,
       hsn_code: hsnCode,
@@ -1301,6 +1391,19 @@ export const ProductEditPage: React.FC = () => {
 
   const profitPerItem = basePrice - costPrice;
   const marginPercent = basePrice > 0 ? ((profitPerItem / basePrice) * 100).toFixed(1) : 0;
+  const discountPercent = compareAtPrice > basePrice ? Math.round(((compareAtPrice - basePrice) / compareAtPrice) * 100) : 0;
+  const savingsAmount = compareAtPrice > basePrice ? compareAtPrice - basePrice : 0;
+
+  const handleApplyDiscountPreset = (pct: number) => {
+    if (pct <= 0) {
+      setCompareAtPrice(basePrice);
+      return;
+    }
+    const refCompare = compareAtPrice > basePrice ? compareAtPrice : (basePrice > 0 ? basePrice : 2999);
+    const newBase = Math.round(refCompare * (1 - pct / 100));
+    setCompareAtPrice(refCompare);
+    setBasePrice(newBase);
+  };
 
   return (
     <AdminLayout>
@@ -2100,18 +2203,31 @@ export const ProductEditPage: React.FC = () => {
               {/* Generated Variants Table with Color-Specific Image Mapping */}
               <div className="space-y-3 pt-2">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                  <div>
-                    <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
-                      VARIANT MATRIX ({variants.length} COMBINATIONS)
-                    </h4>
-                    <p className="text-[11px] text-[#666666]">
-                      Click the image icon to map a color-specific photo to each variant.
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div>
+                      <h4 className="font-semibold text-black uppercase tracking-wider text-xs">
+                        VARIANT MATRIX ({variants.length} COMBINATIONS)
+                      </h4>
+                      <p className="text-[11px] text-[#666666]">
+                        Click the image icon to map a color-specific photo to each variant.
+                      </p>
+                    </div>
+                    {variants.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSyncAllVariantsWithMaster}
+                        className="text-[11px] bg-white border border-[#3F3F8F] text-[#3F3F8F] hover:bg-[#3F3F8F] hover:text-white px-2.5 py-1 rounded-[3px] font-semibold flex items-center gap-1.5 transition-colors shadow-2xs w-fit"
+                        title="Sync all variants to master selling price and compare-at price"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Sync Master Pricing to All (₹{basePrice})</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Bulk Actions Bar */}
                   {selectedVariantIds.length > 0 && (
-                    <div className="flex items-center gap-2 bg-[#EEEEF8] px-3 py-1.5 rounded-[4px] text-xs">
+                    <div className="flex items-center gap-2 bg-[#EEEEF8] px-3 py-1.5 rounded-[4px] text-xs flex-wrap">
                       <span className="font-bold text-[#3F3F8F]">
                         {selectedVariantIds.length} Selected
                       </span>
@@ -2124,6 +2240,16 @@ export const ProductEditPage: React.FC = () => {
                         className="px-2 py-0.5 bg-white rounded border border-[#3F3F8F]/30 text-[#3F3F8F] font-semibold hover:bg-[#3F3F8F] hover:text-white transition-colors"
                       >
                         Set Price
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cp = prompt('Enter compare-at / MRP price (₹) for selected variants:', `${compareAtPrice || basePrice}`);
+                          if (cp && !isNaN(Number(cp))) handleBulkSetCompareAtPrice(Number(cp));
+                        }}
+                        className="px-2 py-0.5 bg-white rounded border border-[#3F3F8F]/30 text-[#3F3F8F] font-semibold hover:bg-[#3F3F8F] hover:text-white transition-colors"
+                      >
+                        Set Compare-At
                       </button>
                       <button
                         type="button"
@@ -2154,7 +2280,8 @@ export const ProductEditPage: React.FC = () => {
                         <th className="p-3">Color Image</th>
                         <th className="p-3">Variant Title</th>
                         <th className="p-3">SKU</th>
-                        <th className="p-3">Price (₹)</th>
+                        <th className="p-3">Price / Selling (₹)</th>
+                        <th className="p-3">Compare At / MRP (₹)</th>
                         <th className="p-3">Stock on Hand</th>
                         <th className="p-3">Barcode</th>
                       </tr>
@@ -2221,6 +2348,23 @@ export const ProductEditPage: React.FC = () => {
                               value={v.price}
                               onChange={(e) => handleUpdateVariant(v.id, 'price', Number(e.target.value))}
                               className="w-24 p-1 border border-[#E7E7E7] rounded font-mono text-xs focus:outline-none focus:border-[#3F3F8F]"
+                            />
+                          </td>
+
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              min={0}
+                              value={v.compare_at_price ?? ''}
+                              placeholder={compareAtPrice > basePrice ? `${compareAtPrice}` : 'Optional'}
+                              onChange={(e) =>
+                                handleUpdateVariant(
+                                  v.id,
+                                  'compare_at_price',
+                                  e.target.value === '' ? undefined : Number(e.target.value)
+                                )
+                              }
+                              className="w-24 p-1 border border-[#E7E7E7] rounded font-mono text-xs text-[#666666] focus:outline-none focus:border-[#3F3F8F]"
                             />
                           </td>
 
@@ -2304,11 +2448,18 @@ export const ProductEditPage: React.FC = () => {
             </div>
 
             {/* Pricing & Margins */}
-            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3">
-              <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
-                <DollarSign className="w-4 h-4 text-[#3F3F8F]" />
-                <span>PRICING & MARGINS</span>
-              </h3>
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-3.5">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
+                <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-[#3F3F8F]" />
+                  <span>PRICING & DISCOUNTS</span>
+                </h3>
+                {discountPercent > 0 && (
+                  <span className="text-[10px] font-bold bg-[#3F3F8F] text-white px-2 py-0.5 rounded-[2px] tracking-wider uppercase">
+                    {discountPercent}% OFF
+                  </span>
+                )}
+              </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
@@ -2317,23 +2468,94 @@ export const ProductEditPage: React.FC = () => {
                 <input
                   required
                   type="number"
+                  min={0}
                   value={basePrice}
                   onChange={(e) => setBasePrice(Number(e.target.value))}
                   className="w-full p-2 border border-[#E7E7E7] rounded-[4px] font-mono text-xs focus:outline-none focus:border-[#3F3F8F]"
                 />
+                <span className="text-[10px] text-[#666666] mt-0.5 block">
+                  The actual price the customer pays at checkout.
+                </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
-                  Compare At Price (₹)
+                  Compare At / MRP Price (₹)
                 </label>
                 <input
                   type="number"
+                  min={0}
                   value={compareAtPrice}
                   onChange={(e) => setCompareAtPrice(Number(e.target.value))}
+                  placeholder="e.g. 2999"
                   className="w-full p-2 border border-[#E7E7E7] rounded-[4px] font-mono text-xs focus:outline-none focus:border-[#3F3F8F]"
                 />
+                <span className="text-[10px] text-[#666666] mt-0.5 block">
+                  Original strikethrough price shown to customer to calculate discount badge.
+                </span>
               </div>
+
+              {/* Quick Discount Presets */}
+              <div className="pt-1">
+                <label className="block text-[10px] font-bold text-[#666666] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Percent className="w-3 h-3 text-[#3F3F8F]" />
+                  <span>Quick Discount Presets</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: '0%', val: 0 },
+                    { label: '10%', val: 10 },
+                    { label: '15%', val: 15 },
+                    { label: '20%', val: 20 },
+                    { label: '25%', val: 25 },
+                    { label: '30%', val: 30 },
+                    { label: '50%', val: 50 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => handleApplyDiscountPreset(preset.val)}
+                      className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${
+                        (preset.val === 0 && discountPercent === 0) || (preset.val > 0 && discountPercent === preset.val)
+                          ? 'bg-[#3F3F8F] text-white border-[#3F3F8F]'
+                          : 'bg-[#F8F8F8] text-[#444444] border-[#E7E7E7] hover:border-[#3F3F8F] hover:text-[#3F3F8F]'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Live Discount Status Card */}
+              {discountPercent > 0 ? (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-[4px] text-[11px] text-emerald-800 space-y-0.5">
+                  <div className="font-semibold flex justify-between items-center">
+                    <span>✨ Active Discount: {discountPercent}% OFF</span>
+                    <span className="text-emerald-700 font-bold">Save {formatPrice(savingsAmount)}</span>
+                  </div>
+                  <div className="text-[10px] text-emerald-600">
+                    Display: <span className="line-through">{formatPrice(compareAtPrice)}</span> ➔ <strong className="text-emerald-900">{formatPrice(basePrice)}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] text-[10px] text-[#666666]">
+                  Regular price (No discount). Set Compare-At higher than Selling Price to show discount badge.
+                </div>
+              )}
+
+              {/* Sync With All Variants Button */}
+              {hasVariations && variants.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSyncAllVariantsWithMaster}
+                  className="w-full py-2 px-3 bg-[#EEEEF8] hover:bg-[#3F3F8F] text-[#3F3F8F] hover:text-white rounded-[4px] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-[#3F3F8F]/30"
+                  title="Push this master price and compare-at price to all variants"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Sync Price to All {variants.length} Variants</span>
+                </button>
+              )}
 
               <div>
                 <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
@@ -2341,6 +2563,7 @@ export const ProductEditPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
+                  min={0}
                   value={costPrice}
                   onChange={(e) => setCostPrice(Number(e.target.value))}
                   className="w-full p-2 border border-[#E7E7E7] rounded-[4px] font-mono text-xs focus:outline-none focus:border-[#3F3F8F]"

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Eye, ShoppingBag } from 'lucide-react';
 import { Product } from '../../types';
-import { formatPrice, calculateDiscountPercentage } from '../../utils/formatters';
+import { formatPrice, calculateDiscountPercentage, computeProductPricing } from '../../utils/formatters';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -104,10 +104,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     validImages.find((img) => img.image_url !== primaryImage)?.image_url ||
     primaryImage;
 
-  const currentPrice = firstInStockVariant?.sale_price ?? firstInStockVariant?.price ?? product.base_price;
-  const originalPrice = firstInStockVariant?.compare_at_price ?? firstInStockVariant?.price ?? product.base_price;
-  const isSale = firstInStockVariant?.sale_price != null && firstInStockVariant.sale_price < firstInStockVariant.price;
-  const discountPercent = isSale ? calculateDiscountPercentage(firstInStockVariant.price, firstInStockVariant.sale_price!) : 0;
+  const { currentPrice, originalPrice, isSale, discountPercent } = computeProductPricing(
+    product,
+    firstInStockVariant
+  );
 
   const isOutOfStock = product.variants.every((v) => v.stock_quantity <= 0);
   const isLowStock = !isOutOfStock && product.variants.some((v) => v.stock_quantity <= v.low_stock_threshold);

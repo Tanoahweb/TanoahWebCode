@@ -1058,6 +1058,12 @@ export const api = {
     const mergedTags = new Set(sanitized.tags || []);
     cols.forEach((c) => mergedTags.add(c));
 
+    const hasProdDiscount =
+      sanitized.compare_at_price != null &&
+      Number(sanitized.compare_at_price) > Number(sanitized.base_price);
+    const prodCompareAt = hasProdDiscount ? Number(sanitized.compare_at_price) : null;
+    const prodSalePrice = hasProdDiscount ? Number(sanitized.base_price) : null;
+
     const productRow = {
       id: targetId,
       title: sanitized.title,
@@ -1067,8 +1073,8 @@ export const api = {
       category_id: validCategoryId,
       gender: sanitized.gender || 'unisex',
       base_price: sanitized.base_price,
-      sale_price: sanitized.sale_price ?? null,
-      compare_at_price: sanitized.compare_at_price ?? null,
+      sale_price: prodSalePrice,
+      compare_at_price: prodCompareAt,
       cost_price: sanitized.cost_price ?? null,
       tax_rate: sanitized.tax_rate ?? 5,
       hsn_code: sanitized.hsn_code ?? null,
@@ -1128,6 +1134,15 @@ export const api = {
       await supabase.from('product_variants').delete().eq('product_id', targetId);
       const variantRows = sanitized.variants.map((v) => {
         const varId = uuidRegex.test(v.id) ? v.id : crypto.randomUUID();
+        const varPrice = v.price != null && Number(v.price) > 0 ? Number(v.price) : sanitized.base_price;
+        const varCompare = v.compare_at_price != null && Number(v.compare_at_price) > 0
+          ? Number(v.compare_at_price)
+          : prodCompareAt;
+        const hasVarDiscount = varCompare != null && varCompare > varPrice;
+        const varSalePrice = hasVarDiscount
+          ? varPrice
+          : (v.sale_price && Number(v.sale_price) < varPrice ? Number(v.sale_price) : null);
+
         return {
           id: varId,
           product_id: targetId,
@@ -1137,9 +1152,9 @@ export const api = {
           color_name: v.color_name || '',
           color_hex: v.color_hex || '#000000',
           size: v.size || 'Free Size',
-          price: v.price || sanitized.base_price,
-          sale_price: v.sale_price || sanitized.sale_price || null,
-          compare_at_price: v.compare_at_price || sanitized.compare_at_price || null,
+          price: varPrice,
+          sale_price: varSalePrice,
+          compare_at_price: hasVarDiscount ? varCompare : null,
           stock_quantity: v.stock_quantity ?? 0,
           reserved_stock: 0,
           low_stock_threshold: v.low_stock_threshold ?? 3,

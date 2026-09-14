@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from '../data/mockData';
 import { ProductCard } from '../components/product/ProductCard';
-import { formatPrice, calculateDiscountPercentage } from '../utils/formatters';
+import { formatPrice, calculateDiscountPercentage, computeProductPricing } from '../utils/formatters';
 import { useCartStore } from '../store/useCartStore';
 import { useWishlistStore } from '../store/useWishlistStore';
 import { useUIStore } from '../store/useUIStore';
@@ -61,32 +61,48 @@ export const ProductDetailPage: React.FC = () => {
   useEffect(() => {
     if (!slug) return;
     let isMounted = true;
+
+    const loadProductData = () => {
+      api.getProductBySlug(slug).then((fetched) => {
+        if (isMounted) {
+          if (fetched) {
+            setProduct(fetched);
+            if (fetched.variants && fetched.variants.length > 0) {
+              const matched = colorQueryParam
+                ? fetched.variants.find((v) => v.color_name.toLowerCase() === colorQueryParam.toLowerCase())
+                : null;
+              setSelectedColor((prev) => prev || matched?.color_name || fetched.variants[0].color_name || '');
+              setSelectedSize((prev) => prev || matched?.size || fetched.variants[0].size || '');
+            }
+          } else {
+            setProduct(null);
+          }
+          setIsLoading(false);
+        }
+      }).catch(() => {
+        if (isMounted) {
+          setProduct(null);
+          setIsLoading(false);
+        }
+      });
+    };
+
     setIsLoading(true);
     setActiveImageIndex(0);
-    api.getProductBySlug(slug).then((fetched) => {
-      if (isMounted) {
-        if (fetched) {
-          setProduct(fetched);
-          if (fetched.variants && fetched.variants.length > 0) {
-            const matched = colorQueryParam
-              ? fetched.variants.find((v) => v.color_name.toLowerCase() === colorQueryParam.toLowerCase())
-              : null;
-            setSelectedColor(matched?.color_name || fetched.variants[0].color_name || '');
-            setSelectedSize(matched?.size || fetched.variants[0].size || '');
-          }
-        } else {
-          setProduct(null);
-        }
-        setIsLoading(false);
+    loadProductData();
+
+    const handleProductUpdate = (e: any) => {
+      const updated = e.detail;
+      if (!updated || updated.slug === slug || (product && updated.id === product.id)) {
+        loadProductData();
       }
-    }).catch(() => {
-      if (isMounted) {
-        setProduct(null);
-        setIsLoading(false);
-      }
-    });
+    };
+
+    window.addEventListener('tanoah_products_updated', handleProductUpdate);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('tanoah_products_updated', handleProductUpdate);
     };
   }, [slug, colorQueryParam]);
 
@@ -562,10 +578,10 @@ export const ProductDetailPage: React.FC = () => {
   const activeVariant =
     colorVariants.find((v: ProductVariant) => v.size === activeSizeName) || colorVariants[0] || product.variants[0];
 
-  const currentPrice = activeVariant?.sale_price ?? activeVariant?.price ?? product.base_price;
-  const originalPrice = activeVariant?.compare_at_price ?? activeVariant?.price ?? product.base_price;
-  const isSale = activeVariant?.sale_price != null && activeVariant.sale_price < activeVariant.price;
-  const discountPercent = isSale ? calculateDiscountPercentage(activeVariant.price, activeVariant.sale_price!) : 0;
+  const { currentPrice, originalPrice, isSale, discountPercent } = computeProductPricing(
+    product,
+    activeVariant
+  );
 
   const isOutOfStock = !activeVariant || activeVariant.stock_quantity <= 0;
   const isLowStock = !isOutOfStock && activeVariant.stock_quantity <= (activeVariant.low_stock_threshold || 5);

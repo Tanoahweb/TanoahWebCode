@@ -5,7 +5,7 @@ import { useCartStore } from '../../store/useCartStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useUIStore } from '../../store/useUIStore';
 import { FreeShippingProgressBar } from './FreeShippingProgressBar';
-import { formatPrice, isCouponAvailable } from '../../utils/formatters';
+import { formatPrice, isCouponAvailable, computeProductPricing } from '../../utils/formatters';
 import { Button } from '../common/Button';
 import { getLenis } from '../../animations/smoothScroll';
 
@@ -323,7 +323,7 @@ export const CartDrawer: React.FC = () => {
                 item.product.images?.find((img) => img.is_primary)?.image_url ||
                 item.product.images?.[0]?.image_url ||
                 '/Assets/products/placeholder-product.svg';
-              const effectivePrice = item.variant.sale_price ?? item.variant.price;
+              const { currentPrice: effectivePrice, originalPrice, isSale } = computeProductPricing(item.product, item.variant);
 
               return (
                 <div
@@ -377,9 +377,9 @@ export const CartDrawer: React.FC = () => {
                         <span className="font-semibold text-black">
                           {formatPrice(effectivePrice)}
                         </span>
-                        {item.variant.sale_price && item.variant.price > item.variant.sale_price && (
+                        {isSale && (
                           <span className="text-[10px] text-[#888888] line-through">
-                            {formatPrice(item.variant.price)}
+                            {formatPrice(originalPrice)}
                           </span>
                         )}
                       </div>
