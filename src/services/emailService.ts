@@ -4,7 +4,8 @@
 import { supabase } from './supabase';
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_NOTIFICATION_EMAIL || 'connectus.tanoah@gmail.com';
-const FROM_EMAIL = import.meta.env.VITE_RESEND_FROM_EMAIL || 'TANOAH <noreply@tanoah.com>';
+const envFrom = import.meta.env.VITE_RESEND_FROM_EMAIL;
+const FROM_EMAIL = (envFrom && !envFrom.includes('resend.dev')) ? envFrom : 'TANOAH <noreply@tanoah.com>';
 const FALLBACK_KEY = typeof atob === 'function' ? atob('cmVfV2JGQjJnY1BfN2FiRUNrd2Y4TDZSRjlUNlAyV3J3eVZ2') : '';
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || FALLBACK_KEY;
 

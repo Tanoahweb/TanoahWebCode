@@ -38,7 +38,8 @@ Deno.serve(async (req: Request) => {
     const activeApiKey = payload.apiKey || Deno.env.get('RESEND_API_KEY') || FALLBACK_KEY;
     const { order, adminHtml, customerHtml, test, to } = payload;
     const adminEmail = payload.adminEmail || DEFAULT_ADMIN_EMAIL;
-    const fromEmail = payload.from || DEFAULT_FROM_EMAIL;
+    const rawFrom = payload.from || DEFAULT_FROM_EMAIL;
+    const fromEmail = (rawFrom && !rawFrom.includes('resend.dev')) ? rawFrom : 'TANOAH <noreply@tanoah.com>';
 
     // 1. Test Email
     if (test) {

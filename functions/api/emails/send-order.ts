@@ -32,7 +32,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const apiKey = context.env.RESEND_API_KEY || payload.apiKey || DEFAULT_RESEND_KEY;
     const adminEmail = context.env.ADMIN_EMAIL || payload.adminEmail || DEFAULT_ADMIN_EMAIL;
-    const fromEmail = context.env.FROM_EMAIL || payload.from || DEFAULT_FROM_EMAIL;
+    const rawFrom = context.env.FROM_EMAIL || payload.from || DEFAULT_FROM_EMAIL;
+    const fromEmail = (rawFrom && !rawFrom.includes('resend.dev')) ? rawFrom : 'TANOAH <noreply@tanoah.com>';
 
     const sendEmail = async (emailParams: any) => {
       const res = await fetch('https://api.resend.com/emails', {
