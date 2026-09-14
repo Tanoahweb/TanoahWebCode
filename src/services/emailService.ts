@@ -166,6 +166,368 @@ export const resolveEmailImageUrl = (rawUrl?: any): string => {
   return `${R2_PUBLIC_BASE}/assets/${trimmed}`;
 };
 
+const STATE_CODES: Record<string, string> = {
+  'kerala': '32',
+  'tamil nadu': '33',
+  'karnataka': '29',
+  'andhra pradesh': '37',
+  'telangana': '36',
+  'maharashtra': '27',
+  'delhi': '07',
+  'gujarat': '24',
+  'rajasthan': '08',
+  'uttar pradesh': '09',
+  'west bengal': '19',
+  'punjab': '03',
+  'haryana': '06',
+  'madhya pradesh': '23',
+  'bihar': '10',
+  'odisha': '21',
+  'assam': '18',
+  'goa': '30',
+  'chhattisgarh': '22',
+  'jharkhand': '20',
+  'uttarakhand': '05',
+  'himachal pradesh': '02',
+  'jammu and kashmir': '01',
+  'puducherry': '34',
+  'chandigarh': '04',
+};
+
+export const getStateCode = (stateName?: string): string => {
+  if (!stateName) return '32';
+  const clean = stateName.toLowerCase().trim();
+  if (STATE_CODES[clean]) return STATE_CODES[clean];
+  for (const [name, code] of Object.entries(STATE_CODES)) {
+    if (clean.includes(name) || name.includes(clean)) return code;
+  }
+  return '32';
+};
+
+export const numberToWordsINR = (amount: number = 0): string => {
+  const rounded = Math.round(amount);
+  if (rounded <= 0) return 'Rupees Zero Only';
+
+  const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const convertChunk = (num: number): string => {
+    let str = '';
+    if (num >= 100) {
+      str += `${units[Math.floor(num / 100)]} Hundred `;
+      num %= 100;
+    }
+    if (num >= 20) {
+      str += `${tens[Math.floor(num / 10)]} `;
+      num %= 10;
+    }
+    if (num > 0) {
+      str += `${units[num]} `;
+    }
+    return str.trim();
+  };
+
+  const crore = Math.floor(rounded / 10000000);
+  let remainder = rounded % 10000000;
+  const lakh = Math.floor(remainder / 100000);
+  remainder %= 100000;
+  const thousand = Math.floor(remainder / 1000);
+  remainder %= 1000;
+  const hundred = remainder;
+
+  let words = '';
+  if (crore > 0) words += `${convertChunk(crore)} Crore `;
+  if (lakh > 0) words += `${convertChunk(lakh)} Lakh `;
+  if (thousand > 0) words += `${convertChunk(thousand)} Thousand `;
+  if (hundred > 0) words += `${convertChunk(hundred)} `;
+
+  return `Rupees ${words.trim()} Only`;
+};
+
+export const SELLER_DETAILS = {
+  name: 'TANOAH',
+  legalName: 'TANOAH',
+  addressLine1: 'Rappal, Pudukkad P O',
+  city: 'Thrissur',
+  state: 'Kerala',
+  postalCode: '680301',
+  country: 'India',
+  gstin: '32ESJPD7012L1ZU',
+  pan: 'ESJPD7012L',
+  stateCode: '32',
+  email: 'connectus.tanoah@gmail.com',
+  phone: '+91 87141 41849',
+};
+
+/**
+ * Generates an email-safe, complete, legally compliant Indian GST Tax Invoice block
+ */
+export const generateGstTaxInvoiceHtml = (order: OrderEmailPayload): string => {
+  const orderNum = order.orderNumber || order.order_number || 'TAN-ORDER';
+  const invoiceNum = `INV-${orderNum.replace(/^TAN-/, '')}`;
+  const orderDate = order.date ? new Date(order.date).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }) : new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const address = order.shipping_address || order.formData || {};
+  const customerName = order.formData?.firstName
+    ? `${order.formData.firstName} ${order.formData.lastName || ''}`.trim()
+    : order.shipping_address?.first_name
+    ? `${order.shipping_address.first_name} ${order.shipping_address.last_name || ''}`.trim()
+    : 'Valued Patron';
+
+  const customerEmail = order.formData?.email || 'N/A';
+  const customerPhone = order.formData?.phone || 'N/A';
+  const customerState = address.state || 'Kerala';
+  const stateCode = getStateCode(customerState);
+  const isIntraState = stateCode === '32'; // Kerala intra-state
+
+  const items = order.items || [];
+  const grandTotal = order.grandTotal ?? order.grand_total ?? 0;
+  const subtotal = order.subtotal ?? 0;
+  const discount = order.discount ?? order.discount_total ?? 0;
+  const shipping = order.shipping ?? order.shipping_total ?? 0;
+  const paymentMethod = (order.payment_method || order.formData?.paymentMethod || 'Online').toUpperCase();
+  const paymentRef = order.payment_gateway_ref || order.paymentGatewayRef || 'N/A';
+
+  // 5% GST breakdown
+  const taxRate = 0.05;
+  const taxableSubtotal = Math.round(subtotal / (1 + taxRate));
+  const totalGst = subtotal - taxableSubtotal;
+  const cgst = isIntraState ? Math.round(totalGst / 2) : 0;
+  const sgst = isIntraState ? (totalGst - cgst) : 0;
+  const igst = isIntraState ? 0 : totalGst;
+
+  const invoiceItemsRows = items.map((item, idx) => {
+    const title = item.product_title || item.product?.title || 'Garment';
+    const variant = item.variant_title || (item.variant ? `${item.variant.color_name || ''} / ${item.variant.size || ''}` : '');
+    const sku = item.sku || item.variant?.sku || 'TAN-SKU';
+    const qty = item.quantity || 1;
+    const grossPrice = item.unit_price ?? item.variant?.sale_price ?? item.variant?.price ?? 0;
+    const lineGross = item.line_total ?? (grossPrice * qty);
+    const lineTaxable = Math.round(lineGross / (1 + taxRate));
+    const lineTax = lineGross - lineTaxable;
+    const hsn = '6204'; // HSN for women's dresses, skirts, ensembles
+
+    return `
+      <tr style="border-bottom: 1px solid #E5E5E5; font-size: 11px;">
+        <td style="padding: 10px 8px; text-align: center; color: #555555;">${idx + 1}</td>
+        <td style="padding: 10px 8px;">
+          <div style="font-weight: 600; color: #111111;">${title}</div>
+          ${variant ? `<div style="font-size: 10px; color: #666666; margin-top: 2px;">Spec: ${variant}</div>` : ''}
+          <div style="font-size: 10px; color: #888888; margin-top: 1px;">SKU: ${sku}</div>
+        </td>
+        <td style="padding: 10px 8px; text-align: center; font-family: monospace; color: #444444;">${hsn}</td>
+        <td style="padding: 10px 8px; text-align: center; color: #111111;">${qty}</td>
+        <td style="padding: 10px 8px; text-align: right; color: #444444;">${formatINR(grossPrice)}</td>
+        <td style="padding: 10px 8px; text-align: right; color: #444444;">${formatINR(lineTaxable)}</td>
+        <td style="padding: 10px 8px; text-align: center; color: #555555;">${isIntraState ? '2.5% + 2.5%' : '5%'}</td>
+        <td style="padding: 10px 8px; text-align: right; color: #444444;">${formatINR(lineTax)}</td>
+        <td style="padding: 10px 8px; text-align: right; font-weight: 600; color: #111111;">${formatINR(lineGross)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <!-- GST Tax Invoice Box -->
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 24px; border: 1.5px solid #191846; border-radius: 6px; background-color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden;">
+      
+      <!-- Invoice Header Banner -->
+      <tr>
+        <td style="background-color: #191846; padding: 18px 24px; border-bottom: 2px solid #D4AF37;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <td>
+                <div style="color: #D4AF37; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700;">
+                  ORIGINAL FOR RECIPIENT &bull; GST COMPLIANT
+                </div>
+                <div style="color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px;">
+                  TAX INVOICE
+                </div>
+              </td>
+              <td style="text-align: right; color: #FFFFFF;">
+                <div style="font-size: 13px; font-weight: 700;">Invoice No: ${invoiceNum}</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 2px;">Date: ${orderDate}</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Seller & Buyer Entity Grid -->
+      <tr>
+        <td style="padding: 18px 24px; background-color: #FAFAFB; border-bottom: 1px solid #E5E5E5;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <!-- Seller Section -->
+              <td style="width: 50%; vertical-align: top; padding-right: 16px; border-right: 1px solid #E5E5E5;">
+                <div style="font-size: 10px; font-weight: 700; color: #888888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">
+                  SOLD BY / SELLER DETAILS
+                </div>
+                <div style="font-size: 14px; font-weight: 700; color: #191846;">${SELLER_DETAILS.name}</div>
+                <div style="font-size: 11px; color: #444444; line-height: 1.5; margin-top: 3px;">
+                  ${SELLER_DETAILS.addressLine1}<br/>
+                  ${SELLER_DETAILS.city}, ${SELLER_DETAILS.state} - ${SELLER_DETAILS.postalCode}<br/>
+                  <strong>GSTIN:</strong> ${SELLER_DETAILS.gstin}<br/>
+                  <strong>PAN:</strong> ${SELLER_DETAILS.pan} &bull; <strong>State Code:</strong> ${SELLER_DETAILS.stateCode}<br/>
+                  <strong>Email:</strong> ${SELLER_DETAILS.email}<br/>
+                  <strong>Phone:</strong> ${SELLER_DETAILS.phone}
+                </div>
+              </td>
+
+              <!-- Buyer Section -->
+              <td style="width: 50%; vertical-align: top; padding-left: 16px;">
+                <div style="font-size: 10px; font-weight: 700; color: #888888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">
+                  BILLED TO / BUYER DETAILS
+                </div>
+                <div style="font-size: 14px; font-weight: 700; color: #111111;">${customerName}</div>
+                <div style="font-size: 11px; color: #444444; line-height: 1.5; margin-top: 3px;">
+                  ${address.address || ''}${address.apartment ? `, ${address.apartment}` : ''}<br/>
+                  ${address.city || ''}, ${customerState} ${(address as any).postal_code || (address as any).postalCode || ''}<br/>
+                  <strong>Phone:</strong> ${customerPhone}<br/>
+                  <strong>Email:</strong> ${customerEmail}<br/>
+                  <strong>Place of Supply:</strong> ${customerState} (Code: ${stateCode})<br/>
+                  <strong>Reverse Charge:</strong> No
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Order & Shipping Metadata Bar -->
+      <tr>
+        <td style="padding: 10px 24px; background-color: #F0F0F4; border-bottom: 1px solid #E5E5E5; font-size: 11px; color: #444444;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <td><strong>Order Ref:</strong> #${orderNum}</td>
+              <td><strong>Payment:</strong> ${paymentMethod}</td>
+              <td><strong>Gateway Ref:</strong> ${paymentRef}</td>
+              <td style="text-align: right;"><strong>Courier:</strong> India Post Speed Post</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Itemized Tax Invoice Table -->
+      <tr>
+        <td style="padding: 0;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #F8F8FA; border-bottom: 1.5px solid #DDDDDD; font-size: 10px; color: #666666; text-transform: uppercase; letter-spacing: 0.5px;">
+                <th style="padding: 8px 6px; text-align: center; width: 28px;">#</th>
+                <th style="padding: 8px 8px; text-align: left;">Item Description</th>
+                <th style="padding: 8px 6px; text-align: center; width: 45px;">HSN</th>
+                <th style="padding: 8px 6px; text-align: center; width: 32px;">Qty</th>
+                <th style="padding: 8px 8px; text-align: right; width: 55px;">Rate</th>
+                <th style="padding: 8px 8px; text-align: right; width: 65px;">Taxable</th>
+                <th style="padding: 8px 6px; text-align: center; width: 60px;">GST Rate</th>
+                <th style="padding: 8px 8px; text-align: right; width: 55px;">Tax</th>
+                <th style="padding: 8px 8px; text-align: right; width: 65px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoiceItemsRows}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Tax Breakdown & Calculation Box -->
+      <tr>
+        <td style="padding: 16px 24px; border-top: 1px solid #E5E5E5; background-color: #FAFAFB;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <!-- Tax Summary Left -->
+              <td style="width: 50%; vertical-align: top; font-size: 11px; color: #555555; padding-right: 16px;">
+                <div style="font-weight: 700; color: #191846; margin-bottom: 6px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">
+                  GST Tax Summary (5% Included)
+                </div>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 11px; color: #555555;">
+                  <tr>
+                    <td style="padding: 2px 0;">Total Taxable Value:</td>
+                    <td style="text-align: right; font-weight: 600; color: #222222;">${formatINR(taxableSubtotal)}</td>
+                  </tr>
+                  ${isIntraState ? `
+                    <tr>
+                      <td style="padding: 2px 0;">CGST (2.5%):</td>
+                      <td style="text-align: right; font-weight: 600; color: #222222;">${formatINR(cgst)}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 2px 0;">SGST (2.5%):</td>
+                      <td style="text-align: right; font-weight: 600; color: #222222;">${formatINR(sgst)}</td>
+                    </tr>
+                  ` : `
+                    <tr>
+                      <td style="padding: 2px 0;">IGST (5.0%):</td>
+                      <td style="text-align: right; font-weight: 600; color: #222222;">${formatINR(igst)}</td>
+                    </tr>
+                  `}
+                  <tr>
+                    <td style="padding: 2px 0; border-top: 1px dashed #CCCCCC; font-weight: 600;">Total Tax Amount:</td>
+                    <td style="text-align: right; font-weight: 700; color: #191846; border-top: 1px dashed #CCCCCC;">${formatINR(totalGst)}</td>
+                  </tr>
+                </table>
+
+                <div style="margin-top: 12px; padding: 6px 8px; background-color: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 4px; font-size: 10px; color: #666666;">
+                  <strong>Amount in Words:</strong><br/>
+                  ${numberToWordsINR(grandTotal)}
+                </div>
+              </td>
+
+              <!-- Financial Totals Right -->
+              <td style="width: 50%; vertical-align: top; padding-left: 16px; border-left: 1px solid #E5E5E5;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 12px; color: #555555;">
+                  <tr>
+                    <td style="padding: 3px 0;">Subtotal (Gross):</td>
+                    <td style="text-align: right; font-weight: 600; color: #222222;">${formatINR(subtotal)}</td>
+                  </tr>
+                  ${discount > 0 ? `
+                    <tr>
+                      <td style="padding: 3px 0; color: #137333;">Coupon Discount:</td>
+                      <td style="text-align: right; font-weight: 600; color: #137333;">-${formatINR(discount)}</td>
+                    </tr>
+                  ` : ''}
+                  <tr>
+                    <td style="padding: 3px 0;">Shipping &amp; Handling:</td>
+                    <td style="text-align: right; font-weight: 600; color: #222222;">${shipping === 0 ? 'FREE' : formatINR(shipping)}</td>
+                  </tr>
+                  <tr style="border-top: 2px solid #191846; font-size: 15px;">
+                    <td style="padding: 8px 0 0 0; font-weight: 700; color: #191846;">Invoice Total:</td>
+                    <td style="padding: 8px 0 0 0; text-align: right; font-weight: 800; color: #191846;">${formatINR(grandTotal)}</td>
+                  </tr>
+                </table>
+
+                <!-- Action Button -->
+                <div style="margin-top: 16px; text-align: right;">
+                  <a href="https://tanoah.com/order-confirmation?order=${orderNum}" style="background-color: #191846; color: #FFFFFF; font-size: 11px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 4px; display: inline-block; letter-spacing: 0.5px;">
+                    Print / Download Full PDF Invoice &rarr;
+                  </a>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Statutory Declaration Footer -->
+      <tr>
+        <td style="padding: 12px 24px; background-color: #F8F8FA; border-top: 1px solid #E5E5E5; text-align: center; font-size: 10px; color: #888888; line-height: 1.4;">
+          This is an authentic computer-generated Tax Invoice issued in accordance with Section 31 of the CGST Act, 2017.<br/>
+          It is digitally authenticated and requires no physical signature &bull; Registered Office: Rappal, Pudukkad P O, Thrissur, Kerala 680301.
+        </td>
+      </tr>
+
+    </table>
+  `;
+};
+
 export const generateAdminOrderAlertHtml = (order: OrderEmailPayload): string => {
   const orderNum = order.orderNumber || order.order_number || 'TAN-ORDER';
   const customerName = order.formData?.firstName
@@ -340,6 +702,13 @@ export const generateAdminOrderAlertHtml = (order: OrderEmailPayload): string =>
             </td>
           </tr>
 
+          <!-- Official GST Tax Invoice Section -->
+          <tr>
+            <td style="padding: 0 32px 24px 32px;">
+              ${generateGstTaxInvoiceHtml(order)}
+            </td>
+          </tr>
+
           <!-- Footer with Action Button -->
           <tr>
             <td style="background-color: #FAFAFB; padding: 24px 32px; text-align: center; border-top: 1px solid #EEEEEE;">
@@ -498,6 +867,13 @@ export const generateCustomerOrderConfirmationHtml = (order: OrderEmailPayload):
                 ${address.city || ''}, ${address.state || ''} ${(address as any).postal_code || (address as any).postalCode || ''}<br/>
                 India
               </div>
+            </td>
+          </tr>
+
+          <!-- Official GST Tax Invoice Section -->
+          <tr>
+            <td style="padding: 0 32px 24px 32px;">
+              ${generateGstTaxInvoiceHtml(order)}
             </td>
           </tr>
 

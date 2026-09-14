@@ -60,11 +60,13 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
     year: 'numeric',
   });
 
+  const isKerala = (order.formData.state || '').toLowerCase().includes('kerala');
   const taxRate = 0.05; // 5% GST
   const taxableValue = Math.round(order.subtotal / (1 + taxRate));
   const totalGst = order.subtotal - taxableValue;
-  const cgst = Math.round(totalGst / 2);
-  const sgst = totalGst - cgst;
+  const cgst = isKerala ? Math.round(totalGst / 2) : 0;
+  const sgst = isKerala ? (totalGst - cgst) : 0;
+  const igst = isKerala ? 0 : totalGst;
 
   return (
     <div
@@ -109,8 +111,8 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
               <div className="text-[10px] text-[#666666] leading-relaxed mt-0.5">
                 Rappal, Pudukkad P O<br />
                 Thrissur, Kerala 680301<br />
-                <strong>Email:</strong> connectus.tanoah@gmail.com | <strong>Mobile:</strong> 8714141849<br />
-                <strong>GSTIN:</strong> 32AAAAA0000A1Z5 | <strong>State Code:</strong> 32 (Kerala)
+                <strong>Email:</strong> connectus.tanoah@gmail.com | <strong>Mobile:</strong> +91 87141 41849<br />
+                <strong>GSTIN:</strong> 32ESJPD7012L1ZU &bull; <strong>PAN:</strong> ESJPD7012L &bull; <strong>State Code:</strong> 32 (Kerala)
               </div>
             </div>
             <div className="text-right">
@@ -191,7 +193,11 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
             <div className="w-1/2 space-y-1.5 text-[10px] text-[#666666]">
               <p><strong>Tax Summary (5% GST Included):</strong></p>
               <p>Taxable Value: {formatPrice(taxableValue)}</p>
-              <p>CGST (2.5%): {formatPrice(cgst)} | SGST (2.5%): {formatPrice(sgst)}</p>
+              {isKerala ? (
+                <p>CGST (2.5%): {formatPrice(cgst)} | SGST (2.5%): {formatPrice(sgst)}</p>
+              ) : (
+                <p>IGST (5.0%): {formatPrice(igst)}</p>
+              )}
               <p className="mt-2 italic">This is an authorized computer-generated tax invoice and requires no physical signature.</p>
             </div>
 

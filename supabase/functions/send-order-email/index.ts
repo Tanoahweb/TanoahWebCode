@@ -131,24 +131,42 @@ Deno.serve(async (req: Request) => {
       // Customer Return Acknowledgment (if email provided)
       if (customerEmail && customerEmail.includes('@') && payload.customerHtml) {
         try {
-          const isTestDomain = fromEmail.includes('resend.dev');
-          if (!isTestDomain || customerEmail.toLowerCase() === recipient.toLowerCase()) {
-            const custRes = await sendResend({
-              from: fromEmail,
-              to: customerEmail,
-              reply_to: recipient,
-              subject: `Return Request Initiated: #${orderNum} | TANOAH Client Care`,
-              html: payload.customerHtml,
-            }, activeApiKey);
-            results.customerConfirmation = { status: 'sent', id: custRes.id };
-          } else {
-            results.customerConfirmation = {
-              status: 'domain_verification_required',
-              message: 'Sending to non-admin customer emails requires a verified custom domain at resend.com/domains',
-            };
-          }
+          const custRes = await sendResend({
+            from: fromEmail,
+            to: customerEmail,
+            reply_to: recipient,
+            subject: `Return Request Initiated: #${orderNum} | TANOAH Client Care`,
+            html: payload.customerHtml,
+          }, activeApiKey);
+          results.customerConfirmation = { status: 'sent', id: custRes.id };
         } catch (err: any) {
-          results.customerConfirmation = { status: 'failed', error: err.message || err };
+          if (err.statusCode === 403 || err.message?.includes('verify a domain') || err.message?.includes('testing emails')) {
+            try {
+              const fallbackRes = await sendResend({
+                from: fromEmail,
+                to: recipient,
+                reply_to: customerEmail,
+                subject: `🚨 [CUSTOMER RETURN COPY - Deliver to: ${customerEmail}] Return Request: #${orderNum}`,
+                html: `
+                  <div style="font-family: sans-serif; background-color: #FEF7E0; border: 1px solid #F0E5BA; padding: 16px; margin-bottom: 20px; border-radius: 6px;">
+                    <strong style="color: #B06000;">⚠️ RESEND CUSTOMER RETURN DISPATCH NOTICE:</strong><br/>
+                    Resend domain <code>${fromEmail}</code> requires DNS verification to deliver directly to customer mailboxes.<br/>
+                    Below is the customer return acknowledgment for <strong>${customerEmail}</strong> (${customerName}).
+                  </div>
+                  ${payload.customerHtml}
+                `,
+              }, activeApiKey);
+              results.customerConfirmation = {
+                status: 'forwarded_to_admin_domain_pending',
+                id: fallbackRes.id,
+                message: `Customer return confirmation forwarded to admin pending domain verification at resend.com/domains`,
+              };
+            } catch (fErr: any) {
+              results.customerConfirmation = { status: 'domain_verification_required', error: fErr.message || fErr };
+            }
+          } else {
+            results.customerConfirmation = { status: 'failed', error: err.message || err };
+          }
         }
       }
 
@@ -200,13 +218,14 @@ Deno.serve(async (req: Request) => {
 
     // 3. Send Customer Order Confirmation (if customer email provided)
     if (customerEmail && customerEmail.includes('@')) {
+      const cHtml = customerHtml || `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Order #${orderNum} Confirmed</h2>
+          <p>Thank you for shopping with TANOAH.</p>
+        </div>
+      `;
+
       try {
-        const cHtml = customerHtml || `
-          <div style="font-family: sans-serif; padding: 20px;">
-            <h2>Order #${orderNum} Confirmed</h2>
-            <p>Thank you for shopping with TANOAH.</p>
-          </div>
-        `;
         const custRes = await sendResend({
           from: fromEmail,
           to: customerEmail,
@@ -217,11 +236,35 @@ Deno.serve(async (req: Request) => {
         results.customerConfirmation = { status: 'sent', id: custRes.id };
       } catch (err: any) {
         console.warn('[send-order-email] Customer confirmation notice:', err);
-        if (err.statusCode === 403 || err.message?.includes('verify a domain')) {
-          results.customerConfirmation = {
-            status: 'domain_verification_required',
-            message: 'Customer email requires custom domain verification at resend.com/domains',
-          };
+        if (err.statusCode === 403 || err.message?.includes('verify a domain') || err.message?.includes('testing emails')) {
+          // Zero-Loss Fallback: Resend domain verification pending for external recipients.
+          // Dispatch copy to admin immediately so invoice and confirmation are never lost.
+          try {
+            const fallbackRes = await sendResend({
+              from: fromEmail,
+              to: adminEmail,
+              reply_to: customerEmail,
+              subject: `🚨 [CUSTOMER DISPATCH COPY - Deliver to: ${customerEmail}] Order Confirmed: #${orderNum}`,
+              html: `
+                <div style="font-family: sans-serif; background-color: #FEF7E0; border: 1px solid #F0E5BA; padding: 16px; margin-bottom: 20px; border-radius: 6px;">
+                  <strong style="color: #B06000;">⚠️ RESEND CUSTOMER DISPATCH NOTICE:</strong><br/>
+                  Resend sender domain <code>${fromEmail}</code> requires DNS domain verification at <a href="https://resend.com/domains">resend.com/domains</a> to deliver directly to customer mailboxes.<br/>
+                  Below is the exact customer confirmation &amp; official GST Tax Invoice generated for <strong>${customerEmail}</strong> (${customerName}).
+                </div>
+                ${cHtml}
+              `,
+            }, activeApiKey);
+            results.customerConfirmation = {
+              status: 'forwarded_to_admin_domain_pending',
+              id: fallbackRes.id,
+              message: `Customer email delivered to ${adminEmail} pending domain verification at resend.com/domains`,
+            };
+          } catch (fallbackErr: any) {
+            results.customerConfirmation = {
+              status: 'domain_verification_required',
+              error: fallbackErr.message || fallbackErr,
+            };
+          }
         } else {
           results.customerConfirmation = { status: 'failed', error: err.message || err };
         }
