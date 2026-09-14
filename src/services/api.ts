@@ -1306,7 +1306,7 @@ export const api = {
       id: newProductId,
       title: newTitle,
       slug: candidateSlug,
-      status: source.status || 'active', // Preserve source status so duplicated products remain active and visible in all collections
+      status: 'draft', // Duplicated products default to draft (Hidden) until edited and published by admin
       seo_title: source.seo_title ? `${source.seo_title} (Copy)` : `${newTitle} | TANOAH`,
       seo_description: source.seo_description || source.short_description || source.description || '',
       images: newImages,

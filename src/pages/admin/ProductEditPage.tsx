@@ -1374,7 +1374,7 @@ export const ProductEditPage: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Product Duplicated',
-          description: `"${res.product.title}" has been created with unique SKU & slug.`,
+          description: `"${res.product.title}" created as Draft (Hidden) with unique SKU & slug.`,
         });
         navigate(`/admin/products/${res.product.id}`);
       }

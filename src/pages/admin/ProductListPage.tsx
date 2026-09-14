@@ -68,7 +68,7 @@ export const ProductListPage: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Product Duplicated',
-          description: `"${res.product.title}" created with unique SKU & slug. Redirecting to edit...`,
+          description: `"${res.product.title}" created as Draft (Hidden). Redirecting to edit...`,
         });
         navigate(`/admin/products/${res.product.id}`);
       }
@@ -254,8 +254,16 @@ export const ProductListPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                          {product.status}
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${
+                            product.status === 'active'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : product.status === 'draft'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-neutral-100 text-neutral-600'
+                          }`}
+                        >
+                          {product.status === 'draft' ? 'Draft (Hidden)' : product.status}
                         </span>
                       </td>
                       <td className="p-4 text-right space-x-2">
