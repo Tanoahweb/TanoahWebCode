@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Sparkles } from 'lucide-react';
 import { HeaderMenuItem, MegaMenuColumn, MegaMenuSubLink } from '../../types/navigation';
-import { Collection } from '../../types';
+import { Collection, Category, TargetAudience } from '../../types';
 import { useNavigationStore } from '../../store/useNavigationStore';
 import { api } from '../../services/api';
 
@@ -15,26 +15,38 @@ interface MegaMenuProps {
 export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose, activeMenuItem }) => {
   const { config } = useNavigationStore();
   const [storeCollections, setStoreCollections] = useState<Collection[]>([]);
+  const [storeCategories, setStoreCategories] = useState<Category[]>([]);
+  const [storeAudiences, setStoreAudiences] = useState<TargetAudience[]>([]);
 
   useEffect(() => {
     let isMounted = true;
-    const loadCollections = async () => {
+    const loadData = async () => {
       try {
-        const list = await api.getCollections();
-        if (isMounted) setStoreCollections(list || []);
+        const [cols, cats, auds] = await Promise.all([
+          api.getCollections(),
+          api.getCategories(false),
+          api.getTargetAudiences(),
+        ]);
+        if (isMounted) {
+          setStoreCollections(cols || []);
+          setStoreCategories(cats || []);
+          setStoreAudiences(auds || []);
+        }
       } catch (e) {
-        console.warn('Failed to load collections for mega menu:', e);
+        console.warn('Failed to load navigation data for mega menu:', e);
       }
     };
-    loadCollections();
+    loadData();
 
-    const handleCollectionsUpdated = () => {
-      loadCollections();
+    const handleUpdated = () => {
+      loadData();
     };
-    window.addEventListener('tanoah_collections_updated', handleCollectionsUpdated);
+    window.addEventListener('tanoah_collections_updated', handleUpdated);
+    window.addEventListener('tanoah_categories_updated', handleUpdated);
     return () => {
       isMounted = false;
-      window.removeEventListener('tanoah_collections_updated', handleCollectionsUpdated);
+      window.removeEventListener('tanoah_collections_updated', handleUpdated);
+      window.removeEventListener('tanoah_categories_updated', handleUpdated);
     };
   }, []);
 
@@ -47,8 +59,22 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose, activeMenuI
 
   if (!megaMenuData) return null;
 
-  // Resolve links for a column: if auto-sync is enabled, use dynamic collections from store
+  // Resolve links for a column: if auto-sync is enabled, use dynamic categories or collections
   const getResolvedColumnLinks = (col: MegaMenuColumn): MegaMenuSubLink[] => {
+    // 1. Auto-sync categories
+    if (col.auto_sync_categories) {
+      const activeCats = storeCategories.filter((c) => c.is_active !== false);
+      if (activeCats.length > 0) {
+        return activeCats.map((c) => ({
+          id: `dyn_cat_${c.id}`,
+          label: c.name,
+          url: `/collections/all?category=${c.slug}`,
+          is_active: true,
+        }));
+      }
+    }
+
+    // 2. Auto-sync collections
     if (col.auto_sync_collections) {
       const activeCols = storeCollections.filter((c) => c.is_active !== false);
       const filtered = activeCols.filter((c) => {
@@ -71,7 +97,7 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose, activeMenuI
   };
 
   const columns = (megaMenuData.columns || []).filter((c) => {
-    if (c.auto_sync_collections) return true;
+    if (c.auto_sync_collections || c.auto_sync_categories) return true;
     return c.links && c.links.length > 0;
   });
   const banner = megaMenuData.banner;

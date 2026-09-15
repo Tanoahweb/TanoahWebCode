@@ -54,6 +54,8 @@ import { MediaLibraryPage } from './pages/admin/MediaLibraryPage';
 import { CouponsPage } from './pages/admin/CouponsPage';
 import { StoreSettingsPage } from './pages/admin/StoreSettingsPage';
 import { CollectionsPage } from './pages/admin/CollectionsPage';
+import { CategoriesAdminPage } from './pages/admin/CategoriesAdminPage';
+import { AttributesAdminPage } from './pages/admin/AttributesAdminPage';
 import { NavigationPage } from './pages/admin/NavigationPage';
 import { ReviewsPage } from './pages/admin/ReviewsPage';
 import { SeoDashboardPage } from './pages/admin/SeoDashboardPage';
@@ -145,6 +147,8 @@ const AppContent: React.FC = () => {
             <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
             <Route path="/admin/returns" element={<ReturnsQueuePage />} />
             <Route path="/admin/customers" element={<CustomersPage />} />
+            <Route path="/admin/categories" element={<CategoriesAdminPage />} />
+            <Route path="/admin/attributes" element={<AttributesAdminPage />} />
             <Route path="/admin/collections" element={<CollectionsPage />} />
             <Route path="/admin/navigation" element={<NavigationPage />} />
             <Route path="/admin/media" element={<MediaLibraryPage />} />

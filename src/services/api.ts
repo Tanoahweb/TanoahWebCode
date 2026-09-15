@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview } from '@/types';
+import { Product, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '@/types';
 import { BlogArticle, SEORedirect, SEO404Log, SEOAuditSummary, SEOAuditIssue } from '@/types/seo';
 import { recordRedirectIfSlugChanged } from './seoEngine';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
@@ -34,6 +34,13 @@ export interface PaginatedProductsOptions {
   types?: string[];
   search?: string;
   gender?: string;
+  targetAudienceId?: string;
+  targetAudienceSlug?: string;
+  categoryId?: string;
+  categorySlug?: string;
+  subcategoryId?: string;
+  subcategorySlug?: string;
+  attributes?: Record<string, string[]>;
   sortBy?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -200,8 +207,29 @@ const sanitizeProduct = (p: Product): Product => {
         ? (() => { try { return JSON.parse((p.structured_attributes as any).collections); } catch { return []; } })()
         : []));
 
+  const targetAudienceName =
+    p.target_audience_name ||
+    (p as any).target_audience?.name ||
+    '';
+
+  const categoryName =
+    p.category_name ||
+    (p as any).category?.name ||
+    '';
+
+  const subcategoryName =
+    p.subcategory_name ||
+    (p as any).subcategory?.name ||
+    '';
+
   return {
     ...p,
+    target_audience_id: p.target_audience_id || (p as any).target_audience?.id || undefined,
+    target_audience_name: targetAudienceName,
+    category_id: p.category_id || (p as any).category?.id || undefined,
+    category_name: categoryName,
+    subcategory_id: p.subcategory_id || (p as any).subcategory?.id || undefined,
+    subcategory_name: subcategoryName,
     collections,
     size_chart_id: sizeChartId,
     custom_sections: cleanSections,
@@ -433,6 +461,42 @@ export function isProductInCollection(product: Product, collectionSlugOrId: stri
     return true;
   }
   if (product.category_id && product.category_id.toLowerCase().trim() === target) {
+    return true;
+  }
+  if (product.category && typeof product.category === 'object') {
+    const cat = product.category as any;
+    if (cat.slug && cat.slug.toLowerCase().trim() === target) return true;
+    if (cat.name && cat.name.toLowerCase().trim() === target) return true;
+  }
+
+  // 4. Target Audience matching
+  if (product.target_audience_name && product.target_audience_name.toLowerCase().trim() === target) {
+    return true;
+  }
+  if (product.target_audience_id && product.target_audience_id.toLowerCase().trim() === target) {
+    return true;
+  }
+
+  // 5. Subcategory matching
+  if (product.subcategory_name && product.subcategory_name.toLowerCase().trim() === target) {
+    return true;
+  }
+  if (product.subcategory_id && product.subcategory_id.toLowerCase().trim() === target) {
+    return true;
+  }
+  if (product.subcategory && typeof product.subcategory === 'object') {
+    const sub = product.subcategory as any;
+    if (sub.slug && sub.slug.toLowerCase().trim() === target) return true;
+    if (sub.name && sub.name.toLowerCase().trim() === target) return true;
+  }
+
+  // 6. Product type matching
+  if (product.product_type && product.product_type.toLowerCase().trim().includes(target)) {
+    return true;
+  }
+
+  // 7. Legacy gender matching
+  if (product.gender && product.gender.toLowerCase().trim() === target) {
     return true;
   }
 
@@ -698,14 +762,96 @@ export const api = {
     }
   },
 
-  // Categories Registry (Direct Supabase)
-  async getCategories(): Promise<Category[]> {
+  // Target Audiences Registry (Direct Supabase)
+  async getTargetAudiences(includeInactive = false): Promise<TargetAudience[]> {
     try {
-      const { data, error } = await supabase
-        .from('categories')
+      let query = supabase
+        .from('target_audiences')
         .select('*')
-        .eq('is_active', true)
         .order('sort_order', { ascending: true });
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as TargetAudience[];
+      if (error) console.warn('Supabase getTargetAudiences error:', error);
+    } catch (e) {
+      console.warn('Network error fetching target audiences:', e);
+    }
+    return [
+      { id: 'fea81453-c608-471b-9849-0d4d5022df57', name: 'Women', slug: 'women', sort_order: 1, is_active: true },
+      { id: 'b66b3f6c-7606-4a77-aaf5-6513ffb7ed84', name: 'Men', slug: 'men', sort_order: 2, is_active: true },
+      { id: '4e64e52b-cd52-4eb3-800e-a4c3f9cab710', name: 'Unisex & Editions', slug: 'unisex', sort_order: 3, is_active: true },
+      { id: '0beb1256-0480-47a6-b909-cd0ab6accc79', name: 'Kids', slug: 'kids', sort_order: 4, is_active: true },
+    ];
+  },
+
+  async saveTargetAudience(audience: TargetAudience): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(audience.id);
+      const targetId = isUUID ? audience.id : crypto.randomUUID();
+
+      const payload: any = {
+        id: targetId,
+        name: audience.name,
+        slug: audience.slug,
+        description: audience.description || null,
+        image_url: audience.image_url || null,
+        sort_order: audience.sort_order || 0,
+        is_active: audience.is_active !== false,
+        seo_title: audience.seo_title || null,
+        seo_description: audience.seo_description || null,
+        social_image_url: audience.social_image_url || null,
+        is_noindex: !!audience.is_noindex,
+      };
+      const { error } = await supabase.from('target_audiences').upsert([payload], { onConflict: 'slug' });
+      if (error) {
+        console.error('Failed to save target audience to Supabase:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_target_audiences_updated', { detail: { audience: { ...audience, id: targetId } } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving target audience:', err);
+      return false;
+    }
+  },
+
+  async deleteTargetAudience(id: string): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('target_audiences').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete target audience:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_target_audiences_updated', { detail: { deletedId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting target audience:', err);
+      return false;
+    }
+  },
+
+  // Categories Registry (Direct Supabase)
+  async getCategories(includeInactive = false, targetAudienceId?: string): Promise<Category[]> {
+    try {
+      let query = supabase
+        .from('categories')
+        .select('*, target_audience:target_audiences(*)')
+        .order('sort_order', { ascending: true });
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      if (targetAudienceId) {
+        query = query.eq('target_audience_id', targetAudienceId);
+      }
+      const { data, error } = await query;
       if (!error && data) {
         return data as Category[];
       }
@@ -734,6 +880,7 @@ export const api = {
         id: targetId,
         name: category.name,
         slug: category.slug,
+        target_audience_id: category.target_audience_id || null,
         description: category.description || null,
         image_url: category.image_url || null,
         parent_id: category.parent_id || null,
@@ -774,6 +921,270 @@ export const api = {
       return true;
     } catch (err) {
       console.error('Error deleting category:', err);
+      return false;
+    }
+  },
+
+  // Subcategories Registry (Direct Supabase)
+  async getSubcategories(categoryId?: string, includeInactive = false): Promise<Subcategory[]> {
+    try {
+      let query = supabase
+        .from('subcategories')
+        .select('*, category:categories(*)')
+        .order('sort_order', { ascending: true });
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      if (categoryId) {
+        query = query.eq('category_id', categoryId);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as Subcategory[];
+      if (error) console.warn('Supabase getSubcategories error:', error);
+    } catch (e) {
+      console.warn('Network error fetching subcategories:', e);
+    }
+    return [];
+  },
+
+  async saveSubcategory(sub: Subcategory): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sub.id);
+      const targetId = isUUID ? sub.id : crypto.randomUUID();
+
+      const payload: any = {
+        id: targetId,
+        category_id: sub.category_id,
+        name: sub.name,
+        slug: sub.slug,
+        description: sub.description || null,
+        image_url: sub.image_url || null,
+        sort_order: sub.sort_order || 0,
+        is_active: sub.is_active !== false,
+        seo_title: sub.seo_title || null,
+        seo_description: sub.seo_description || null,
+        social_image_url: sub.social_image_url || null,
+        is_noindex: !!sub.is_noindex,
+      };
+      const { error } = await supabase.from('subcategories').upsert([payload], { onConflict: 'category_id,slug' });
+      if (error) {
+        console.error('Failed to save subcategory to Supabase:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_subcategories_updated', { detail: { subcategory: { ...sub, id: targetId } } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving subcategory:', err);
+      return false;
+    }
+  },
+
+  async deleteSubcategory(id: string): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('subcategories').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete subcategory:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_subcategories_updated', { detail: { deletedId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting subcategory:', err);
+      return false;
+    }
+  },
+
+  // Attributes Registry (Direct Supabase)
+  async getAttributes(includeInactive = false): Promise<Attribute[]> {
+    try {
+      let query = supabase
+        .from('attributes')
+        .select('*, values:attribute_values(*)')
+        .order('sort_order', { ascending: true });
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        return (data as any[]).map((attr) => ({
+          ...attr,
+          values: (attr.values || []).sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
+        })) as Attribute[];
+      }
+      if (error) console.warn('Supabase getAttributes error:', error);
+    } catch (e) {
+      console.warn('Network error fetching attributes:', e);
+    }
+    return [];
+  },
+
+  async saveAttribute(attribute: Attribute): Promise<{ success: boolean; attribute?: Attribute }> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attribute.id);
+      const targetId = isUUID ? attribute.id : crypto.randomUUID();
+
+      const payload: any = {
+        id: targetId,
+        name: attribute.name,
+        slug: attribute.slug,
+        type: attribute.type || 'select',
+        is_filterable: attribute.is_filterable !== false,
+        is_required: !!attribute.is_required,
+        sort_order: attribute.sort_order || 0,
+        is_active: attribute.is_active !== false,
+      };
+      const { error } = await supabase.from('attributes').upsert([payload], { onConflict: 'slug' });
+      if (error) {
+        console.error('Failed to save attribute:', error);
+        return { success: false };
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_attributes_updated', { detail: { attribute: { ...attribute, id: targetId } } }));
+      }
+      return { success: true, attribute: { ...attribute, id: targetId } };
+    } catch (err) {
+      console.error('Error saving attribute:', err);
+      return { success: false };
+    }
+  },
+
+  async deleteAttribute(id: string): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('attributes').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete attribute:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_attributes_updated', { detail: { deletedId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting attribute:', err);
+      return false;
+    }
+  },
+
+  // Attribute Values
+  async getAttributeValues(attributeId?: string, includeInactive = false): Promise<AttributeValue[]> {
+    try {
+      let query = supabase
+        .from('attribute_values')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+      if (attributeId) {
+        query = query.eq('attribute_id', attributeId);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as AttributeValue[];
+      if (error) console.warn('Supabase getAttributeValues error:', error);
+    } catch (e) {
+      console.warn('Network error fetching attribute values:', e);
+    }
+    return [];
+  },
+
+  async saveAttributeValue(value: AttributeValue): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id);
+      const targetId = isUUID ? value.id : crypto.randomUUID();
+
+      const payload: any = {
+        id: targetId,
+        attribute_id: value.attribute_id,
+        value: value.value,
+        slug: value.slug,
+        color_hex: value.color_hex || null,
+        sort_order: value.sort_order || 0,
+        is_active: value.is_active !== false,
+      };
+      const { error } = await supabase.from('attribute_values').upsert([payload], { onConflict: 'attribute_id,slug' });
+      if (error) {
+        console.error('Failed to save attribute value:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_attributes_updated', { detail: { value: { ...value, id: targetId } } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving attribute value:', err);
+      return false;
+    }
+  },
+
+  async deleteAttributeValue(id: string): Promise<boolean> {
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase.from('attribute_values').delete();
+      const { error } = isUUID ? await query.eq('id', id) : await query.eq('slug', id);
+      if (error) {
+        console.error('Failed to delete attribute value:', error);
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_attributes_updated', { detail: { deletedValueId: id } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error deleting attribute value:', err);
+      return false;
+    }
+  },
+
+  // Category Attributes Mapping
+  async getCategoryAttributes(categoryId?: string): Promise<CategoryAttribute[]> {
+    try {
+      let query = supabase
+        .from('category_attributes')
+        .select('*, attribute:attributes(*, values:attribute_values(*))')
+        .order('sort_order', { ascending: true });
+      if (categoryId) {
+        query = query.eq('category_id', categoryId);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as CategoryAttribute[];
+      if (error) console.warn('Supabase getCategoryAttributes error:', error);
+    } catch (e) {
+      console.warn('Network error fetching category attributes:', e);
+    }
+    return [];
+  },
+
+  async assignCategoryAttributes(categoryId: string, attributeIds: string[]): Promise<boolean> {
+    try {
+      await supabase.from('category_attributes').delete().eq('category_id', categoryId);
+      if (attributeIds.length > 0) {
+        const rows = attributeIds.map((attrId, idx) => ({
+          id: crypto.randomUUID(),
+          category_id: categoryId,
+          attribute_id: attrId,
+          sort_order: idx,
+          is_required: false,
+        }));
+        const { error } = await supabase.from('category_attributes').insert(rows);
+        if (error) {
+          console.error('Failed to assign category attributes:', error);
+          return false;
+        }
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tanoah_category_attributes_updated', { detail: { categoryId } }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Error assigning category attributes:', err);
       return false;
     }
   },
@@ -953,6 +1364,8 @@ export const api = {
         .select(`
           *,
           category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
           images:product_images(*),
           variants:product_variants(*)
         `)
@@ -987,6 +1400,8 @@ export const api = {
         .select(`
           *,
           category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
           images:product_images(*),
           variants:product_variants(*)
         `)
@@ -1012,6 +1427,8 @@ export const api = {
         .select(`
           *,
           category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
           images:product_images(*),
           variants:product_variants(*)
         `);
@@ -1053,6 +1470,12 @@ export const api = {
     const validCategoryId = sanitized.category_id && uuidRegex.test(sanitized.category_id)
       ? sanitized.category_id
       : null;
+    const validTargetAudienceId = sanitized.target_audience_id && uuidRegex.test(sanitized.target_audience_id)
+      ? sanitized.target_audience_id
+      : null;
+    const validSubcategoryId = sanitized.subcategory_id && uuidRegex.test(sanitized.subcategory_id)
+      ? sanitized.subcategory_id
+      : null;
 
     const cols = Array.isArray(sanitized.collections) ? sanitized.collections : [];
     const mergedTags = new Set(sanitized.tags || []);
@@ -1070,7 +1493,9 @@ export const api = {
       slug: sanitized.slug,
       brand: sanitized.brand || 'TANOAH',
       product_type: sanitized.product_type || (cols[0] ? cols[0] : 'Collection'),
+      target_audience_id: validTargetAudienceId,
       category_id: validCategoryId,
+      subcategory_id: validSubcategoryId,
       gender: sanitized.gender || 'unisex',
       base_price: sanitized.base_price,
       sale_price: prodSalePrice,
@@ -1341,6 +1766,8 @@ export const api = {
         .select(`
           *,
           category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
           images:product_images(*),
           ${variantsJoin}
         `, { count: 'exact' });
@@ -1371,8 +1798,15 @@ export const api = {
           } else if (coll === 'best-sellers') {
             query = query.or('is_best_seller.eq.true,tags.cs.{"best-sellers"}');
           } else {
-            // Custom collection: check tags contains collection slug or product_type matches
-            query = query.or(`tags.cs.{"${coll}"},product_type.ilike.%${coll}%`);
+            // Custom collection: check tags, product_type, or matching category slug
+            let orFilter = `tags.cs.{"${coll}"},product_type.ilike.%${coll}%`;
+            try {
+              const { data: catBySlug } = await supabase.from('categories').select('id').eq('slug', coll).maybeSingle();
+              if (catBySlug?.id) {
+                orFilter += `,category_id.eq.${catBySlug.id}`;
+              }
+            } catch {}
+            query = query.or(orFilter);
           }
         } else {
           // Multi-collection matching
@@ -1408,6 +1842,79 @@ export const api = {
         query = query.in('product_type', options.types);
       } else if (options.type && options.type !== 'all') {
         query = query.eq('product_type', options.type);
+      }
+
+      // Target Audience Filter (by ID or slug)
+      const audienceVal = options.targetAudienceId || options.targetAudienceSlug;
+      if (audienceVal && audienceVal !== 'all') {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(audienceVal);
+        if (isUUID) {
+          query = query.eq('target_audience_id', audienceVal);
+        } else {
+          query = query.in('gender', [audienceVal, 'unisex']);
+        }
+      }
+
+      // Category Filter (by UUID or slug)
+      const categoryVal = options.categoryId || options.categorySlug;
+      if (categoryVal && categoryVal !== 'all') {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryVal);
+        if (isUUID) {
+          query = query.eq('category_id', categoryVal);
+        } else {
+          try {
+            const { data: matchedCat } = await supabase
+              .from('categories')
+              .select('id')
+              .eq('slug', categoryVal)
+              .maybeSingle();
+            if (matchedCat?.id) {
+              query = query.or(`category_id.eq.${matchedCat.id},product_type.ilike.%${categoryVal}%,tags.cs.{"${categoryVal}"}`);
+            } else {
+              query = query.or(`product_type.ilike.%${categoryVal}%,tags.cs.{"${categoryVal}"}`);
+            }
+          } catch {
+            query = query.or(`product_type.ilike.%${categoryVal}%,tags.cs.{"${categoryVal}"}`);
+          }
+        }
+      }
+
+      // Subcategory Filter (by UUID or slug)
+      const subcategoryVal = options.subcategoryId || options.subcategorySlug;
+      if (subcategoryVal && subcategoryVal !== 'all') {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subcategoryVal);
+        if (isUUID) {
+          query = query.eq('subcategory_id', subcategoryVal);
+        } else {
+          try {
+            const { data: matchedSub } = await supabase
+              .from('subcategories')
+              .select('id')
+              .eq('slug', subcategoryVal)
+              .maybeSingle();
+            if (matchedSub?.id) {
+              query = query.or(`subcategory_id.eq.${matchedSub.id},tags.cs.{"${subcategoryVal}"}`);
+            } else {
+              query = query.contains('tags', [subcategoryVal]);
+            }
+          } catch {
+            query = query.contains('tags', [subcategoryVal]);
+          }
+        }
+      }
+
+      // Dynamic Attributes Filter (JSONB structured_attributes)
+      if (options.attributes && Object.keys(options.attributes).length > 0) {
+        for (const [attrKey, attrVals] of Object.entries(options.attributes)) {
+          if (attrVals && attrVals.length > 0) {
+            if (attrVals.length === 1) {
+              query = query.filter(`structured_attributes->>${attrKey}`, 'ilike', `%${attrVals[0]}%`);
+            } else {
+              const clauses = attrVals.map((v) => `structured_attributes->>${attrKey}.ilike.%${v}%`);
+              query = query.or(clauses.join(','));
+            }
+          }
+        }
       }
 
       // Variant filters (Sizes, Colors, In-Stock)
@@ -1461,7 +1968,22 @@ export const api = {
       const { data, count, error } = await query;
 
       if (!error && data) {
-        const sanitized = (data as unknown as Product[]).map(sanitizeProduct);
+        let sanitized = (data as unknown as Product[]).map(sanitizeProduct);
+
+        // Additional client-side check for dynamic attributes in case JSONB indexing varies
+        if (options.attributes && Object.keys(options.attributes).length > 0) {
+          sanitized = sanitized.filter((p) => {
+            for (const [attrKey, attrVals] of Object.entries(options.attributes!)) {
+              if (attrVals && attrVals.length > 0) {
+                const pVal = String(p.structured_attributes?.[attrKey] || '').toLowerCase().trim();
+                const matches = attrVals.some((v) => pVal.includes(v.toLowerCase().trim()));
+                if (!matches) return false;
+              }
+            }
+            return true;
+          });
+        }
+
         const total = typeof count === 'number' ? count : sanitized.length;
         return {
           products: sanitized,
@@ -1502,6 +2024,45 @@ export const api = {
       if (options.gender && options.gender !== 'all' && p.gender !== options.gender && p.gender !== 'unisex') return false;
       if (options.types && options.types.length > 0 && !options.types.includes(p.product_type)) return false;
       if (options.type && options.type !== 'all' && p.product_type !== options.type) return false;
+
+      // Target Audience Fallback
+      const audienceVal = options.targetAudienceId || options.targetAudienceSlug;
+      if (audienceVal && audienceVal !== 'all') {
+        const matches = p.target_audience_id === audienceVal ||
+          (p.target_audience && (p.target_audience.id === audienceVal || p.target_audience.slug === audienceVal)) ||
+          p.gender === audienceVal ||
+          (p.gender === 'unisex');
+        if (!matches) return false;
+      }
+
+      // Category Fallback
+      const categoryVal = options.categoryId || options.categorySlug;
+      if (categoryVal && categoryVal !== 'all') {
+        const matches = p.category_id === categoryVal ||
+          (p.category && (p.category.id === categoryVal || p.category.slug === categoryVal)) ||
+          (p.product_type && p.product_type.toLowerCase().includes(categoryVal.toLowerCase()));
+        if (!matches) return false;
+      }
+
+      // Subcategory Fallback
+      const subcategoryVal = options.subcategoryId || options.subcategorySlug;
+      if (subcategoryVal && subcategoryVal !== 'all') {
+        const matches = p.subcategory_id === subcategoryVal ||
+          (p.subcategory && (p.subcategory.id === subcategoryVal || p.subcategory.slug === subcategoryVal));
+        if (!matches) return false;
+      }
+
+      // Dynamic Attributes Fallback
+      if (options.attributes && Object.keys(options.attributes).length > 0) {
+        for (const [attrKey, attrVals] of Object.entries(options.attributes)) {
+          if (attrVals && attrVals.length > 0) {
+            const pVal = String(p.structured_attributes?.[attrKey] || '').toLowerCase().trim();
+            const matches = attrVals.some((v) => pVal.includes(v.toLowerCase().trim()));
+            if (!matches) return false;
+          }
+        }
+      }
+
       if (options.search && !p.title.toLowerCase().includes(options.search.toLowerCase())) return false;
       if (options.maxPrice && options.maxPrice < 10000 && p.base_price > options.maxPrice) return false;
       if (options.sizes && options.sizes.length > 0 && !p.variants.some((v) => options.sizes!.includes(v.size))) return false;

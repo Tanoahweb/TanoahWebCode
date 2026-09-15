@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Percent,
   Tag,
+  Tags,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -35,7 +36,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { SAMPLE_CATEGORIES } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
-import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category, SizeChart } from '../../types';
+import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category, SizeChart, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '../../types';
 import { MediaUploader } from '../../components/admin/MediaUploader';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 import { ProductSeoSection } from '../../components/admin/ProductSeoSection';
@@ -159,9 +160,21 @@ export const ProductEditPage: React.FC = () => {
   const [isAddingNewType, setIsAddingNewType] = useState(false);
   const [newTypeInput, setNewTypeInput] = useState('');
 
+  // Target Audiences & Catalog Hierarchy state from Supabase
+  const [audiences, setAudiences] = useState<TargetAudience[]>([]);
+  const [targetAudienceId, setTargetAudienceId] = useState<string>('');
+
   // Categories state from Supabase
   const [categories, setCategories] = useState<Category[]>(SAMPLE_CATEGORIES);
-  const [categoryId, setCategoryId] = useState<string>(SAMPLE_CATEGORIES[0]?.id || '');
+  const [categoryId, setCategoryId] = useState<string>('');
+
+  // Subcategories state from Supabase
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [subcategoryId, setSubcategoryId] = useState<string>('');
+
+  // Dynamic attributes state
+  const [allAttributes, setAllAttributes] = useState<Attribute[]>([]);
+  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
 
   // Collections state
   const [availableCollections, setAvailableCollections] = useState<Collection[]>([]);
@@ -171,7 +184,7 @@ export const ProductEditPage: React.FC = () => {
   const [newColTitle, setNewColTitle] = useState('');
   const [newColDescription, setNewColDescription] = useState('');
   const [isCreatingCol, setIsCreatingCol] = useState(false);
-  const [gender, setGender] = useState<'men' | 'women' | 'unisex'>('unisex');
+  const [gender, setGender] = useState<'men' | 'women' | 'unisex'>('women');
   const [status, setStatus] = useState<'active' | 'draft' | 'archived'>('active');
   const [basePrice, setBasePrice] = useState<number>(2499);
   const [compareAtPrice, setCompareAtPrice] = useState<number>(2999);
@@ -414,11 +427,31 @@ export const ProductEditPage: React.FC = () => {
       }
     });
 
+    // Load available target audiences
+    api.getTargetAudiences(true).then((auds) => {
+      if (isMounted && auds && auds.length > 0) {
+        setAudiences(auds);
+      }
+    });
+
     // Load available categories from Supabase
-    api.getCategories().then((cats) => {
+    api.getCategories(true).then((cats) => {
       if (isMounted && cats && cats.length > 0) {
         setCategories(cats);
-        setCategoryId((prev) => prev || cats[0].id);
+      }
+    });
+
+    // Load available subcategories
+    api.getSubcategories(undefined, true).then((subs) => {
+      if (isMounted && subs && subs.length > 0) {
+        setSubcategories(subs);
+      }
+    });
+
+    // Load available dynamic attributes
+    api.getAttributes(true).then((attrs) => {
+      if (isMounted && attrs && attrs.length > 0) {
+        setAllAttributes(attrs);
       }
     });
 
@@ -454,8 +487,21 @@ export const ProductEditPage: React.FC = () => {
             setTitle(match.title || '');
             setSlug(match.slug || '');
             setBrand(match.brand || 'TANOAH');
+            if (match.target_audience_id) {
+              setTargetAudienceId(match.target_audience_id);
+            } else if (match.gender) {
+              const audList = await api.getTargetAudiences(true);
+              const foundAud = audList.find((a) => a.slug === match.gender);
+              if (foundAud) setTargetAudienceId(foundAud.id);
+            }
             if (match.category_id) {
               setCategoryId(match.category_id);
+              api.getCategoryAttributes(match.category_id).then((ca) => {
+                if (isMounted) setCategoryAttributes(ca || []);
+              });
+            }
+            if (match.subcategory_id) {
+              setSubcategoryId(match.subcategory_id);
             }
             if (match.product_type) {
               setProductType(match.product_type);
@@ -616,7 +662,7 @@ export const ProductEditPage: React.FC = () => {
       setSlug('');
       setBrand('TANOAH');
       setProductType('Sarees');
-      setGender('unisex');
+      setGender('women');
       setStatus('active');
       setBasePrice(2499);
       setCompareAtPrice(2999);
@@ -1301,7 +1347,9 @@ export const ProductEditPage: React.FC = () => {
       slug: slug.trim(),
       brand: brand.trim(),
       product_type: effectiveProductType,
-      category_id: undefined,
+      target_audience_id: targetAudienceId || undefined,
+      category_id: categoryId || undefined,
+      subcategory_id: subcategoryId || undefined,
       gender: gender || 'unisex',
       base_price: basePrice,
       sale_price: effectiveSalePrice ?? undefined,
@@ -2580,6 +2628,192 @@ export const ProductEditPage: React.FC = () => {
                   <strong>{marginPercent}%</strong>
                 </div>
               </div>
+            </div>
+
+            {/* 1. Catalog Classification & Hierarchy Card */}
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
+                <div>
+                  <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                    <span>CATALOG CLASSIFICATION</span>
+                  </h3>
+                  <p className="text-[10px] text-[#666666] mt-0.5">
+                    Category → Subcategory hierarchy.
+                  </p>
+                </div>
+                <Link
+                  to="/admin/categories"
+                  target="_blank"
+                  className="text-[10px] text-[#3F3F8F] hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>Manage</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+
+              {/* Category Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
+                  Category
+                </label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => {
+                    const newCatId = e.target.value;
+                    setCategoryId(newCatId);
+                    setSubcategoryId('');
+                  }}
+                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-medium"
+                >
+                  <option value="">Select Category...</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subcategory Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-black mb-1 uppercase">
+                  Subcategory
+                </label>
+                <select
+                  value={subcategoryId}
+                  onChange={(e) => setSubcategoryId(e.target.value)}
+                  disabled={!categoryId}
+                  className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-medium disabled:bg-neutral-50 disabled:text-neutral-400"
+                >
+                  <option value="">
+                    {!categoryId ? 'Select a Category first' : 'Select Subcategory (optional)...'}
+                  </option>
+                  {subcategories
+                    .filter((s) => s.category_id === categoryId)
+                    .map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 2. Dynamic Product Attributes Card */}
+            <div className="bg-white p-5 rounded-[4px] border border-[#E7E7E7] shadow-sm space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E7E7E7]">
+                <div>
+                  <h3 className="font-semibold text-black uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <Tags className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                    <span>PRODUCT ATTRIBUTES & SPECS</span>
+                  </h3>
+                  <p className="text-[10px] text-[#666666] mt-0.5">
+                    Dynamic specs tailored for this category.
+                  </p>
+                </div>
+                <Link
+                  to="/admin/attributes"
+                  target="_blank"
+                  className="text-[10px] text-[#3F3F8F] hover:underline font-semibold flex items-center gap-0.5"
+                >
+                  <span>Manage</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+
+              {/* Render dynamic attributes */}
+              {(() => {
+                const activeAttrs = categoryAttributes.length > 0
+                  ? categoryAttributes
+                      .map((ca) => allAttributes.find((a) => a.id === ca.attribute_id))
+                      .filter(Boolean) as Attribute[]
+                  : allAttributes;
+
+                if (activeAttrs.length === 0) {
+                  return (
+                    <div className="p-4 text-center text-[11px] text-neutral-400 border border-dashed rounded">
+                      <span>No dynamic attributes defined yet. </span>
+                      <Link to="/admin/attributes" className="text-[#3F3F8F] font-semibold hover:underline">
+                        Create attributes
+                      </Link>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {activeAttrs.map((attr) => {
+                      const currentValue = structuredAttributes[attr.slug] || '';
+
+                      return (
+                        <div key={attr.id} className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider">
+                              {attr.name} {attr.is_required && <span className="text-red-500">*</span>}
+                            </label>
+                            {currentValue && (
+                              <span className="text-[10px] font-mono text-[#3F3F8F] bg-indigo-50 px-1.5 py-0.5 rounded">
+                                {currentValue}
+                              </span>
+                            )}
+                          </div>
+
+                          {attr.values && attr.values.length > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={currentValue}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setStructuredAttributes((prev) => ({
+                                    ...prev,
+                                    [attr.slug]: val,
+                                  }));
+                                }}
+                                className="flex-1 p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F] bg-white font-medium"
+                              >
+                                <option value="">Select {attr.name}...</option>
+                                {attr.values.map((v) => (
+                                  <option key={v.id} value={v.value}>
+                                    {v.value}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Or custom..."
+                                value={currentValue}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setStructuredAttributes((prev) => ({
+                                    ...prev,
+                                    [attr.slug]: val,
+                                  }));
+                                }}
+                                className="w-28 p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                              />
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder={`Enter ${attr.name}...`}
+                              value={currentValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setStructuredAttributes((prev) => ({
+                                  ...prev,
+                                  [attr.slug]: val,
+                                }));
+                              }}
+                              className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs focus:outline-none focus:border-[#3F3F8F]"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Collections Management Card (Collections-First Architecture) */}

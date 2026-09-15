@@ -78,8 +78,15 @@ export interface Product {
   short_description?: string;
   brand: string;
   product_type: string;
+  target_audience_id?: string;
+  target_audience_name?: string;
+  target_audience?: TargetAudience;
   category_id?: string;
   category_name?: string;
+  category?: Category;
+  subcategory_id?: string;
+  subcategory_name?: string;
+  subcategory?: Subcategory;
   gender?: 'men' | 'women' | 'unisex' | 'kids';
   base_price: number;
   sale_price?: number | null;
@@ -112,10 +119,26 @@ export interface Product {
   updated_at?: string;
 }
 
+export interface TargetAudience {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image_url?: string;
+  sort_order: number;
+  is_active: boolean;
+  seo_title?: string;
+  seo_description?: string;
+  social_image_url?: string;
+  is_noindex?: boolean;
+  created_at?: string;
+}
+
 export interface Category {
   id: string;
   name: string;
   slug: string;
+  target_audience_id?: string | null;
   parent_id?: string | null;
   image_url?: string;
   description?: string;
@@ -126,6 +149,60 @@ export interface Category {
   social_image_url?: string;
   is_noindex?: boolean;
   children?: Category[];
+  target_audience?: TargetAudience;
+  subcategories?: Subcategory[];
+}
+
+export interface Subcategory {
+  id: string;
+  category_id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image_url?: string;
+  sort_order: number;
+  is_active: boolean;
+  seo_title?: string;
+  seo_description?: string;
+  social_image_url?: string;
+  is_noindex?: boolean;
+  created_at?: string;
+  category?: Category;
+}
+
+export type AttributeType = 'select' | 'text' | 'color' | 'multi-select';
+
+export interface AttributeValue {
+  id: string;
+  attribute_id: string;
+  value: string;
+  slug: string;
+  color_hex?: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface Attribute {
+  id: string;
+  name: string;
+  slug: string;
+  type: AttributeType;
+  is_filterable: boolean;
+  is_required: boolean;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  values?: AttributeValue[];
+}
+
+export interface CategoryAttribute {
+  id: string;
+  category_id: string;
+  attribute_id: string;
+  is_required: boolean;
+  sort_order: number;
+  attribute?: Attribute;
 }
 
 export interface Collection {

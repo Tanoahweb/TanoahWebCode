@@ -15,6 +15,8 @@ export interface MegaMenuColumn {
   view_all_url?: string; // e.g. "/collections/men"
   links: MegaMenuSubLink[];
   auto_sync_collections?: boolean; // When true, automatically syncs and lists store collections
+  auto_sync_categories?: boolean; // When true, automatically syncs categories for this target audience
+  target_audience_slug?: string; // e.g. "women", "men"
   collection_filter?: 'all' | 'men' | 'women' | 'curated';
 }
 
