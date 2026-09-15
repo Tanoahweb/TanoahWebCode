@@ -110,7 +110,7 @@ export const OrderDetailPage: React.FC = () => {
             finalOrder.tracking_number = '';
           }
           setOrder(finalOrder);
-          setStatus(finalOrder.status || 'confirmed');
+          setStatus((finalOrder.status || 'confirmed').toLowerCase());
           setTrackingNumber(finalOrder.tracking_number || '');
           setCourierName(finalOrder.courier_name || 'India Post (Speed Post)');
         }
@@ -229,9 +229,21 @@ export const OrderDetailPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <h1 className="font-wondra text-2xl sm:text-3xl text-black">{orderNum}</h1>
                 <span className={`inline-block px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase rounded-[2px] ${
-                  status === 'delivered' ? 'bg-emerald-50 text-emerald-700' : status === 'shipped' ? 'bg-[#EEEEF8] text-[#3F3F8F]' : 'bg-amber-50 text-amber-700'
+                  status.toLowerCase() === 'delivered'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : status.toLowerCase() === 'out_for_delivery'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : status.toLowerCase() === 'shipped'
+                    ? 'bg-[#EEEEF8] text-[#3F3F8F] border border-[#D5D5ED]'
+                    : status.toLowerCase() === 'packed'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : status.toLowerCase() === 'processing'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : status.toLowerCase() === 'cancelled'
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                    : 'bg-purple-50 text-[#3F3F8F] border border-purple-200'
                 }`}>
-                  {status.toUpperCase()}
+                  {status.replace(/_/g, ' ').toUpperCase()}
                 </span>
               </div>
               <p className="text-[#666666] mt-0.5">Placed on {orderDate} via {formData.paymentMethod.toUpperCase()}</p>
@@ -286,19 +298,24 @@ export const OrderDetailPage: React.FC = () => {
                     Order Status
                   </label>
                   <select
-                    value={status}
+                    value={status.toLowerCase()}
                     onChange={(e) => setStatus(e.target.value)}
                     className="w-full p-2 border border-[#E7E7E7] rounded-[4px] text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] bg-white cursor-pointer uppercase"
                   >
-                    <option value="confirmed">Confirmed (Ready to Pack)</option>
+                    <option value="confirmed">Confirmed (Order Placed)</option>
                     <option value="processing">Processing (In Production)</option>
+                    <option value="packed">Packed (Handcrafted & Packaged)</option>
                     <option value="shipped" disabled={!trackingNumber.trim()}>
                       Shipped (In Transit) {!trackingNumber.trim() ? '— Consignment Required' : ''}
+                    </option>
+                    <option value="out_for_delivery" disabled={!trackingNumber.trim()}>
+                      Out for Delivery {!trackingNumber.trim() ? '— Consignment Required' : ''}
                     </option>
                     <option value="delivered" disabled={!trackingNumber.trim()}>
                       Delivered {!trackingNumber.trim() ? '— Consignment Required' : ''}
                     </option>
                     <option value="cancelled">Cancelled</option>
+                    <option value="pending">Pending</option>
                   </select>
                 </div>
 

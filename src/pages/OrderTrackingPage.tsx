@@ -423,7 +423,8 @@ export const OrderTrackingPage: React.FC = () => {
             <div className="space-y-3">
               {multipleOrders.map((ord) => {
                 const ordNum = ord.order_number || ord.orderNumber || 'TAN-ORDER';
-                const status = (ord.status || 'confirmed').replace('_', ' ');
+                const rawSt = (ord.status || 'confirmed').toLowerCase();
+                const status = rawSt.replace(/_/g, ' ');
                 const isDispatched = ord.tracking_number || ord.trackingNumber;
 
                 return (
@@ -436,7 +437,21 @@ export const OrderTrackingPage: React.FC = () => {
                         <span className="font-mono font-bold text-sm text-black">
                           {ordNum}
                         </span>
-                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-[#EEEEF8] text-[#3F3F8F]">
+                        <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded ${
+                          rawSt === 'delivered'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : rawSt === 'out_for_delivery'
+                            ? 'bg-blue-50 text-blue-700'
+                            : rawSt === 'shipped' || rawSt === 'in_transit'
+                            ? 'bg-[#EEEEF8] text-[#3F3F8F]'
+                            : rawSt === 'packed'
+                            ? 'bg-indigo-50 text-indigo-700'
+                            : rawSt === 'processing'
+                            ? 'bg-amber-50 text-amber-700'
+                            : rawSt === 'cancelled'
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'bg-purple-50 text-[#3F3F8F]'
+                        }`}>
                           {status}
                         </span>
                       </div>
@@ -497,7 +512,24 @@ export const OrderTrackingPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E7E7E7] gap-3">
               <div>
                 <span className="text-[10px] text-[#888888] uppercase tracking-wider font-medium">Tracking Consignment</span>
-                <h3 className="font-mono text-xl font-bold text-black">{trackingResult.orderNumber}</h3>
+                <div className="flex flex-wrap items-center gap-2.5 mt-0.5">
+                  <h3 className="font-mono text-xl font-bold text-black">{trackingResult.orderNumber}</h3>
+                  <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider ${
+                    trackingResult.isCancelled
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : trackingResult.currentStep === 4
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : trackingResult.currentStep === 3
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : trackingResult.currentStep === 2
+                      ? 'bg-[#EEEEF8] text-[#3F3F8F] border border-[#D5D5ED]'
+                      : trackingResult.currentStep === 1
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-purple-50 text-[#3F3F8F] border border-purple-200'
+                  }`}>
+                    {STEPS[trackingResult.currentStep]?.label || trackingResult.rawStatus.replace(/_/g, ' ')}
+                  </span>
+                </div>
                 {trackingResult.createdAt && (
                   <span className="text-[11px] text-[#666666] flex items-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3 text-neutral-400" />

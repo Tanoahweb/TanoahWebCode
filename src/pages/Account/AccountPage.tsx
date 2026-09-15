@@ -345,12 +345,26 @@ export const AccountPage: React.FC = () => {
                               <span className="text-[10px] text-[#888888] uppercase block">Total</span>
                               <strong className="text-black">{formatPrice(ord.grand_total || ord.grandTotal)}</strong>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-[#888888] uppercase block">Fulfillment</span>
-                              <span className="bg-[#EEEEF8] text-[#3F3F8F] font-semibold px-2 py-0.5 rounded-[2px] uppercase text-[10px]">
-                                {ord.status || 'CONFIRMED'}
-                              </span>
-                            </div>
+                              <div>
+                                <span className="text-[10px] text-[#888888] uppercase block">Fulfillment</span>
+                                <span className={`font-semibold px-2 py-0.5 rounded-[2px] uppercase text-[10px] ${
+                                  (ord.status || '').toLowerCase() === 'delivered'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : (ord.status || '').toLowerCase() === 'out_for_delivery'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : (ord.status || '').toLowerCase() === 'shipped' || (ord.status || '').toLowerCase() === 'in_transit'
+                                    ? 'bg-[#EEEEF8] text-[#3F3F8F]'
+                                    : (ord.status || '').toLowerCase() === 'packed'
+                                    ? 'bg-indigo-50 text-indigo-700'
+                                    : (ord.status || '').toLowerCase() === 'processing'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : (ord.status || '').toLowerCase() === 'cancelled'
+                                    ? 'bg-rose-50 text-rose-700'
+                                    : 'bg-purple-50 text-[#3F3F8F]'
+                                }`}>
+                                  {(ord.status || 'CONFIRMED').replace(/_/g, ' ')}
+                                </span>
+                              </div>
                             <div className="flex items-center gap-2">
                               <Link to={`/tracking?order=${orderNum}`}>
                                 <button className="px-3 py-1.5 border border-[#E7E7E7] hover:border-black rounded-[4px] font-semibold text-xs transition-colors flex items-center gap-1 text-black bg-white">

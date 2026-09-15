@@ -50,7 +50,7 @@ export const OrderListPage: React.FC = () => {
             phone: sAddr.phone || o.guest_phone || '',
             total: Number(o.grand_total || o.grandTotal || o.subtotal || 0),
             paymentStatus: o.payment_status || 'paid',
-            fulfillmentStatus: o.status || 'processing',
+            fulfillmentStatus: (o.status || 'confirmed').toLowerCase(),
             trackingNumber: o.tracking_number || o.trackingNumber || '',
             courierName: o.courier_name || 'India Post (Speed Post)',
             date: o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : (o.date || new Date().toISOString().split('T')[0]),
@@ -217,8 +217,22 @@ export const OrderListPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-4">
-                          <span className="bg-purple-50 text-[#3F3F8F] text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
-                            {ord.fulfillmentStatus}
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${
+                            ord.fulfillmentStatus === 'delivered'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : ord.fulfillmentStatus === 'out_for_delivery'
+                              ? 'bg-blue-50 text-blue-700'
+                              : ord.fulfillmentStatus === 'shipped'
+                              ? 'bg-[#EEEEF8] text-[#3F3F8F]'
+                              : ord.fulfillmentStatus === 'packed'
+                              ? 'bg-indigo-50 text-indigo-700'
+                              : ord.fulfillmentStatus === 'processing'
+                              ? 'bg-amber-50 text-amber-700'
+                              : ord.fulfillmentStatus === 'cancelled'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-purple-50 text-[#3F3F8F]'
+                          }`}>
+                            {ord.fulfillmentStatus.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="p-4 w-48 min-w-[190px]">
@@ -227,7 +241,7 @@ export const OrderListPage: React.FC = () => {
                               type="text"
                               placeholder={
                                 ['shipped', 'delivered', 'out_for_delivery'].includes(ord.fulfillmentStatus.toLowerCase()) && !hasTracking
-                                  ? 'Required (ED123..)'
+                                   ? 'Required (ED123..)'
                                   : 'e.g. ED123456789IN'
                               }
                               value={ord.trackingNumber || ''}
@@ -286,19 +300,23 @@ export const OrderListPage: React.FC = () => {
                             <select
                               value={ord.fulfillmentStatus}
                               onChange={(e) => handleStatusChange(ord.orderNumber || ord.id, e.target.value)}
-                              title={!hasTracking ? 'India Post Consignment No. required to select Shipped or Delivered' : 'Update Fulfillment Status'}
-                              className="w-36 min-w-[144px] max-w-[144px] h-[34px] p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase shrink-0"
+                              title={!hasTracking ? 'India Post Consignment No. required to select Shipped, Out for Delivery, or Delivered' : 'Update Fulfillment Status'}
+                              className="w-40 min-w-[155px] max-w-[155px] h-[34px] p-1.5 border border-[#E7E7E7] rounded-[4px] bg-white text-xs font-semibold focus:outline-none focus:border-[#3F3F8F] cursor-pointer uppercase shrink-0"
                             >
-                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
                               <option value="processing">Processing</option>
                               <option value="packed">Packed</option>
                               <option value="shipped" disabled={!hasTracking}>
                                 Shipped {!hasTracking ? '(Locked)' : ''}
                               </option>
+                              <option value="out_for_delivery" disabled={!hasTracking}>
+                                Out for Delivery {!hasTracking ? '(Locked)' : ''}
+                              </option>
                               <option value="delivered" disabled={!hasTracking}>
                                 Delivered {!hasTracking ? '(Locked)' : ''}
                               </option>
                               <option value="cancelled">Cancelled</option>
+                              <option value="pending">Pending</option>
                             </select>
                           </div>
                         </td>
