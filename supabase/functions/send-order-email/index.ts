@@ -387,8 +387,8 @@ function generateGstTaxInvoiceHtml(order: any): string {
                   </tr>
                 </table>
                 <div style="margin-top: 16px; text-align: right;">
-                  <a href="https://tanoah.com/order-confirmation?order=${orderNum}" style="background-color: #191846; color: #FFFFFF; font-size: 11px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 4px; display: inline-block; letter-spacing: 0.5px;">
-                    Print / Download Full PDF Invoice &rarr;
+                  <a href="https://www.tanoah.com/order-confirmation?order=${orderNum}" style="background-color: #191846; color: #FFFFFF; font-size: 11px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 4px; display: inline-block; letter-spacing: 0.5px;">
+                    Track your order &rarr;
                   </a>
                 </div>
               </td>
@@ -437,8 +437,8 @@ function renderOrderEmailHtml(order: any, mode: 'admin' | 'customer' = 'admin'):
     ? 'Real-time operational dispatch from TANOAH.'
     : 'Thank you for choosing TANOAH. For any inquiries, reply to this email or contact <a href="mailto:connectus.tanoah@gmail.com" style="color: #191846; text-decoration: underline;">connectus.tanoah@gmail.com</a>.';
   const ctaBtn = isAdmin
-    ? `<a href="https://tanoah.com/admin/orders" style="background-color: #191846; color: #FFFFFF; padding: 10px 24px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block; letter-spacing: 0.5px;">View Order in Admin Dashboard &rarr;</a>`
-    : `<a href="https://tanoah.com/order-confirmation?order=${orderNum}" style="background-color: #191846; color: #FFFFFF; padding: 10px 24px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block; letter-spacing: 0.5px;">View Your Order / Track Status &rarr;</a>`;
+    ? `<a href="https://www.tanoah.com/admin/orders" style="background-color: #191846; color: #FFFFFF; padding: 10px 24px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block; letter-spacing: 0.5px;">View Order in Admin Dashboard &rarr;</a>`
+    : `<a href="https://www.tanoah.com/order-confirmation?order=${orderNum}" style="background-color: #191846; color: #FFFFFF; padding: 10px 24px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block; letter-spacing: 0.5px;">View Your Order / Track Status &rarr;</a>`;
 
   const itemsRows = items.map((item: any) => {
     const title = item.product_title || item.product?.title || 'Garment';
