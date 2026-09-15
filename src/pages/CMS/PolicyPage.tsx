@@ -567,7 +567,7 @@ export const PolicyPage: React.FC = () => {
               <h3 className="font-semibold text-black text-sm sm:text-base mb-2">Eligibility for Return & Refund</h3>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
-                  We accept returns and refunds <strong>only for damaged products</strong>. To initiate a return and refund, send us a <strong>360° opening video</strong> showing the damage along with the package.
+                  We accept returns and refunds <strong>only for damaged products</strong>. To initiate a return and refund, send us a <strong>360° opening video</strong> showing the damage along with the package to our official WhatsApp support (<strong>+91 8714141849</strong>).
                 </li>
                 <li>
                   <strong>No size or colour exchanges are allowed</strong>, so please choose your size and colour carefully from our size chart.

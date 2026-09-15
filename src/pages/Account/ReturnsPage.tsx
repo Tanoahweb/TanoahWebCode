@@ -538,10 +538,14 @@ export const ReturnsPage: React.FC = () => {
     submittedTicket?.status === 'completed'
   );
 
-  const whatsappNumber =
-    storeSettings?.support_phone?.replace(/\D/g, '') ||
+  const rawWa =
     storeSettings?.whatsapp_number?.replace(/\D/g, '') ||
+    storeSettings?.support_phone?.replace(/\D/g, '') ||
     '918714141849';
+
+  const whatsappNumber = (!rawWa || rawWa === '919876543210' || rawWa === '9876543210')
+    ? '918714141849'
+    : (rawWa.startsWith('91') ? rawWa : `91${rawWa}`);
 
   const generateWhatsAppUrl = () => {
     if (!submittedTicket) return `https://wa.me/${whatsappNumber}`;
@@ -997,7 +1001,7 @@ export const ReturnsPage: React.FC = () => {
                         Action Required: Send 360° Unboxing Video
                       </h4>
                       <p className="text-[#444444] leading-relaxed">
-                        Tap the button below to open our official WhatsApp support. Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
+                        Tap the button below to open our official WhatsApp support (<strong>+91 8714141849</strong>). Send the 360° opening video showing the shipping label, unopened parcel, intact brand price tag, and the defect.
                       </p>
                     </div>
                   </div>
@@ -1009,7 +1013,7 @@ export const ReturnsPage: React.FC = () => {
                     className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-semibold text-xs tracking-wider uppercase rounded-[4px] transition-all shadow-md"
                   >
                     <MessageCircle className="w-4 h-4 fill-current" />
-                    <span>SEND 360° VIDEO ON WHATSAPP</span>
+                    <span>SEND 360° VIDEO ON WHATSAPP (+91 8714141849)</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -1026,7 +1030,7 @@ export const ReturnsPage: React.FC = () => {
                     <span>VIDEO SENT SUCCESSFULLY · SUBMIT FOR REVIEW →</span>
                   </Button>
                   <p className="text-center text-[11px] text-[#666666] font-poppins">
-                    Tap &ldquo;Video Sent Successfully&rdquo; once you have dispatched your unboxing video to WhatsApp. Our team will review it within 24 hours.
+                    Tap &ldquo;Video Sent Successfully&rdquo; once you have dispatched your unboxing video to WhatsApp (<strong>+91 8714141849</strong>). Our team will review it within 24 hours.
                   </p>
                 </div>
 
