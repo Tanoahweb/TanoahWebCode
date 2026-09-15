@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { safeGetItem, safeSetItem } from '../utils/safeStorage';
 import {
@@ -59,6 +59,8 @@ export const ProductDetailPage: React.FC = () => {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -881,29 +883,26 @@ export const ProductDetailPage: React.FC = () => {
     setActiveImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
   };
 
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchEndX, setTouchEndX] = useState<number | null>(null);
-
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEndX(null);
-    setTouchStartX(e.targetTouches[0].clientX);
+    touchEndXRef.current = null;
+    touchStartXRef.current = e.targetTouches[0].clientX;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEndX(e.targetTouches[0].clientX);
+    touchEndXRef.current = e.targetTouches[0].clientX;
   };
 
   const handleTouchEnd = () => {
-    if (touchStartX === null || touchEndX === null) return;
-    const distance = touchStartX - touchEndX;
+    if (touchStartXRef.current === null || touchEndXRef.current === null) return;
+    const distance = touchStartXRef.current - touchEndXRef.current;
     const minSwipeDistance = 40;
     if (distance > minSwipeDistance) {
       handleNextImage();
     } else if (distance < -minSwipeDistance) {
       handlePrevImage();
     }
-    setTouchStartX(null);
-    setTouchEndX(null);
+    touchStartXRef.current = null;
+    touchEndXRef.current = null;
   };
 
   const handleSubscribeWaitlist = async (e: React.FormEvent) => {
