@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Share2,
   Check,
   AlertCircle,
@@ -856,10 +858,52 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
     const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - left) / width) * 100;
     const y = ((e.clientY - top) / height) * 100;
     setZoomPos({ x, y });
+  };
+
+  const handlePrevImage = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const handleNextImage = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setActiveImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  };
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null);
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX === null || touchEndX === null) return;
+    const distance = touchStartX - touchEndX;
+    const minSwipeDistance = 40;
+    if (distance > minSwipeDistance) {
+      handleNextImage();
+    } else if (distance < -minSwipeDistance) {
+      handlePrevImage();
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
   };
 
   const handleSubscribeWaitlist = async (e: React.FormEvent) => {
@@ -953,29 +997,45 @@ export const ProductDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {/* Left: Gallery (Col 7) */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Main Stage Image with Luxury Zoom Lens */}
+            {/* Main Stage Image with Smooth Sliding Effect, Navigation Arrows, and Desktop-Only Zoom Lens */}
             <div
-              onMouseEnter={() => setIsZoomed(true)}
+              onMouseEnter={() => {
+                if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                  setIsZoomed(true);
+                }
+              }}
               onMouseLeave={() => setIsZoomed(false)}
               onMouseMove={handleMouseMove}
-              className="relative aspect-[4/5] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7] shadow-sm cursor-crosshair group"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="relative aspect-[4/5] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7] shadow-sm cursor-default lg:cursor-crosshair group select-none"
             >
-              {/* Primary High-Performance Main Stage Image */}
-              <ProductImage
-                src={images[activeImageIndex]?.image_url || images[0]?.image_url}
-                alt={product.title}
-                preset="productMain"
-                priority={true}
-                aspectRatio="4/5"
-                className="w-full h-full object-cover object-center pointer-events-none"
-                wrapperClassName="w-full h-full"
-              />
+              {/* Sliding Carousel Track of Images */}
+              <div
+                className="flex w-full h-full transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${activeImageIndex * 100}%)` }}
+              >
+                {images.map((img, idx) => (
+                  <div key={img.id || idx} className="w-full h-full shrink-0 flex-none relative">
+                    <ProductImage
+                      src={img.image_url}
+                      alt={`${product.title} - View ${idx + 1}`}
+                      preset="productMain"
+                      priority={idx === 0}
+                      aspectRatio="4/5"
+                      className="w-full h-full object-cover object-center pointer-events-none"
+                      wrapperClassName="w-full h-full"
+                    />
+                  </div>
+                ))}
+              </div>
 
-              {/* Delayed On-Demand High-Definition Zoom (Only loaded when hovered) */}
+              {/* Delayed On-Demand High-Definition Zoom (Desktop ONLY - Never on mobile) */}
               {isZoomed && (
                 <div
-                  className="absolute inset-0 pointer-events-none overflow-hidden"
-                  style={{ zIndex: 5 }}
+                  className="hidden lg:block absolute inset-0 pointer-events-none overflow-hidden"
+                  style={{ zIndex: 15 }}
                 >
                   <img
                     src={getTransformedImageUrl(
@@ -994,15 +1054,49 @@ export const ProductDetailPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Small Navigation Arrows (Previous & Next Image) */}
+              {images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePrevImage}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/90 hover:bg-white text-black shadow-md flex items-center justify-center transition-all z-20 backdrop-blur-sm border border-[#E7E7E7]/60 active:scale-95 hover:text-[#3F3F8F]"
+                    aria-label="Previous image"
+                    title="Previous image"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextImage}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/90 hover:bg-white text-black shadow-md flex items-center justify-center transition-all z-20 backdrop-blur-sm border border-[#E7E7E7]/60 active:scale-95 hover:text-[#3F3F8F]"
+                    aria-label="Next image"
+                    title="Next image"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+
+              {/* Slide Counter Indicator */}
+              {images.length > 1 && (
+                <div className="absolute bottom-3 right-3 bg-black/60 text-white text-[10px] font-mono font-medium px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none z-20">
+                  {activeImageIndex + 1} / {images.length}
+                </div>
+              )}
+
+              {/* Share Button */}
               <button
                 onClick={handleShare}
-                className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-md text-black hover:text-[#3F3F8F] transition-colors z-10"
+                className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-md text-black hover:text-[#3F3F8F] transition-colors z-20"
                 title="Share Product"
               >
                 <Share2 className="w-4 h-4" />
               </button>
+
+              {/* Desktop Zoom Badge (Hidden on mobile) */}
               {isZoomed && (
-                <div className="absolute bottom-3 left-3 bg-black/75 text-white text-[9px] px-2 py-1 rounded backdrop-blur-sm pointer-events-none uppercase tracking-wider font-semibold z-10">
+                <div className="hidden lg:block absolute bottom-3 left-3 bg-black/75 text-white text-[9px] px-2 py-1 rounded backdrop-blur-sm pointer-events-none uppercase tracking-wider font-semibold z-20">
                   2.2x High-Definition Zoom (2400px Master)
                 </div>
               )}

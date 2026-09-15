@@ -198,13 +198,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </Link>
 
-        {/* Top Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none z-10">
-          {isOutOfStock && <Badge variant="out-of-stock" label="SOLD OUT" />}
-          {!isOutOfStock && isSale && <Badge variant="sale" label={`-${discountPercent}%`} />}
-          {!isOutOfStock && product.is_new_arrival && <Badge variant="new" label="NEW" />}
-          {!isOutOfStock && product.is_best_seller && <Badge variant="best-seller" label="BEST SELLER" />}
-          {!isOutOfStock && isLowStock && <Badge variant="low-stock" label="LOW STOCK" />}
+        {/* Top Badges - Max 1 Priority Merchandising Badge (Option 1) */}
+        <div className="absolute top-2.5 left-2.5 pointer-events-none z-10">
+          {isOutOfStock ? (
+            <Badge variant="out-of-stock" label="SOLD OUT" className="text-[9px] px-2 py-0.5" />
+          ) : product.is_best_seller ? (
+            <Badge variant="best-seller" label="BEST SELLER" className="text-[9px] px-2 py-0.5 tracking-wider shadow-xs" />
+          ) : product.is_new_arrival ? (
+            <Badge variant="new" label="NEW" className="text-[9px] px-2 py-0.5 tracking-wider shadow-xs" />
+          ) : null}
         </div>
 
         {/* Wishlist Button */}
@@ -257,17 +259,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           {product.title}
         </Link>
 
-        {/* Pricing */}
-        <div className="mt-1 flex items-baseline gap-2">
+        {/* Pricing & Discount Tag */}
+        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
           <span className="font-semibold text-black text-sm">
             {formatPrice(currentPrice)}
           </span>
           {isSale && (
-            <span className="text-xs text-[#888888] line-through font-normal">
-              {formatPrice(originalPrice)}
-            </span>
+            <>
+              <span className="text-xs text-[#888888] line-through font-normal">
+                {formatPrice(originalPrice)}
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                {discountPercent}% OFF
+              </span>
+            </>
           )}
         </div>
+
+        {/* Low Stock Urgency Prompt */}
+        {!isOutOfStock && isLowStock && (
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-700 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span>Only few pieces left</span>
+          </div>
+        )}
 
         {/* Color Swatches (Desktop only) */}
         {colors.length > 1 && (
