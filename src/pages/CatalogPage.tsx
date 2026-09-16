@@ -24,6 +24,7 @@ import { api } from '../services/api';
 import { Product, Collection, Category, Subcategory, Attribute } from '../types';
 import { SEOHead } from '../components/common/SEOHead';
 import { generateCollectionJsonLd, normalizeCanonicalUrl } from '../services/seoEngine';
+import { getLenis } from '../animations/smoothScroll';
 
 const DEFAULT_CATALOG_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
 
@@ -176,13 +177,6 @@ export const CatalogPage: React.FC = () => {
     });
     setSelectedAttributes(nextAttrs);
   }, [routeCollection, searchParams, categoriesList]);
-
-  // Scroll to catalog top when navigation or search params change while viewing collection
-  useEffect(() => {
-    if (catalogTopRef.current && window.scrollY > 200) {
-      catalogTopRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [routeCollection, searchParams]);
 
   // Load catalog metadata (Categories, Subcategories, Dynamic Attributes, Collections)
   useEffect(() => {
@@ -425,6 +419,50 @@ export const CatalogPage: React.FC = () => {
       });
     }
   }, [isLoading, totalPages, pageParam, setSearchParams]);
+
+  // Restore exact scroll position and clicked product location upon returning from product page
+  useEffect(() => {
+    if (isLoading || productsList.length === 0) return;
+
+    const currentPath = window.location.pathname + window.location.search;
+    const savedPath = sessionStorage.getItem('tanoah_collection_scroll_path');
+    const savedYStr = sessionStorage.getItem('tanoah_collection_scroll_y');
+    const savedProductId = sessionStorage.getItem('tanoah_collection_product_id');
+
+    if (savedPath && savedPath === currentPath && savedYStr) {
+      const targetY = parseInt(savedYStr, 10);
+      if (!isNaN(targetY) && targetY > 0) {
+        // Clear saved session items so subsequent actions don't falsely restore
+        sessionStorage.removeItem('tanoah_collection_scroll_path');
+        sessionStorage.removeItem('tanoah_collection_scroll_y');
+        sessionStorage.removeItem('tanoah_collection_product_id');
+
+        const lenis = getLenis();
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: targetY, left: 0, behavior: 'instant' });
+          lenis?.resize();
+          lenis?.scrollTo(targetY, { immediate: true, force: true });
+
+          // Re-check after images/layout settle to ensure pixel-perfect accuracy
+          setTimeout(() => {
+            const cardEl = savedProductId ? document.getElementById(`product-${savedProductId}`) : null;
+            if (cardEl) {
+              const rect = cardEl.getBoundingClientRect();
+              // If card is outside viewport, smoothly adjust
+              if (rect.top < -50 || rect.top > window.innerHeight) {
+                const calculatedY = Math.round(window.scrollY + rect.top - 120);
+                window.scrollTo({ top: calculatedY, left: 0, behavior: 'instant' });
+                lenis?.scrollTo(calculatedY, { immediate: true, force: true });
+              }
+            } else {
+              window.scrollTo({ top: targetY, left: 0, behavior: 'instant' });
+              lenis?.scrollTo(targetY, { immediate: true, force: true });
+            }
+          }, 80);
+        });
+      }
+    }
+  }, [isLoading, productsList]);
 
   // All active categories
   const activeCategories = useMemo(() => {

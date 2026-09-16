@@ -148,8 +148,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     openQuickView(product);
   };
 
+  const handleProductCardClick = () => {
+    const y = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
+    const currentPath = window.location.pathname + window.location.search;
+    try {
+      sessionStorage.setItem('tanoah_collection_scroll_path', currentPath);
+      sessionStorage.setItem('tanoah_collection_scroll_y', String(y));
+      sessionStorage.setItem('tanoah_collection_product_id', product.id);
+    } catch {}
+  };
+
   return (
     <div
+      id={`product-${product.id}`}
       className="group relative flex flex-col select-none stagger-item"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -158,6 +169,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#F8F8F8] rounded-[4px] border border-[#E7E7E7]/60">
         <Link
           to={`/products/${product.slug}${activeColor ? `?color=${encodeURIComponent(activeColor.name)}` : ''}`}
+          onClick={handleProductCardClick}
           className="block w-full h-full"
         >
           {/* Primary Image */}
@@ -254,6 +266,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {/* Title */}
         <Link
           to={`/products/${product.slug}${activeColor ? `?color=${encodeURIComponent(activeColor.name)}` : ''}`}
+          onClick={handleProductCardClick}
           className="font-medium text-black hover:text-[#3F3F8F] line-clamp-1 text-sm transition-colors"
         >
           {product.title}

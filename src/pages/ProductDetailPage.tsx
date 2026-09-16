@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { safeGetItem, safeSetItem } from '../utils/safeStorage';
 import {
@@ -43,6 +43,7 @@ import { Product, ProductVariant, SizeChart } from '../types';
 import { ProductImage } from '../components/common/ProductImage';
 import { getTransformedImageUrl } from '../utils/imageUtils';
 import { validateEmail, validatePhone } from '../utils/validation';
+import { getLenis } from '../animations/smoothScroll';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -61,6 +62,24 @@ export const ProductDetailPage: React.FC = () => {
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
+
+  // Ensure the product page ALWAYS starts loading from the top (pre-paint)
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    const lenis = getLenis();
+    lenis?.resize();
+    lenis?.scrollTo(0, { immediate: true, force: true });
+  }, [slug]);
+
+  // Keep page pinned to top when product data finishes loading and renders
+  useEffect(() => {
+    if (!isLoading && product) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      const lenis = getLenis();
+      lenis?.resize();
+      lenis?.scrollTo(0, { immediate: true, force: true });
+    }
+  }, [isLoading, product?.id]);
 
   useEffect(() => {
     if (!slug) return;

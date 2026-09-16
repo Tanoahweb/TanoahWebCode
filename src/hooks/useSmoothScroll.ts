@@ -133,6 +133,11 @@ export const useSmoothScroll = () => {
     }
 
     if (isPop) {
+      // Collection pages load items asynchronously; their restoration is handled post-render in CatalogPage to prevent short-height clamping
+      if (location.pathname.startsWith('/collections') || location.pathname.startsWith('/catalog')) {
+        return;
+      }
+
       // Restore previous scroll position
       const targetY = getSavedScroll(location);
 
