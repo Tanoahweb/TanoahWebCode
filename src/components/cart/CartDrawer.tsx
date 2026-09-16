@@ -251,7 +251,7 @@ export const CartDrawer: React.FC = () => {
       {/* Sliding Panel */}
       <div
         data-lenis-prevent="true"
-        className="relative bg-white w-full max-w-md h-full shadow-2xl z-10 flex flex-col justify-between overflow-hidden animate-fade-in"
+        className="relative bg-white w-[85vw] sm:w-full max-w-md h-full shadow-2xl z-10 flex flex-col justify-between overflow-hidden animate-fade-in"
         onWheel={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
@@ -573,7 +573,7 @@ export const CartDrawer: React.FC = () => {
             </div>
 
             <p className="text-[10px] text-[#888888] text-center">
-              Taxes calculated at checkout. Free 7-day domestic returns included.
+              All taxes included. Returns accepted only for damaged products.
             </p>
 
             <div className="grid grid-cols-2 gap-3 pt-1">
