@@ -123,28 +123,66 @@ export const CatalogPage: React.FC = () => {
   const catalogTopRef = useRef<HTMLDivElement>(null);
   const containerRef = useGsapReveal({ stagger: 0.06 });
 
-  // Sync if routeCollection changes (e.g. user clicked a navigation link in the header or homepage)
+  // Reactive synchronization whenever routeCollection or searchParams changes (e.g. user clicked links in mobile sidebar, mega menu, or external links)
   useEffect(() => {
+    const categoryFromQuery = searchParams.get('category') || '';
+    const subcategoryFromQuery = searchParams.get('subcategory') || '';
+
+    let nextCategory = categoryFromQuery;
+    let nextSubcategory = subcategoryFromQuery;
+    let nextCollections: string[] = [];
+
     if (routeCollection && routeCollection !== 'all') {
       const lower = routeCollection.toLowerCase();
       // Check if routeCollection matches a category slug (e.g. 'saree', 'cord-set', 'tops')
       const matchingCat = categoriesList.find((c) => c.slug.toLowerCase() === lower);
       if (matchingCat) {
-        setSelectedCategory(matchingCat.slug);
-        setSelectedCollections([]);
+        nextCategory = matchingCat.slug;
+        nextCollections = [];
       } else {
-        setSelectedCollections([lower]);
+        nextCollections = [lower];
+        // If navigating to a specific collection (e.g. 'best-sellers', 'new-arrivals'), clear category unless specified in query
+        if (!categoryFromQuery) {
+          nextCategory = '';
+        }
       }
-    } else if (routeCollection === 'all') {
+    } else {
+      // routeCollection is 'all' or empty
       const fromQuery = searchParams.get('collections');
       if (fromQuery) {
-        setSelectedCollections(fromQuery.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+        nextCollections = fromQuery.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
       } else {
         const single = (searchParams.get('collection') || '').toLowerCase();
-        setSelectedCollections(single && single !== 'all' ? [single] : []);
+        nextCollections = single && single !== 'all' ? [single] : [];
       }
     }
-  }, [routeCollection, categoriesList]);
+
+    // Auto-expand category accordion if category is active
+    if (nextCategory) {
+      setExpandedCategories((prev) => ({ ...prev, [nextCategory]: true }));
+    }
+
+    setSelectedCategory(nextCategory);
+    setSelectedSubcategory(nextSubcategory);
+    setSelectedCollections(nextCollections);
+
+    // Sync dynamic attributes from search params (e.g. attr_fabric=cotton)
+    const nextAttrs: Record<string, string[]> = {};
+    searchParams.forEach((val, key) => {
+      if (key.startsWith('attr_')) {
+        const attrKey = key.replace('attr_', '');
+        nextAttrs[attrKey] = val.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    });
+    setSelectedAttributes(nextAttrs);
+  }, [routeCollection, searchParams, categoriesList]);
+
+  // Scroll to catalog top when navigation or search params change while viewing collection
+  useEffect(() => {
+    if (catalogTopRef.current && window.scrollY > 200) {
+      catalogTopRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [routeCollection, searchParams]);
 
   // Load catalog metadata (Categories, Subcategories, Dynamic Attributes, Collections)
   useEffect(() => {

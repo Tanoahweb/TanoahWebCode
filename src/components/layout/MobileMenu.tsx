@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
 import { useNavigationStore } from '../../store/useNavigationStore';
 import { MegaMenuColumn, MegaMenuSubLink } from '../../types/navigation';
-import { Collection } from '../../types';
+import { Collection, Category } from '../../types';
 import { api } from '../../services/api';
 import { getLenis } from '../../animations/smoothScroll';
 
@@ -19,13 +19,20 @@ export const MobileMenu: React.FC = () => {
 
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [storeCollections, setStoreCollections] = useState<Collection[]>([]);
+  const [storeCategories, setStoreCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
-        const list = await api.getCollections();
-        if (isMounted) setStoreCollections(list || []);
+        const [list, cats] = await Promise.all([
+          api.getCollections(),
+          api.getCategories(false),
+        ]);
+        if (isMounted) {
+          setStoreCollections(list || []);
+          setStoreCategories(cats || []);
+        }
       } catch {}
     };
     load();
@@ -34,13 +41,37 @@ export const MobileMenu: React.FC = () => {
       load();
     };
     window.addEventListener('tanoah_collections_updated', handleUpdate);
+    window.addEventListener('tanoah_categories_updated', handleUpdate);
     return () => {
       isMounted = false;
       window.removeEventListener('tanoah_collections_updated', handleUpdate);
+      window.removeEventListener('tanoah_categories_updated', handleUpdate);
     };
   }, []);
 
+  // Ensure mobile menu closes and scroll unlocks when route or search parameters change
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      closeMobileMenu();
+    }
+  }, [location.pathname, location.search]);
+
   const getResolvedColumnLinks = (col: MegaMenuColumn): MegaMenuSubLink[] => {
+    // 1. Auto-sync categories
+    if (col.auto_sync_categories) {
+      const activeCats = storeCategories.filter((c) => c.is_active !== false);
+      if (activeCats.length > 0) {
+        return activeCats.map((c) => ({
+          id: `mob_dyn_cat_${c.id}`,
+          label: c.name,
+          url: `/collections/all?category=${c.slug}`,
+          collection_slug: `cat:${c.slug}`,
+          is_active: true,
+        }));
+      }
+    }
+
+    // 2. Auto-sync collections
     if (col.auto_sync_collections) {
       const activeCols = storeCollections.filter((c) => c.is_active !== false);
       const filtered = activeCols.filter((c) => {
@@ -88,7 +119,7 @@ export const MobileMenu: React.FC = () => {
   return (
     <div
       data-lenis-prevent="true"
-      className="fixed inset-0 z-50 lg:hidden flex"
+      className="fixed inset-0 z-60 lg:hidden flex"
       onWheel={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
