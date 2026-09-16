@@ -72,11 +72,14 @@ export const QuickViewModal: React.FC = () => {
 
     addToCart(quickViewProduct, activeVariant, quantity);
     closeQuickView();
-    addToast({
-      type: 'success',
-      title: 'Added to Bag',
-      description: `${quickViewProduct.title} (${activeVariant.color_name} / ${activeVariant.size}) added to your bag.`,
-    });
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (!isMobile) {
+      addToast({
+        type: 'success',
+        title: 'Added to Bag',
+        description: `${quickViewProduct.title} (${activeVariant.color_name} / ${activeVariant.size}) added to your bag.`,
+      });
+    }
   };
 
   const handleWishlistToggle = () => {

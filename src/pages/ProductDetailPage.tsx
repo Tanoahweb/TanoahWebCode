@@ -679,11 +679,15 @@ export const ProductDetailPage: React.FC = () => {
       variantDesc = ` (${activeVariant.size})`;
     }
 
-    addToast({
-      type: 'success',
-      title: 'Added to Bag',
-      description: `${product.title}${variantDesc} added.`,
-    });
+    // Only show toast on desktop view; on mobile the button shows instant visual confirmation without blocking buttons
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    if (!isMobile) {
+      addToast({
+        type: 'success',
+        title: 'Added to Bag',
+        description: `${product.title}${variantDesc} added.`,
+      });
+    }
   };
 
   const handleBuyNow = () => {
@@ -2278,7 +2282,7 @@ export const ProductDetailPage: React.FC = () => {
           disabled={isOutOfStock}
           className="shrink-0"
         >
-          {isOutOfStock ? 'SOLD OUT' : 'ADD TO BAG'}
+          {isOutOfStock ? 'SOLD OUT' : addedAnimation ? 'ADDED TO BAG ✓' : 'ADD TO BAG'}
         </Button>
       </div>
     </div>

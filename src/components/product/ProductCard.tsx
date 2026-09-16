@@ -135,11 +135,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       return;
     }
     addToCart(product, firstInStockVariant, 1);
-    addToast({
-      type: 'success',
-      title: 'Added to Bag',
-      description: `${product.title} (${firstInStockVariant.size}) added to your bag.`,
-    });
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (!isMobile) {
+      addToast({
+        type: 'success',
+        title: 'Added to Bag',
+        description: `${product.title} (${firstInStockVariant.size}) added to your bag.`,
+      });
+    }
   };
 
   const handleQuickView = (e: React.MouseEvent) => {

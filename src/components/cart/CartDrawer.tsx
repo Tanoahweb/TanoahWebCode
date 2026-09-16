@@ -10,7 +10,6 @@ import { Button } from '../common/Button';
 import { getLenis } from '../../animations/smoothScroll';
 
 import { api, isProductInCollection } from '../../services/api';
-import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { Coupon, Collection } from '../../types';
 
 export const CartDrawer: React.FC = () => {
@@ -508,41 +507,6 @@ export const CartDrawer: React.FC = () => {
                     </button>
                   </div>
                 )}
-              </div>
-
-              {/* Curated Capsule Upsell */}
-              <div className="pt-3 border-t border-[#E7E7E7] space-y-2">
-                <span className="text-[10px] font-semibold text-[#3F3F8F] uppercase tracking-wider block text-left">
-                  PAIR WITH TANOAH ESSENTIALS
-                </span>
-                <div className="space-y-2">
-                  {SAMPLE_PRODUCTS.filter((p) => !items.some((i) => i.product.id === p.id)).slice(0, 2).map((upsell) => (
-                    <div key={upsell.id} className="flex items-center gap-3 p-2 bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px]">
-                      <img
-                        src={upsell.images[0]?.image_url}
-                        alt=""
-                        className="w-12 h-14 object-cover rounded-[2px] bg-white border border-[#E7E7E7]"
-                      />
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="font-semibold text-black truncate text-[11px]">{upsell.title}</div>
-                        <div className="text-[11px] text-[#3F3F8F] font-semibold">{formatPrice(upsell.base_price)}</div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (upsell.variants[0]) {
-                            addItem(upsell, upsell.variants[0], 1);
-                            addToast({ type: 'success', title: 'Added to Bag', description: `${upsell.title} added.` });
-                          }
-                        }}
-                        className="text-[10px] py-1 px-2.5 h-auto shrink-0"
-                      >
-                        + ADD
-                      </Button>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
