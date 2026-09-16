@@ -41,7 +41,7 @@ import {
   FooterSubLink,
 } from '../../types/navigation';
 import { DEFAULT_NAVIGATION_CONFIG } from '../../data/defaultNavigation';
-import { Collection } from '../../types';
+import { Collection, Category, Subcategory } from '../../types';
 import { api } from '../../services/api';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 import { Link } from 'react-router-dom';
@@ -84,29 +84,40 @@ export const NavigationPage: React.FC = () => {
   // Confirmation modal for reset
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  // Store collections state for collection pickers & auto-sync
+  // Store collections, categories & subcategories state for link pickers & auto-sync
   const [availableCollections, setAvailableCollections] = useState<Collection[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+  const [availableSubcategories, setAvailableSubcategories] = useState<Subcategory[]>([]);
   const [openCollectionPickerColId, setOpenCollectionPickerColId] = useState<string | null>(null);
+  const [pickerActiveTab, setPickerActiveTab] = useState<'categories' | 'subcategories' | 'collections'>('categories');
 
   useEffect(() => {
     let isMounted = true;
-    const loadCollections = async () => {
+    const loadNavCatalogData = async () => {
       try {
-        const list = await api.getCollections();
-        if (isMounted) setAvailableCollections(list || []);
+        const [cols, cats, subs] = await Promise.all([
+          api.getCollections(),
+          api.getCategories(false),
+          api.getSubcategories(),
+        ]);
+        if (isMounted) {
+          setAvailableCollections(cols || []);
+          setAvailableCategories(cats || []);
+          setAvailableSubcategories(subs || []);
+        }
       } catch (err) {
-        console.warn('Failed to load collections in Navigation Studio:', err);
+        console.warn('Failed to load catalog data in Navigation Studio:', err);
       }
     };
-    loadCollections();
+    loadNavCatalogData();
 
-    const handleCollectionsUpdated = () => {
-      loadCollections();
+    const handleCatalogUpdated = () => {
+      loadNavCatalogData();
     };
-    window.addEventListener('tanoah_collections_updated', handleCollectionsUpdated);
+    window.addEventListener('tanoah_collections_updated', handleCatalogUpdated);
     return () => {
       isMounted = false;
-      window.removeEventListener('tanoah_collections_updated', handleCollectionsUpdated);
+      window.removeEventListener('tanoah_collections_updated', handleCatalogUpdated);
     };
   }, []);
 
@@ -467,6 +478,19 @@ export const NavigationPage: React.FC = () => {
 
   // Dynamically resolve links for a column (used in live previews & auto-sync preview)
   const resolveColumnLinksForDisplay = (col: MegaMenuColumn): MegaMenuSubLink[] => {
+    if (col.auto_sync_categories) {
+      const activeCats = availableCategories.filter((c) => c.is_active !== false);
+      if (activeCats.length > 0) {
+        return activeCats.map((c) => ({
+          id: `dyn_cat_${c.id}`,
+          label: c.name,
+          url: `/collections/all?category=${c.slug}`,
+          collection_slug: `cat:${c.slug}`,
+          is_active: true,
+        }));
+      }
+    }
+
     if (col.auto_sync_collections) {
       const activeCols = availableCollections.filter((c) => c.is_active !== false);
       const filtered = activeCols.filter((c) => {
@@ -486,6 +510,72 @@ export const NavigationPage: React.FC = () => {
       }
     }
     return col.links || [];
+  };
+
+  // Add a specific category as a sublink to a column
+  const handleAddCategorySubLink = (colId: string, cat: Category) => {
+    if (!selectedItem) return;
+    const newLink: MegaMenuSubLink = {
+      id: `lnk_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      label: cat.name,
+      url: `/collections/all?category=${cat.slug}`,
+      collection_slug: `cat:${cat.slug}`,
+      is_active: true,
+    };
+
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== selectedItem.id || !item.mega_menu) return item;
+        return {
+          ...item,
+          mega_menu: {
+            ...item.mega_menu,
+            columns: item.mega_menu.columns.map((c) =>
+              c.id === colId ? { ...c, links: [...c.links, newLink] } : c
+            ),
+          },
+        };
+      })
+    );
+
+    addToast({
+      type: 'success',
+      title: 'Category Added',
+      description: `Added "${cat.name}" to ${selectedItem.label} column.`,
+    });
+  };
+
+  // Add a specific subcategory as a sublink to a column
+  const handleAddSubcategorySubLink = (colId: string, sub: Subcategory) => {
+    if (!selectedItem) return;
+    const newLink: MegaMenuSubLink = {
+      id: `lnk_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      label: sub.name,
+      url: `/collections/all?subcategory=${sub.slug}`,
+      collection_slug: `sub:${sub.slug}`,
+      is_active: true,
+    };
+
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== selectedItem.id || !item.mega_menu) return item;
+        return {
+          ...item,
+          mega_menu: {
+            ...item.mega_menu,
+            columns: item.mega_menu.columns.map((c) =>
+              c.id === colId ? { ...c, links: [...c.links, newLink] } : c
+            ),
+          },
+        };
+      })
+    );
+
+    addToast({
+      type: 'success',
+      title: 'Subcategory Added',
+      description: `Added "${sub.name}" to ${selectedItem.label} column.`,
+    });
   };
 
   // Add a specific collection as a sublink to a column
@@ -519,6 +609,63 @@ export const NavigationPage: React.FC = () => {
       type: 'success',
       title: 'Collection Added',
       description: `Added "${col.title}" to ${selectedItem.label} column.`,
+    });
+  };
+
+  // Batch import all categories not currently in the column
+  const handleImportAllMissingCategories = (colId: string) => {
+    if (!selectedItem) return;
+    const col = selectedItem.mega_menu?.columns.find((c) => c.id === colId);
+    if (!col) return;
+
+    const existingSlugs = new Set(
+      col.links.map((l) => {
+        if (l.collection_slug?.startsWith('cat:')) return l.collection_slug.replace('cat:', '');
+        const match = l.url.match(/category=([^&]+)/);
+        return match ? match[1] : '';
+      })
+    );
+
+    const missing = availableCategories.filter(
+      (c) => c.is_active !== false && !existingSlugs.has(c.slug)
+    );
+
+    if (missing.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'Already In Sync',
+        description: 'All garment categories are already in this column.',
+      });
+      return;
+    }
+
+    const newLinks: MegaMenuSubLink[] = missing.map((c, idx) => ({
+      id: `lnk_cat_${Date.now()}_${idx}`,
+      label: c.name,
+      url: `/collections/all?category=${c.slug}`,
+      collection_slug: `cat:${c.slug}`,
+      is_active: true,
+    }));
+
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== selectedItem.id || !item.mega_menu) return item;
+        return {
+          ...item,
+          mega_menu: {
+            ...item.mega_menu,
+            columns: item.mega_menu.columns.map((c) =>
+              c.id === colId ? { ...c, links: [...c.links, ...newLinks] } : c
+            ),
+          },
+        };
+      })
+    );
+
+    addToast({
+      type: 'success',
+      title: 'Categories Added',
+      description: `Added ${missing.length} categories to this column.`,
     });
   };
 
@@ -586,6 +733,27 @@ export const NavigationPage: React.FC = () => {
     const col = selectedItem.mega_menu?.columns.find((c) => c.id === colId);
     if (!col) return;
 
+    if (col.auto_sync_categories) {
+      const activeCats = availableCategories.filter((c) => c.is_active !== false);
+      const staticLinks: MegaMenuSubLink[] = activeCats.map((c, idx) => ({
+        id: `lnk_static_cat_${Date.now()}_${idx}`,
+        label: c.name,
+        url: `/collections/all?category=${c.slug}`,
+        collection_slug: `cat:${c.slug}`,
+        is_active: true,
+      }));
+      handleUpdateColumn(colId, {
+        auto_sync_categories: false,
+        links: staticLinks,
+      });
+      addToast({
+        type: 'info',
+        title: 'Converted to Manual Links',
+        description: `Auto-sync turned off. Converted ${staticLinks.length} categories into customizable sub-links.`,
+      });
+      return;
+    }
+
     const activeCols = availableCollections.filter((c) => c.is_active !== false);
     const filtered = activeCols.filter((c) => {
       if (!col.collection_filter || col.collection_filter === 'all') return true;
@@ -614,14 +782,41 @@ export const NavigationPage: React.FC = () => {
     });
   };
 
-  // When admin selects a collection from the dropdown in an individual sub-link row
-  const handleSelectCollectionForLink = (colId: string, linkId: string, chosenSlug: string) => {
-    if (!chosenSlug) {
+  // When admin selects a target from the dropdown in an individual sub-link row
+  const handleSelectCollectionForLink = (colId: string, linkId: string, chosenVal: string) => {
+    if (!chosenVal) {
       handleUpdateSubLink(colId, linkId, { collection_slug: undefined });
       return;
     }
 
-    const col = availableCollections.find((c) => c.slug === chosenSlug);
+    if (chosenVal.startsWith('cat:')) {
+      const catSlug = chosenVal.replace('cat:', '');
+      const cat = availableCategories.find((c) => c.slug === catSlug || c.id === catSlug);
+      if (cat) {
+        handleUpdateSubLink(colId, linkId, {
+          label: cat.name,
+          url: `/collections/all?category=${cat.slug}`,
+          collection_slug: `cat:${cat.slug}`,
+        });
+        return;
+      }
+    }
+
+    if (chosenVal.startsWith('sub:')) {
+      const subSlug = chosenVal.replace('sub:', '');
+      const sub = availableSubcategories.find((s) => s.slug === subSlug || s.id === subSlug);
+      if (sub) {
+        handleUpdateSubLink(colId, linkId, {
+          label: sub.name,
+          url: `/collections/all?subcategory=${sub.slug}`,
+          collection_slug: `sub:${sub.slug}`,
+        });
+        return;
+      }
+    }
+
+    const colSlug = chosenVal.startsWith('col:') ? chosenVal.replace('col:', '') : chosenVal;
+    const col = availableCollections.find((c) => c.slug === colSlug);
     if (col) {
       handleUpdateSubLink(colId, linkId, {
         label: col.title,
@@ -1278,10 +1473,29 @@ export const NavigationPage: React.FC = () => {
                           >
                             {/* Column Top Header */}
                             <div className="flex flex-wrap justify-between items-center gap-2 border-b border-[#E7E7E7] pb-2.5">
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                                 <span className="text-[10px] font-bold text-[#3F3F8F] uppercase bg-white border border-[#E0E2EE] px-2 py-0.5 rounded">
                                   Column #{colIdx + 1}
                                 </span>
+
+                                {/* Auto-sync Categories Toggle */}
+                                <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-[4px] border border-[#D5D9F0] hover:border-purple-600 transition-colors shadow-2xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={col.auto_sync_categories || false}
+                                    onChange={(e) =>
+                                      handleUpdateColumn(col.id, {
+                                        auto_sync_categories: e.target.checked,
+                                        ...(e.target.checked ? { auto_sync_collections: false } : {}),
+                                      })
+                                    }
+                                    className="w-3.5 h-3.5 text-purple-600 rounded focus:ring-0 cursor-pointer"
+                                  />
+                                  <span className="text-[10px] font-bold text-neutral-800 flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-purple-600" />
+                                    ⚡ Auto-sync with Categories
+                                  </span>
+                                </label>
 
                                 {/* Auto-sync Collections Toggle */}
                                 <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-[4px] border border-[#D5D9F0] hover:border-[#3F3F8F] transition-colors shadow-2xs">
@@ -1291,6 +1505,7 @@ export const NavigationPage: React.FC = () => {
                                     onChange={(e) =>
                                       handleUpdateColumn(col.id, {
                                         auto_sync_collections: e.target.checked,
+                                        ...(e.target.checked ? { auto_sync_categories: false } : {}),
                                       })
                                     }
                                     className="w-3.5 h-3.5 text-[#3F3F8F] rounded focus:ring-0 cursor-pointer"
@@ -1321,7 +1536,7 @@ export const NavigationPage: React.FC = () => {
                                   type="text"
                                   value={col.title}
                                   onChange={(e) => handleUpdateColumn(col.id, { title: e.target.value })}
-                                  placeholder="e.g. ALL COLLECTIONS, MEN, WOMEN"
+                                  placeholder="e.g. ALL COLLECTIONS, TOPS, SAREES"
                                   className="w-full p-2 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-semibold uppercase focus:outline-none focus:border-[#3F3F8F]"
                                 />
                               </div>
@@ -1340,27 +1555,103 @@ export const NavigationPage: React.FC = () => {
                                     value=""
                                     className="text-[10px] text-[#3F3F8F] bg-transparent border-0 cursor-pointer hover:underline focus:outline-none font-semibold"
                                   >
-                                    <option value="">+ Pick Collection...</option>
+                                    <option value="">+ Pick Destination...</option>
                                     <option value="/collections/all">All Products (/collections/all)</option>
-                                    {availableCollections.map((c) => (
-                                      <option key={c.id} value={`/collections/${c.slug}`}>
-                                        {c.title} (/collections/{c.slug})
-                                      </option>
-                                    ))}
+                                    {availableCategories.length > 0 && (
+                                      <optgroup label="Garment Categories">
+                                        {availableCategories.map((c) => (
+                                          <option key={c.id} value={`/collections/all?category=${c.slug}`}>
+                                            📂 {c.name} (/collections/all?category={c.slug})
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                    {availableSubcategories.length > 0 && (
+                                      <optgroup label="Garment Subcategories">
+                                        {availableSubcategories.map((s) => (
+                                          <option key={s.id} value={`/collections/all?subcategory=${s.slug}`}>
+                                            🏷️ {s.name} (/collections/all?subcategory={s.slug})
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                    {availableCollections.length > 0 && (
+                                      <optgroup label="Store Collections">
+                                        {availableCollections.map((c) => (
+                                          <option key={c.id} value={`/collections/${c.slug}`}>
+                                            ✨ {c.title} (/collections/{c.slug})
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
                                   </select>
                                 </div>
                                 <input
                                   type="text"
                                   value={col.view_all_url || ''}
                                   onChange={(e) => handleUpdateColumn(col.id, { view_all_url: e.target.value })}
-                                  placeholder="e.g. /collections/all or /collections/men"
+                                  placeholder="e.g. /collections/all or /collections/all?category=saree"
                                   className="w-full p-2 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
                                 />
                               </div>
                             </div>
 
                             {/* Auto-Sync Mode Active View */}
-                            {col.auto_sync_collections ? (
+                            {col.auto_sync_categories ? (
+                              <div className="p-3.5 bg-gradient-to-br from-[#F5F6FC] to-[#EFF2FA] border border-[#D5DCF5] rounded-[6px] space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex h-2 w-2 relative">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                                    </span>
+                                    <span className="text-xs font-bold text-[#2B2D42] uppercase tracking-wide flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                      Category Auto-Sync Active
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <p className="text-[11px] text-[#555A7A] leading-relaxed">
+                                  ⚡ <strong>All active garment categories will automatically appear in this column.</strong> Whenever you add or edit a category in <em>Admin &gt; Categories</em>, it will automatically update in this menu column.
+                                </p>
+
+                                {/* Synced Categories Live Preview */}
+                                <div className="bg-white rounded border border-[#E0E4F5] p-2.5 max-h-48 overflow-y-auto space-y-1.5">
+                                  <div className="text-[10px] font-bold text-[#888888] uppercase tracking-wider mb-1">
+                                    Currently Synced Categories ({resolveColumnLinksForDisplay(col).length}):
+                                  </div>
+                                  {resolveColumnLinksForDisplay(col).map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex items-center justify-between py-1 px-2 rounded bg-[#FAFAFA] text-[11px] border border-neutral-100"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                        <span className="font-semibold text-neutral-900">{item.label}</span>
+                                        <span className="text-[10px] font-mono text-[#888888]">{item.url}</span>
+                                      </div>
+                                      <span className="text-[9px] bg-purple-50 text-purple-700 font-mono px-1.5 py-0.5 rounded font-bold">
+                                        CATEGORY
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1">
+                                  <span className="text-[10px] text-[#888888]">
+                                    Automatic linking enabled. No manual maintenance needed.
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConvertAutoSyncToStatic(col.id)}
+                                    className="text-[10px] text-[#3F3F8F] hover:underline font-semibold"
+                                  >
+                                    Convert to static manual links &rarr;
+                                  </button>
+                                </div>
+                              </div>
+                            ) : col.auto_sync_collections ? (
                               <div className="p-3.5 bg-gradient-to-br from-[#F5F6FC] to-[#EFF2FA] border border-[#D5DCF5] rounded-[6px] space-y-3">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                   <div className="flex items-center gap-2">
@@ -1441,12 +1732,12 @@ export const NavigationPage: React.FC = () => {
                                       Sub-Links ({col.links.length})
                                     </label>
                                     <p className="text-[10px] text-[#888888]">
-                                      Select collections directly from the list, or add custom URLs.
+                                      Select categories, subcategories or collections directly, or add custom URLs.
                                     </p>
                                   </div>
 
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Add from Collections Quick Picker Dropdown */}
+                                    {/* Add from Target Quick Picker Dropdown */}
                                     <div className="relative">
                                       <button
                                         type="button"
@@ -1457,15 +1748,15 @@ export const NavigationPage: React.FC = () => {
                                         }
                                         className="bg-[#3F3F8F] text-white hover:bg-[#343477] text-[10px] font-semibold px-2.5 py-1.5 rounded-[4px] flex items-center gap-1 transition-colors shadow-2xs"
                                       >
-                                        <Folder className="w-3 h-3" /> + Select Collection
+                                        <Folder className="w-3 h-3" /> + Select Link Target
                                         <ChevronDown className="w-3 h-3 ml-0.5" />
                                       </button>
 
                                       {openCollectionPickerColId === col.id && (
-                                        <div className="absolute right-0 top-full mt-1 w-80 bg-white border border-[#E7E7E7] rounded-[6px] shadow-2xl z-30 p-2 text-left animate-fade-in">
-                                          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-[#E7E7E7]">
+                                        <div className="absolute right-0 top-full mt-1 w-88 bg-white border border-[#E7E7E7] rounded-[6px] shadow-2xl z-30 p-2.5 text-left animate-fade-in">
+                                          <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#E7E7E7]">
                                             <span className="text-[10px] font-bold text-black uppercase">
-                                              Select Store Collection
+                                              Select Link Target
                                             </span>
                                             <button
                                               type="button"
@@ -1476,44 +1767,186 @@ export const NavigationPage: React.FC = () => {
                                             </button>
                                           </div>
 
-                                          <div className="max-h-56 overflow-y-auto space-y-1">
-                                            {availableCollections.map((c) => {
-                                              const isAlreadyAdded = col.links.some(
-                                                (l) =>
-                                                  l.collection_slug === c.slug ||
-                                                  l.url === `/collections/${c.slug}`
-                                              );
-                                              return (
-                                                <button
-                                                  key={c.id}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    handleAddCollectionSubLink(col.id, c);
-                                                    setOpenCollectionPickerColId(null);
-                                                  }}
-                                                  className={`w-full text-left p-2 rounded flex items-center justify-between text-[11px] transition-colors ${
-                                                    isAlreadyAdded
-                                                      ? 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
-                                                      : 'hover:bg-[#F0F2FA] text-black font-semibold'
-                                                  }`}
-                                                >
-                                                  <div>
-                                                    <div className="font-semibold text-black">{c.title}</div>
-                                                    <div className="text-[9px] font-mono text-[#888888]">
-                                                      /collections/{c.slug}
-                                                    </div>
-                                                  </div>
-                                                  {isAlreadyAdded && (
-                                                    <span className="text-[8px] bg-neutral-200 text-neutral-600 px-1 py-0.2 rounded font-mono">
-                                                      Added
-                                                    </span>
-                                                  )}
-                                                </button>
-                                              );
-                                            })}
+                                          {/* Picker Tabs */}
+                                          <div className="flex items-center gap-1 border-b border-[#E7E7E7] pb-1.5 mb-2 text-[10px] font-semibold">
+                                            <button
+                                              type="button"
+                                              onClick={() => setPickerActiveTab('categories')}
+                                              className={`px-2 py-1 rounded transition-colors ${
+                                                pickerActiveTab === 'categories'
+                                                  ? 'bg-purple-50 text-purple-800 border-b-2 border-purple-600'
+                                                  : 'text-neutral-500 hover:text-black'
+                                              }`}
+                                            >
+                                              Categories ({availableCategories.length})
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setPickerActiveTab('subcategories')}
+                                              className={`px-2 py-1 rounded transition-colors ${
+                                                pickerActiveTab === 'subcategories'
+                                                  ? 'bg-emerald-50 text-emerald-800 border-b-2 border-emerald-600'
+                                                  : 'text-neutral-500 hover:text-black'
+                                              }`}
+                                            >
+                                              Subcategories ({availableSubcategories.length})
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setPickerActiveTab('collections')}
+                                              className={`px-2 py-1 rounded transition-colors ${
+                                                pickerActiveTab === 'collections'
+                                                  ? 'bg-amber-50 text-amber-800 border-b-2 border-amber-600'
+                                                  : 'text-neutral-500 hover:text-black'
+                                              }`}
+                                            >
+                                              Collections ({availableCollections.length})
+                                            </button>
                                           </div>
 
-                                          <div className="pt-2 mt-2 border-t border-[#E7E7E7] flex justify-between items-center">
+                                          {/* Tab 1: Categories */}
+                                          {pickerActiveTab === 'categories' && (
+                                            <div className="max-h-56 overflow-y-auto space-y-1">
+                                              {availableCategories.length === 0 ? (
+                                                <p className="text-xs text-neutral-400 italic p-2">No categories found.</p>
+                                              ) : (
+                                                availableCategories.map((c) => {
+                                                  const isAlreadyAdded = col.links.some(
+                                                    (l) =>
+                                                      l.collection_slug === `cat:${c.slug}` ||
+                                                      l.url === `/collections/all?category=${c.slug}`
+                                                  );
+                                                  return (
+                                                    <button
+                                                      key={c.id}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        handleAddCategorySubLink(col.id, c);
+                                                        setOpenCollectionPickerColId(null);
+                                                      }}
+                                                      className={`w-full text-left p-2 rounded flex items-center justify-between text-[11px] transition-colors ${
+                                                        isAlreadyAdded
+                                                          ? 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                                                          : 'hover:bg-purple-50 text-black font-semibold'
+                                                      }`}
+                                                    >
+                                                      <div>
+                                                        <div className="font-semibold text-black">📂 {c.name}</div>
+                                                        <div className="text-[9px] font-mono text-[#888888]">
+                                                          /collections/all?category={c.slug}
+                                                        </div>
+                                                      </div>
+                                                      {isAlreadyAdded && (
+                                                        <span className="text-[8px] bg-neutral-200 text-neutral-600 px-1 py-0.2 rounded font-mono">
+                                                          Added
+                                                        </span>
+                                                      )}
+                                                    </button>
+                                                  );
+                                                })
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {/* Tab 2: Subcategories */}
+                                          {pickerActiveTab === 'subcategories' && (
+                                            <div className="max-h-56 overflow-y-auto space-y-1">
+                                              {availableSubcategories.length === 0 ? (
+                                                <p className="text-xs text-neutral-400 italic p-2">No subcategories found.</p>
+                                              ) : (
+                                                availableSubcategories.map((s) => {
+                                                  const isAlreadyAdded = col.links.some(
+                                                    (l) =>
+                                                      l.collection_slug === `sub:${s.slug}` ||
+                                                      l.url === `/collections/all?subcategory=${s.slug}`
+                                                  );
+                                                  return (
+                                                    <button
+                                                      key={s.id}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        handleAddSubcategorySubLink(col.id, s);
+                                                        setOpenCollectionPickerColId(null);
+                                                      }}
+                                                      className={`w-full text-left p-2 rounded flex items-center justify-between text-[11px] transition-colors ${
+                                                        isAlreadyAdded
+                                                          ? 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                                                          : 'hover:bg-emerald-50 text-black font-semibold'
+                                                      }`}
+                                                    >
+                                                      <div>
+                                                        <div className="font-semibold text-black">🏷️ {s.name}</div>
+                                                        <div className="text-[9px] font-mono text-[#888888]">
+                                                          /collections/all?subcategory={s.slug}
+                                                        </div>
+                                                      </div>
+                                                      {isAlreadyAdded && (
+                                                        <span className="text-[8px] bg-neutral-200 text-neutral-600 px-1 py-0.2 rounded font-mono">
+                                                          Added
+                                                        </span>
+                                                      )}
+                                                    </button>
+                                                  );
+                                                })
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {/* Tab 3: Collections */}
+                                          {pickerActiveTab === 'collections' && (
+                                            <div className="max-h-56 overflow-y-auto space-y-1">
+                                              {availableCollections.length === 0 ? (
+                                                <p className="text-xs text-neutral-400 italic p-2">No collections found.</p>
+                                              ) : (
+                                                availableCollections.map((c) => {
+                                                  const isAlreadyAdded = col.links.some(
+                                                    (l) =>
+                                                      l.collection_slug === c.slug ||
+                                                      l.url === `/collections/${c.slug}`
+                                                  );
+                                                  return (
+                                                    <button
+                                                      key={c.id}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        handleAddCollectionSubLink(col.id, c);
+                                                        setOpenCollectionPickerColId(null);
+                                                      }}
+                                                      className={`w-full text-left p-2 rounded flex items-center justify-between text-[11px] transition-colors ${
+                                                        isAlreadyAdded
+                                                          ? 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                                                          : 'hover:bg-[#F0F2FA] text-black font-semibold'
+                                                      }`}
+                                                    >
+                                                      <div>
+                                                        <div className="font-semibold text-black">✨ {c.title}</div>
+                                                        <div className="text-[9px] font-mono text-[#888888]">
+                                                          /collections/{c.slug}
+                                                        </div>
+                                                      </div>
+                                                      {isAlreadyAdded && (
+                                                        <span className="text-[8px] bg-neutral-200 text-neutral-600 px-1 py-0.2 rounded font-mono">
+                                                          Added
+                                                        </span>
+                                                      )}
+                                                    </button>
+                                                  );
+                                                })
+                                              )}
+                                            </div>
+                                          )}
+
+                                          <div className="pt-2 mt-2 border-t border-[#E7E7E7] flex flex-wrap justify-between items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                handleImportAllMissingCategories(col.id);
+                                                setOpenCollectionPickerColId(null);
+                                              }}
+                                              className="text-[10px] text-purple-700 font-bold hover:underline"
+                                            >
+                                              ⚡ Add All Categories
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1522,7 +1955,7 @@ export const NavigationPage: React.FC = () => {
                                               }}
                                               className="text-[10px] text-[#3F3F8F] font-bold hover:underline"
                                             >
-                                              ⚡ Add All Store Collections
+                                              ⚡ Add All Collections
                                             </button>
                                           </div>
                                         </div>
@@ -1542,11 +1975,21 @@ export const NavigationPage: React.FC = () => {
                                 <div className="space-y-2">
                                   {col.links.length === 0 && (
                                     <div className="p-4 bg-white rounded border border-dashed border-[#D0D0D0] text-center text-[11px] text-[#888888]">
-                                      No sub-links in this column yet. Click <strong>"+ Select Collection"</strong> above or enable <strong>"Auto-sync with Collections"</strong>.
+                                      No sub-links in this column yet. Click <strong>"+ Select Link Target"</strong> above or enable <strong>"Auto-sync"</strong>.
                                     </div>
                                   )}
 
                                   {col.links.map((link) => {
+                                    const matchedCategory = availableCategories.find(
+                                      (c) =>
+                                        link.collection_slug === `cat:${c.slug}` ||
+                                        link.url === `/collections/all?category=${c.slug}`
+                                    );
+                                    const matchedSubcategory = availableSubcategories.find(
+                                      (s) =>
+                                        link.collection_slug === `sub:${s.slug}` ||
+                                        link.url === `/collections/all?subcategory=${s.slug}`
+                                    );
                                     const matchedCollection = availableCollections.find(
                                       (c) =>
                                         c.slug === link.collection_slug ||
@@ -1554,29 +1997,57 @@ export const NavigationPage: React.FC = () => {
                                         link.url.startsWith(`/collections/${c.slug}?`)
                                     );
 
+                                    const selectedTargetValue = matchedCategory
+                                      ? `cat:${matchedCategory.slug}`
+                                      : matchedSubcategory
+                                      ? `sub:${matchedSubcategory.slug}`
+                                      : matchedCollection
+                                      ? matchedCollection.slug
+                                      : link.collection_slug || '';
+
                                     return (
                                       <div
                                         key={link.id}
                                         className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 bg-white border border-[#E7E7E7] rounded-[4px] shadow-2xs"
                                       >
-                                        {/* Collection Selector Dropdown */}
+                                        {/* Target Selector Dropdown */}
                                         <div className="w-full sm:w-48">
                                           <select
-                                            value={matchedCollection ? matchedCollection.slug : ''}
+                                            value={selectedTargetValue}
                                             onChange={(e) =>
                                               handleSelectCollectionForLink(col.id, link.id, e.target.value)
                                             }
                                             className="w-full p-1.5 bg-[#F4F5FB] border border-[#D8DEF4] rounded text-[11px] font-semibold text-[#252846] focus:bg-white focus:border-[#3F3F8F] focus:outline-none"
-                                            title="Select Collection"
+                                            title="Select Target"
                                           >
                                             <option value="">-- Custom Link / URL --</option>
-                                            <optgroup label="Store Collections">
-                                              {availableCollections.map((c) => (
-                                                <option key={c.id} value={c.slug}>
-                                                  🏷️ {c.title}
-                                                </option>
-                                              ))}
-                                            </optgroup>
+                                            {availableCategories.length > 0 && (
+                                              <optgroup label="Garment Categories">
+                                                {availableCategories.map((c) => (
+                                                  <option key={c.id} value={`cat:${c.slug}`}>
+                                                    📂 {c.name}
+                                                  </option>
+                                                ))}
+                                              </optgroup>
+                                            )}
+                                            {availableSubcategories.length > 0 && (
+                                              <optgroup label="Garment Subcategories">
+                                                {availableSubcategories.map((s) => (
+                                                  <option key={s.id} value={`sub:${s.slug}`}>
+                                                    🏷️ {s.name}
+                                                  </option>
+                                                ))}
+                                              </optgroup>
+                                            )}
+                                            {availableCollections.length > 0 && (
+                                              <optgroup label="Store Collections">
+                                                {availableCollections.map((c) => (
+                                                  <option key={c.id} value={c.slug}>
+                                                    ✨ {c.title}
+                                                  </option>
+                                                ))}
+                                              </optgroup>
+                                            )}
                                           </select>
                                         </div>
 
@@ -1759,6 +2230,8 @@ export const NavigationPage: React.FC = () => {
         draftBottomLinks={draftBottomLinks}
         setDraftBottomLinks={setDraftBottomLinks}
         availableCollections={availableCollections}
+        availableCategories={availableCategories}
+        availableSubcategories={availableSubcategories}
         onSave={handleSaveAll}
         isSaving={isSaving}
       />
@@ -1791,7 +2264,7 @@ export const NavigationPage: React.FC = () => {
                   type="text"
                   value={modalLabel}
                   onChange={(e) => setModalLabel(e.target.value)}
-                  placeholder="e.g. SHOP, ACCESSORIES, BRIDAL"
+                  placeholder="e.g. SHOP, WOMEN, SALE, LOOKBOOK"
                   className="w-full p-2.5 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-bold uppercase focus:outline-none focus:border-[#3F3F8F]"
                   required
                 />
@@ -1800,32 +2273,73 @@ export const NavigationPage: React.FC = () => {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-[10px] text-[#888888] uppercase font-semibold">
-                    Destination URL / Path *
+                    Destination URL *
                   </label>
                   <select
                     onChange={(e) => {
                       if (e.target.value) {
-                        const col = availableCollections.find((c) => c.slug === e.target.value);
-                        if (col) {
-                          if (!modalLabel.trim() || modalLabel === 'NEW ITEM') {
-                            setModalLabel(col.title.toUpperCase());
-                          }
-                          setModalUrl(`/collections/${col.slug}`);
-                        } else if (e.target.value === 'all') {
+                        const val = e.target.value;
+                        if (val === 'all') {
                           setModalUrl('/collections/all');
+                        } else if (val.startsWith('cat:')) {
+                          const cat = availableCategories.find((c) => c.slug === val.replace('cat:', ''));
+                          if (cat) {
+                            if (!modalLabel.trim() || modalLabel === 'NEW ITEM') {
+                              setModalLabel(cat.name.toUpperCase());
+                            }
+                            setModalUrl(`/collections/all?category=${cat.slug}`);
+                          }
+                        } else if (val.startsWith('sub:')) {
+                          const sub = availableSubcategories.find((s) => s.slug === val.replace('sub:', ''));
+                          if (sub) {
+                            if (!modalLabel.trim() || modalLabel === 'NEW ITEM') {
+                              setModalLabel(sub.name.toUpperCase());
+                            }
+                            setModalUrl(`/collections/all?subcategory=${sub.slug}`);
+                          }
+                        } else {
+                          const col = availableCollections.find((c) => c.slug === val);
+                          if (col) {
+                            if (!modalLabel.trim() || modalLabel === 'NEW ITEM') {
+                              setModalLabel(col.title.toUpperCase());
+                            }
+                            setModalUrl(`/collections/${col.slug}`);
+                          }
                         }
                       }
                     }}
                     value=""
                     className="text-[10px] text-[#3F3F8F] bg-transparent border-0 cursor-pointer hover:underline focus:outline-none font-semibold"
                   >
-                    <option value="">-- Choose from Collections --</option>
+                    <option value="">-- Choose from Catalog --</option>
                     <option value="all">All Products (/collections/all)</option>
-                    {availableCollections.map((c) => (
-                      <option key={c.id} value={c.slug}>
-                        {c.title} (/collections/{c.slug})
-                      </option>
-                    ))}
+                    {availableCategories.length > 0 && (
+                      <optgroup label="Garment Categories">
+                        {availableCategories.map((c) => (
+                          <option key={c.id} value={`cat:${c.slug}`}>
+                            📂 {c.name} (/collections/all?category={c.slug})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {availableSubcategories.length > 0 && (
+                      <optgroup label="Garment Subcategories">
+                        {availableSubcategories.map((s) => (
+                          <option key={s.id} value={`sub:${s.slug}`}>
+                            🏷️ {s.name} (/collections/all?subcategory={s.slug})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {availableCollections.length > 0 && (
+                      <optgroup label="Store Collections">
+                        {availableCollections.map((c) => (
+                          <option key={c.id} value={c.slug}>
+                            ✨ {c.title} (/collections/{c.slug})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <input

@@ -9,16 +9,20 @@ import { Badge } from '../../components/common/Badge';
 
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
-import { Product, Collection } from '../../types';
+import { Product, Collection, Category, Subcategory } from '../../types';
 
 export const ProductListPage: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useUIStore();
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [collectionFilter, setCollectionFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('all');
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const loadProducts = () => {
@@ -37,14 +41,29 @@ export const ProductListPage: React.FC = () => {
     });
   };
 
+  const loadCategoriesAndSubs = () => {
+    Promise.all([
+      api.getCategories(false),
+      api.getSubcategories(),
+    ]).then(([cats, subs]) => {
+      if (cats) setCategories(cats);
+      if (subs) setSubcategories(subs);
+    }).catch((err) => {
+      console.warn('Failed to load categories/subcategories in ProductList:', err);
+    });
+  };
+
   React.useEffect(() => {
     loadProducts();
     loadCollections();
+    loadCategoriesAndSubs();
     window.addEventListener('tanoah_products_updated', loadProducts);
     window.addEventListener('tanoah_collections_updated', loadCollections);
+    window.addEventListener('tanoah_categories_updated', loadCategoriesAndSubs);
     return () => {
       window.removeEventListener('tanoah_products_updated', loadProducts);
       window.removeEventListener('tanoah_collections_updated', loadCollections);
+      window.removeEventListener('tanoah_categories_updated', loadCategoriesAndSubs);
     };
   }, []);
 
@@ -97,7 +116,27 @@ export const ProductListPage: React.FC = () => {
       p.tags?.some((t) => t.toLowerCase() === collectionFilter.toLowerCase()) ||
       (p.product_type && p.product_type.toLowerCase().includes(collectionFilter.toLowerCase()));
 
-    return matchesSearch && matchesStatus && matchesCollection;
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      p.category_id === categoryFilter ||
+      p.category?.slug === categoryFilter ||
+      (p.category_name && p.category_name.toLowerCase() === categoryFilter.toLowerCase()) ||
+      categories.find((c) => c.slug === categoryFilter)?.id === p.category_id;
+
+    const matchesSubcategory =
+      subcategoryFilter === 'all' ||
+      p.subcategory_id === subcategoryFilter ||
+      p.subcategory?.slug === subcategoryFilter ||
+      (p.subcategory_name && p.subcategory_name.toLowerCase() === subcategoryFilter.toLowerCase()) ||
+      subcategories.find((s) => s.slug === subcategoryFilter)?.id === p.subcategory_id;
+
+    return matchesSearch && matchesStatus && matchesCollection && matchesCategory && matchesSubcategory;
+  });
+
+  const filteredSubcategoriesForDropdown = subcategories.filter((sub) => {
+    if (categoryFilter === 'all') return true;
+    const selectedCat = categories.find((c) => c.slug === categoryFilter || c.id === categoryFilter);
+    return selectedCat ? sub.category_id === selectedCat.id : true;
   });
 
   return (
@@ -106,7 +145,7 @@ export const ProductListPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
             <h1 className="font-wondra text-2xl sm:text-3xl text-black">
-              PRODUCT CATALOG & VARIANTS
+              PRODUCT CATALOG &amp; VARIANTS
             </h1>
             <p className="text-xs text-[#666666] mt-0.5">
               Manage product pricing, SKU matrices, multi-color swatches and publication states.
@@ -141,6 +180,44 @@ export const ProductListPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Garment Category Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-[#888888] uppercase text-[10px] font-semibold">Category:</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setSubcategoryFilter('all');
+                }}
+                className="border border-[#E7E7E7] rounded-[4px] py-2 px-3 focus:outline-none focus:border-[#3F3F8F] bg-white font-medium cursor-pointer"
+              >
+                <option value="all">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c.id || c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Garment Subcategory Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-[#888888] uppercase text-[10px] font-semibold">Subcategory:</span>
+              <select
+                value={subcategoryFilter}
+                onChange={(e) => setSubcategoryFilter(e.target.value)}
+                className="border border-[#E7E7E7] rounded-[4px] py-2 px-3 focus:outline-none focus:border-[#3F3F8F] bg-white font-medium cursor-pointer"
+              >
+                <option value="all">All Subcategories</option>
+                {filteredSubcategoriesForDropdown.map((s) => (
+                  <option key={s.id || s.slug} value={s.slug}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Curated Collection Filter */}
             <div className="flex items-center gap-2">
               <span className="text-[#888888] uppercase text-[10px] font-semibold">Collection:</span>
               <select
@@ -157,6 +234,7 @@ export const ProductListPage: React.FC = () => {
               </select>
             </div>
 
+            {/* Status Filter */}
             <div className="flex items-center gap-2">
               <span className="text-[#888888] uppercase text-[10px] font-semibold">Status:</span>
               <select
@@ -170,6 +248,22 @@ export const ProductListPage: React.FC = () => {
                 <option value="archived">Archived</option>
               </select>
             </div>
+
+            {(categoryFilter !== 'all' || subcategoryFilter !== 'all' || collectionFilter !== 'all' || statusFilter !== 'all' || searchTerm) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('all');
+                  setSubcategoryFilter('all');
+                  setCollectionFilter('all');
+                  setStatusFilter('all');
+                  setSearchTerm('');
+                }}
+                className="text-[10px] uppercase font-semibold text-[#888888] hover:text-[#3F3F8F] underline ml-1"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         </div>
 
@@ -180,7 +274,7 @@ export const ProductListPage: React.FC = () => {
               <thead className="bg-[#F8F8F8] border-b border-[#E7E7E7] text-[10px] text-[#888888] uppercase font-semibold">
                 <tr>
                   <th className="p-4">Product Details</th>
-                  <th className="p-4">Collections</th>
+                  <th className="p-4">Category &amp; Collections</th>
                   <th className="p-4">Price</th>
                   <th className="p-4">Variants</th>
                   <th className="p-4">Total Stock</th>
@@ -219,23 +313,37 @@ export const ProductListPage: React.FC = () => {
                         </Link>
                       </td>
                       <td className="p-4 text-[#666666]">
-                        {product.collections && product.collections.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {product.collections.map((slug) => {
-                              const matchCol = collections.find((c) => c.slug.toLowerCase() === slug.toLowerCase());
-                              return (
-                                <span
-                                  key={slug}
-                                  className="inline-block px-2 py-0.5 bg-[#EEEEF8] text-[#3F3F8F] rounded text-[10px] font-semibold"
-                                >
-                                  {matchCol?.title || slug}
+                        <div className="space-y-1.5">
+                          {(product.category_name || product.category?.name) && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="inline-flex items-center px-1.5 py-0.5 bg-[#FAF5FF] text-[#7E22CE] border border-[#F3E8FF] rounded text-[9px] font-semibold uppercase tracking-wider">
+                                Cat: {product.category_name || product.category?.name}
+                              </span>
+                              {(product.subcategory_name || product.subcategory?.name) && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 bg-[#ECFDF5] text-[#047857] border border-[#D1FAE5] rounded text-[9px] font-semibold uppercase tracking-wider">
+                                  Sub: {product.subcategory_name || product.subcategory?.name}
                                 </span>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-neutral-400 italic text-[11px]">Unassigned</span>
-                        )}
+                              )}
+                            </div>
+                          )}
+                          {product.collections && product.collections.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {product.collections.map((slug) => {
+                                const matchCol = collections.find((c) => c.slug.toLowerCase() === slug.toLowerCase());
+                                return (
+                                  <span
+                                    key={slug}
+                                    className="inline-block px-2 py-0.5 bg-[#EEEEF8] text-[#3F3F8F] rounded text-[10px] font-semibold"
+                                  >
+                                    {matchCol?.title || slug}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : !(product.category_name || product.category?.name) ? (
+                            <span className="text-neutral-400 italic text-[11px]">Unassigned</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="p-4 font-semibold text-black">
                         {formatPrice(product.sale_price ?? product.base_price)}

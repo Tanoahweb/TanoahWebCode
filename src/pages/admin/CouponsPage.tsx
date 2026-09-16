@@ -4,12 +4,16 @@ import { AdminLayout } from './AdminLayout';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
 import { api } from '../../services/api';
-import { Coupon, Collection } from '../../types';
+import { Coupon, Collection, Category, Subcategory } from '../../types';
 
 export const CouponsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [pickerTab, setPickerTab] = useState<'categories' | 'subcategories' | 'collections'>('categories');
+  const [editPickerTab, setEditPickerTab] = useState<'categories' | 'subcategories' | 'collections'>('categories');
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -65,9 +69,16 @@ export const CouponsPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [cpns, cols] = await Promise.all([api.getCoupons(), api.getCollections()]);
+      const [cpns, cols, cats, subs] = await Promise.all([
+        api.getCoupons(),
+        api.getCollections(),
+        api.getCategories(false),
+        api.getSubcategories(),
+      ]);
       setCoupons(cpns || []);
       setCollections(cols || []);
+      setCategories(cats || []);
+      setSubcategories(subs || []);
     } catch (err) {
       console.error('Error loading coupon data:', err);
     } finally {
@@ -103,8 +114,8 @@ export const CouponsPage: React.FC = () => {
     if (applicability === 'collections' && selectedCollections.length === 0) {
       addToast({
         type: 'error',
-        title: 'Collection Required',
-        description: 'Please select at least one collection for this offer or choose "All Products".',
+        title: 'Applicability Target Required',
+        description: 'Please select at least one category, subcategory, or collection for this offer or choose "All Products".',
       });
       return;
     }
@@ -307,10 +318,17 @@ export const CouponsPage: React.FC = () => {
     }
   };
 
-  const getCollectionName = (slugOrId: string) => {
+  const getTargetInfo = (slugOrId: string) => {
+    const cat = categories.find((c) => c.slug === slugOrId || c.id === slugOrId);
+    if (cat) return { label: cat.name, type: 'category' as const };
+    const sub = subcategories.find((s) => s.slug === slugOrId || s.id === slugOrId);
+    if (sub) return { label: sub.name, type: 'subcategory' as const };
     const col = collections.find((c) => c.slug === slugOrId || c.id === slugOrId);
-    return col ? col.title : slugOrId;
+    if (col) return { label: col.title, type: 'collection' as const };
+    return { label: slugOrId, type: 'unknown' as const };
   };
+
+  const getCollectionName = (slugOrId: string) => getTargetInfo(slugOrId).label;
 
   return (
     <AdminLayout>
@@ -428,7 +446,7 @@ export const CouponsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Applicability: All Products vs Specific Collections */}
+          {/* Applicability: All Products vs Specific Targets */}
           <div className="bg-[#FBFBFC] border border-[#EEEEEE] p-4 rounded-[6px] space-y-3">
             <label className="block text-[11px] font-semibold uppercase text-[#333333]">
               Applicability: Which products does this offer apply to?
@@ -457,37 +475,181 @@ export const CouponsPage: React.FC = () => {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                Specific Collections ({selectedCollections.length} selected)
+                Specific Targets ({selectedCollections.length} selected)
               </button>
             </div>
 
             {applicability === 'collections' && (
-              <div className="mt-3 pt-3 border-t border-[#EAEAEA] space-y-2">
+              <div className="mt-3 pt-3 border-t border-[#EAEAEA] space-y-3">
                 <p className="text-[11px] text-neutral-500 font-medium">
-                  Select the collections eligible for this coupon code:
+                  Select garment categories, subcategories, or curated collections eligible for this promotion:
                 </p>
-                {collections.length === 0 ? (
-                  <p className="text-xs text-neutral-400 italic">No collections found in database.</p>
-                ) : (
+
+                {/* Sub-Tabs for Category, Subcategory, Collection */}
+                <div className="flex items-center gap-1.5 border-b border-[#EAEAEA] pb-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPickerTab('categories')}
+                    className={`px-3 py-1.5 rounded-t-[4px] font-semibold transition-colors flex items-center gap-1.5 ${
+                      pickerTab === 'categories'
+                        ? 'bg-purple-50 text-purple-800 border-b-2 border-purple-600'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Garment Categories ({categories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickerTab('subcategories')}
+                    className={`px-3 py-1.5 rounded-t-[4px] font-semibold transition-colors flex items-center gap-1.5 ${
+                      pickerTab === 'subcategories'
+                        ? 'bg-emerald-50 text-emerald-800 border-b-2 border-emerald-600'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Garment Subcategories ({subcategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickerTab('collections')}
+                    className={`px-3 py-1.5 rounded-t-[4px] font-semibold transition-colors flex items-center gap-1.5 ${
+                      pickerTab === 'collections'
+                        ? 'bg-amber-50 text-amber-800 border-b-2 border-amber-600'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Curated Collections ({collections.length})
+                  </button>
+                </div>
+
+                {/* Tab 1: Garment Categories */}
+                {pickerTab === 'categories' && (
                   <div className="flex flex-wrap gap-2 pt-1 max-h-40 overflow-y-auto">
-                    {collections.map((col) => {
-                      const isSelected = selectedCollections.includes(col.slug) || selectedCollections.includes(col.id);
-                      return (
-                        <button
-                          key={col.id}
-                          type="button"
-                          onClick={() => handleToggleCollection(col.slug || col.id)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-colors ${
-                            isSelected
-                              ? 'bg-[#3F3F8F] text-white border-[#3F3F8F]'
-                              : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3" />}
-                          {col.title}
-                        </button>
-                      );
-                    })}
+                    {categories.length === 0 ? (
+                      <p className="text-xs text-neutral-400 italic">No garment categories found.</p>
+                    ) : (
+                      categories.map((cat) => {
+                        const isSelected = selectedCollections.includes(cat.slug) || selectedCollections.includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => handleToggleCollection(cat.slug || cat.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                                : 'bg-white text-neutral-700 border-neutral-300 hover:border-purple-300'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3" />}
+                            <span className="text-[10px] uppercase font-bold opacity-75">Category:</span>
+                            {cat.name}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 2: Garment Subcategories */}
+                {pickerTab === 'subcategories' && (
+                  <div className="flex flex-wrap gap-2 pt-1 max-h-40 overflow-y-auto">
+                    {subcategories.length === 0 ? (
+                      <p className="text-xs text-neutral-400 italic">No garment subcategories found.</p>
+                    ) : (
+                      subcategories.map((sub) => {
+                        const isSelected = selectedCollections.includes(sub.slug) || selectedCollections.includes(sub.id);
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => handleToggleCollection(sub.slug || sub.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                                : 'bg-white text-neutral-700 border-neutral-300 hover:border-emerald-300'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3" />}
+                            <span className="text-[10px] uppercase font-bold opacity-75">Sub:</span>
+                            {sub.name}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 3: Curated Collections */}
+                {pickerTab === 'collections' && (
+                  <div className="flex flex-wrap gap-2 pt-1 max-h-40 overflow-y-auto">
+                    {collections.length === 0 ? (
+                      <p className="text-xs text-neutral-400 italic">No collections found.</p>
+                    ) : (
+                      collections.map((col) => {
+                        const isSelected = selectedCollections.includes(col.slug) || selectedCollections.includes(col.id);
+                        return (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => handleToggleCollection(col.slug || col.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-[#3F3F8F] text-white border-[#3F3F8F] shadow-xs'
+                                : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3" />}
+                            <span className="text-[10px] uppercase font-bold opacity-75">Collection:</span>
+                            {col.title}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Targets Summary Chips */}
+                {selectedCollections.length > 0 && (
+                  <div className="pt-2 border-t border-[#EAEAEA]">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] uppercase font-bold text-neutral-500">
+                        Selected Targets ({selectedCollections.length}):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCollections([])}
+                        className="text-[10px] text-red-600 hover:underline font-medium"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      {selectedCollections.map((slug) => {
+                        const info = getTargetInfo(slug);
+                        const badgeColor =
+                          info.type === 'category'
+                            ? 'bg-purple-100 text-purple-800 border-purple-300'
+                            : info.type === 'subcategory'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-neutral-100 text-neutral-800 border-neutral-300';
+                        return (
+                          <span
+                            key={slug}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeColor}`}
+                          >
+                            <span>{info.label}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCollection(slug)}
+                              className="hover:opacity-75"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -786,17 +948,29 @@ export const CouponsPage: React.FC = () => {
                               <div className="space-y-1">
                                 <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold px-2 py-0.5 rounded uppercase">
                                   <Layers className="w-3 h-3" />
-                                  {c.eligible_collections!.length} Collection{c.eligible_collections!.length > 1 ? 's' : ''}
+                                  {c.eligible_collections!.length} Target{c.eligible_collections!.length > 1 ? 's' : ''}
                                 </span>
                                 <div className="flex flex-wrap gap-1 max-w-xs">
-                                  {c.eligible_collections!.map((slug) => (
-                                    <span
-                                      key={slug}
-                                      className="bg-neutral-100 text-neutral-600 text-[10px] px-1.5 py-0.5 rounded"
-                                    >
-                                      {getCollectionName(slug)}
-                                    </span>
-                                  ))}
+                                  {c.eligible_collections!.map((slug) => {
+                                    const info = getTargetInfo(slug);
+                                    const badgeClass =
+                                      info.type === 'category'
+                                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                        : info.type === 'subcategory'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-neutral-100 text-neutral-700 border-neutral-200';
+                                    return (
+                                      <span
+                                        key={slug}
+                                        className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${badgeClass}`}
+                                        title={`${info.type.toUpperCase()}: ${info.label}`}
+                                      >
+                                        {info.type === 'category' && <span className="font-bold opacity-70 mr-0.5">Cat:</span>}
+                                        {info.type === 'subcategory' && <span className="font-bold opacity-70 mr-0.5">Sub:</span>}
+                                        {info.label}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ) : (
@@ -946,9 +1120,9 @@ export const CouponsPage: React.FC = () => {
                 </div>
 
                 {/* Applicability in Edit Modal */}
-                <div className="bg-[#FBFBFC] border border-[#EEEEEE] p-3.5 rounded-[6px] space-y-2.5">
+                <div className="bg-[#FBFBFC] border border-[#EEEEEE] p-3.5 rounded-[6px] space-y-3">
                   <label className="block text-[11px] font-semibold uppercase text-[#333333]">
-                    Collection Applicability
+                    Target Applicability
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -971,32 +1145,179 @@ export const CouponsPage: React.FC = () => {
                           : 'bg-white text-neutral-700 border-[#D8D8D8]'
                       }`}
                     >
-                      Specific Collections ({editForm.eligible_collections.length})
+                      Specific Targets ({editForm.eligible_collections.length})
                     </button>
                   </div>
 
                   {editForm.applicability === 'collections' && (
-                    <div className="flex flex-wrap gap-1.5 pt-2 max-h-36 overflow-y-auto">
-                      {collections.map((col) => {
-                        const isSelected =
-                          editForm.eligible_collections.includes(col.slug) ||
-                          editForm.eligible_collections.includes(col.id);
-                        return (
-                          <button
-                            key={col.id}
-                            type="button"
-                            onClick={() => handleToggleCollection(col.slug || col.id, true)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-colors ${
-                              isSelected
-                                ? 'bg-[#3F3F8F] text-white border-[#3F3F8F]'
-                                : 'bg-white text-neutral-700 border-neutral-300'
-                            }`}
-                          >
-                            {isSelected && <Check className="w-3 h-3" />}
-                            {col.title}
-                          </button>
-                        );
-                      })}
+                    <div className="space-y-2.5 pt-1">
+                      {/* Sub-Tabs for Edit Modal */}
+                      <div className="flex items-center gap-1 border-b border-[#EAEAEA] pb-1 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setEditPickerTab('categories')}
+                          className={`px-2.5 py-1 rounded-t font-semibold transition-colors ${
+                            editPickerTab === 'categories'
+                              ? 'bg-purple-50 text-purple-800 border-b-2 border-purple-600'
+                              : 'text-neutral-500 hover:text-neutral-800'
+                          }`}
+                        >
+                          Categories ({categories.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditPickerTab('subcategories')}
+                          className={`px-2.5 py-1 rounded-t font-semibold transition-colors ${
+                            editPickerTab === 'subcategories'
+                              ? 'bg-emerald-50 text-emerald-800 border-b-2 border-emerald-600'
+                              : 'text-neutral-500 hover:text-neutral-800'
+                          }`}
+                        >
+                          Subcategories ({subcategories.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditPickerTab('collections')}
+                          className={`px-2.5 py-1 rounded-t font-semibold transition-colors ${
+                            editPickerTab === 'collections'
+                              ? 'bg-amber-50 text-amber-800 border-b-2 border-amber-600'
+                              : 'text-neutral-500 hover:text-neutral-800'
+                          }`}
+                        >
+                          Collections ({collections.length})
+                        </button>
+                      </div>
+
+                      {/* Edit Tab 1: Categories */}
+                      {editPickerTab === 'categories' && (
+                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                          {categories.length === 0 ? (
+                            <p className="text-xs text-neutral-400 italic">No garment categories found.</p>
+                          ) : (
+                            categories.map((cat) => {
+                              const isSelected =
+                                editForm.eligible_collections.includes(cat.slug) ||
+                                editForm.eligible_collections.includes(cat.id);
+                              return (
+                                <button
+                                  key={cat.id}
+                                  type="button"
+                                  onClick={() => handleToggleCollection(cat.slug || cat.id, true)}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-colors ${
+                                    isSelected
+                                      ? 'bg-purple-700 text-white border-purple-700'
+                                      : 'bg-white text-neutral-700 border-neutral-300 hover:border-purple-300'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3" />}
+                                  <span className="text-[9px] uppercase font-bold opacity-75">Cat:</span>
+                                  {cat.name}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      {/* Edit Tab 2: Subcategories */}
+                      {editPickerTab === 'subcategories' && (
+                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                          {subcategories.length === 0 ? (
+                            <p className="text-xs text-neutral-400 italic">No garment subcategories found.</p>
+                          ) : (
+                            subcategories.map((sub) => {
+                              const isSelected =
+                                editForm.eligible_collections.includes(sub.slug) ||
+                                editForm.eligible_collections.includes(sub.id);
+                              return (
+                                <button
+                                  key={sub.id}
+                                  type="button"
+                                  onClick={() => handleToggleCollection(sub.slug || sub.id, true)}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-colors ${
+                                    isSelected
+                                      ? 'bg-emerald-700 text-white border-emerald-700'
+                                      : 'bg-white text-neutral-700 border-neutral-300 hover:border-emerald-300'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3" />}
+                                  <span className="text-[9px] uppercase font-bold opacity-75">Sub:</span>
+                                  {sub.name}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      {/* Edit Tab 3: Collections */}
+                      {editPickerTab === 'collections' && (
+                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                          {collections.length === 0 ? (
+                            <p className="text-xs text-neutral-400 italic">No collections found.</p>
+                          ) : (
+                            collections.map((col) => {
+                              const isSelected =
+                                editForm.eligible_collections.includes(col.slug) ||
+                                editForm.eligible_collections.includes(col.id);
+                              return (
+                                <button
+                                  key={col.id}
+                                  type="button"
+                                  onClick={() => handleToggleCollection(col.slug || col.id, true)}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-colors ${
+                                    isSelected
+                                      ? 'bg-[#3F3F8F] text-white border-[#3F3F8F]'
+                                      : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3" />}
+                                  <span className="text-[9px] uppercase font-bold opacity-75">Col:</span>
+                                  {col.title}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Items Summary in Edit Modal */}
+                      {editForm.eligible_collections.length > 0 && (
+                        <div className="pt-2 border-t border-[#EAEAEA]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] uppercase font-bold text-neutral-500">
+                              Selected ({editForm.eligible_collections.length}):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEditForm((prev) => ({ ...prev, eligible_collections: [] }))}
+                              className="text-[10px] text-red-600 hover:underline font-medium"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                            {editForm.eligible_collections.map((slug) => {
+                              const info = getTargetInfo(slug);
+                              return (
+                                <span
+                                  key={slug}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-800 border border-neutral-300"
+                                >
+                                  <span>{info.label}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCollection(slug, true)}
+                                    className="hover:opacity-75"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

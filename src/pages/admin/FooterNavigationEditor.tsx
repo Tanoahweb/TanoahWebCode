@@ -22,7 +22,7 @@ import {
 import { Button } from '../../components/common/Button';
 import { useUIStore } from '../../store/useUIStore';
 import { FooterMenuColumn, FooterMenuItem, FooterSubLink } from '../../types/navigation';
-import { Collection } from '../../types';
+import { Collection, Category, Subcategory } from '../../types';
 
 interface FooterNavigationEditorProps {
   draftFooterColumns: FooterMenuColumn[];
@@ -30,6 +30,8 @@ interface FooterNavigationEditorProps {
   draftBottomLinks: FooterSubLink[];
   setDraftBottomLinks: React.Dispatch<React.SetStateAction<FooterSubLink[]>>;
   availableCollections: Collection[];
+  availableCategories?: Category[];
+  availableSubcategories?: Subcategory[];
   onSave?: () => Promise<void>;
   isSaving?: boolean;
 }
@@ -63,6 +65,8 @@ export const FooterNavigationEditor: React.FC<FooterNavigationEditorProps> = ({
   draftBottomLinks,
   setDraftBottomLinks,
   availableCollections,
+  availableCategories = [],
+  availableSubcategories = [],
   onSave,
   isSaving,
 }) => {
@@ -998,7 +1002,26 @@ export const FooterNavigationEditor: React.FC<FooterNavigationEditorProps> = ({
                       if (preset.open_in_new_tab) setLinkIsOpenInNewTab(true);
                       return;
                     }
-                    const col = availableCollections.find((c) => c.slug === val);
+                    if (val.startsWith('cat:')) {
+                      const catSlug = val.replace('cat:', '');
+                      const cat = availableCategories.find((c) => c.slug === catSlug);
+                      if (cat) {
+                        setLinkLabel(cat.name);
+                        setLinkUrl(`/collections/all?category=${cat.slug}`);
+                        return;
+                      }
+                    }
+                    if (val.startsWith('sub:')) {
+                      const subSlug = val.replace('sub:', '');
+                      const sub = availableSubcategories.find((s) => s.slug === subSlug);
+                      if (sub) {
+                        setLinkLabel(sub.name);
+                        setLinkUrl(`/collections/all?subcategory=${sub.slug}`);
+                        return;
+                      }
+                    }
+                    const colSlug = val.startsWith('col:') ? val.replace('col:', '') : val;
+                    const col = availableCollections.find((c) => c.slug === colSlug);
                     if (col) {
                       setLinkLabel(col.title);
                       setLinkUrl(`/collections/${col.slug}`);
@@ -1007,7 +1030,7 @@ export const FooterNavigationEditor: React.FC<FooterNavigationEditorProps> = ({
                   defaultValue=""
                   className="w-full p-2.5 bg-neutral-50 border border-[#E7E7E7] rounded-[4px] text-xs text-neutral-700 focus:outline-none focus:border-[#3F3F8F] cursor-pointer"
                 >
-                  <option value="">-- Autofill from Common Store Pages or Collections --</option>
+                  <option value="">-- Autofill from Common Pages, Categories, or Collections --</option>
                   <optgroup label="Popular Store Pages">
                     {STORE_PRESET_PAGES.map((p) => (
                       <option key={p.url} value={p.url}>
@@ -1015,11 +1038,29 @@ export const FooterNavigationEditor: React.FC<FooterNavigationEditorProps> = ({
                       </option>
                     ))}
                   </optgroup>
+                  {availableCategories.length > 0 && (
+                    <optgroup label="Garment Categories">
+                      {availableCategories.map((c) => (
+                        <option key={c.id} value={`cat:${c.slug}`}>
+                          📂 {c.name} (/collections/all?category={c.slug})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {availableSubcategories.length > 0 && (
+                    <optgroup label="Garment Subcategories">
+                      {availableSubcategories.map((s) => (
+                        <option key={s.id} value={`sub:${s.slug}`}>
+                          🏷️ {s.name} (/collections/all?subcategory={s.slug})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   {availableCollections.length > 0 && (
                     <optgroup label="Store Collections">
                       {availableCollections.map((c) => (
                         <option key={c.id} value={c.slug}>
-                          {c.title} (/collections/{c.slug})
+                          ✨ {c.title} (/collections/{c.slug})
                         </option>
                       ))}
                     </optgroup>

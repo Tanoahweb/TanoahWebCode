@@ -27,7 +27,7 @@ import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
-import { Collection, Product, FeaturedCollectionsConfig, FeaturedCollectionItem, Category } from '../../types';
+import { Collection, Product, FeaturedCollectionsConfig, FeaturedCollectionItem, Category, Subcategory } from '../../types';
 import { DEFAULT_FEATURED_COLLECTIONS_CONFIG } from '../../data/mockData';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 
@@ -41,6 +41,8 @@ export const CollectionsPage: React.FC = () => {
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,14 +63,18 @@ export const CollectionsPage: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
-    const [cols, prods, featCfg] = await Promise.all([
+    const [cols, prods, featCfg, cats, subs] = await Promise.all([
       api.getCollections(true),
       api.getProducts(),
       api.getFeaturedCollectionsConfig(),
+      api.getCategories(false),
+      api.getSubcategories(),
     ]);
     setCollections(cols || []);
     setProducts(prods || []);
     if (featCfg) setShowcaseConfig(featCfg);
+    setCategories(cats || []);
+    setSubcategories(subs || []);
     setIsLoading(false);
   };
 
@@ -192,18 +198,57 @@ export const CollectionsPage: React.FC = () => {
     }));
   };
 
-  const handleSelectCollectionForShowcaseItem = (id: string, colSlug: string) => {
-    const col = collections.find((c) => c.slug === colSlug);
-    if (!col) return;
+  const handleSelectTargetForShowcaseItem = (id: string, targetValue: string) => {
+    if (!targetValue) return;
 
-    handleUpdateShowcaseItem(id, {
-      collection_id: col.id,
-      collection_slug: col.slug,
-      title: col.title.toUpperCase(),
-      subtitle: col.description || `${col.title} Curated Edition`,
-      image: col.banner_image || '/Assets/hero/hero-mobile.jpg',
-      link: `/collections/${col.slug}`,
-    });
+    if (targetValue.startsWith('cat:')) {
+      const catSlug = targetValue.replace('cat:', '');
+      const cat = categories.find((c) => c.slug === catSlug || c.id === catSlug);
+      if (cat) {
+        handleUpdateShowcaseItem(id, {
+          collection_id: cat.id,
+          collection_slug: targetValue,
+          title: cat.name.toUpperCase(),
+          subtitle: cat.description || `${cat.name} Curated Edition`,
+          image: cat.image_url || '/Assets/hero/hero-mobile.jpg',
+          link: `/collections/all?category=${cat.slug}`,
+        });
+        return;
+      }
+    }
+
+    if (targetValue.startsWith('sub:')) {
+      const subSlug = targetValue.replace('sub:', '');
+      const sub = subcategories.find((s) => s.slug === subSlug || s.id === subSlug);
+      if (sub) {
+        handleUpdateShowcaseItem(id, {
+          collection_id: sub.id,
+          collection_slug: targetValue,
+          title: sub.name.toUpperCase(),
+          subtitle: sub.description || `${sub.name} Edition`,
+          image: sub.image_url || '/Assets/hero/hero-mobile.jpg',
+          link: `/collections/all?subcategory=${sub.slug}`,
+        });
+        return;
+      }
+    }
+
+    const colSlug = targetValue.startsWith('col:') ? targetValue.replace('col:', '') : targetValue;
+    const col = collections.find((c) => c.slug === colSlug);
+    if (col) {
+      handleUpdateShowcaseItem(id, {
+        collection_id: col.id,
+        collection_slug: col.slug,
+        title: col.title.toUpperCase(),
+        subtitle: col.description || `${col.title} Curated Edition`,
+        image: col.banner_image || '/Assets/hero/hero-mobile.jpg',
+        link: `/collections/${col.slug}`,
+      });
+    }
+  };
+
+  const handleSelectCollectionForShowcaseItem = (id: string, colSlug: string) => {
+    handleSelectTargetForShowcaseItem(id, colSlug);
   };
 
   const handleMoveShowcaseItem = (index: number, direction: 'up' | 'down') => {
@@ -263,6 +308,69 @@ export const CollectionsPage: React.FC = () => {
       title: 'New Card Added',
       description: `Added "${newItem.title}" card. Remember to click "Publish Showcase" when done.`,
     });
+  };
+
+  const handleAddShowcaseTarget = (targetValue?: string) => {
+    if (targetValue) {
+      if (targetValue.startsWith('cat:')) {
+        const catSlug = targetValue.replace('cat:', '');
+        const cat = categories.find((c) => c.slug === catSlug || c.id === catSlug);
+        if (cat) {
+          const newItem: FeaturedCollectionItem = {
+            id: `fc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            title: cat.name.toUpperCase(),
+            subtitle: cat.description || `${cat.name} Curated Edition`,
+            image: cat.image_url || '/Assets/hero/hero-mobile.jpg',
+            link: `/collections/all?category=${cat.slug}`,
+            collection_slug: targetValue,
+            collection_id: cat.id,
+            is_active: true,
+            sort_order: showcaseConfig.items.length,
+          };
+          setShowcaseConfig((prev) => ({ ...prev, items: [...prev.items, newItem] }));
+          addToast({
+            type: 'success',
+            title: 'Category Added to Showcase',
+            description: `Added "${cat.name}" edition card. Remember to click "Publish Showcase".`,
+          });
+          return;
+        }
+      }
+
+      if (targetValue.startsWith('sub:')) {
+        const subSlug = targetValue.replace('sub:', '');
+        const sub = subcategories.find((s) => s.slug === subSlug || s.id === subSlug);
+        if (sub) {
+          const newItem: FeaturedCollectionItem = {
+            id: `fc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            title: sub.name.toUpperCase(),
+            subtitle: sub.description || `${sub.name} Edition`,
+            image: sub.image_url || '/Assets/hero/hero-mobile.jpg',
+            link: `/collections/all?subcategory=${sub.slug}`,
+            collection_slug: targetValue,
+            collection_id: sub.id,
+            is_active: true,
+            sort_order: showcaseConfig.items.length,
+          };
+          setShowcaseConfig((prev) => ({ ...prev, items: [...prev.items, newItem] }));
+          addToast({
+            type: 'success',
+            title: 'Subcategory Added to Showcase',
+            description: `Added "${sub.name}" edition card. Remember to click "Publish Showcase".`,
+          });
+          return;
+        }
+      }
+
+      const colSlug = targetValue.startsWith('col:') ? targetValue.replace('col:', '') : targetValue;
+      const col = collections.find((c) => c.slug === colSlug);
+      if (col) {
+        handleAddShowcaseItem(col);
+        return;
+      }
+    }
+
+    handleAddShowcaseItem();
   };
 
   const handleSaveShowcase = async () => {
@@ -639,8 +747,7 @@ export const CollectionsPage: React.FC = () => {
                   <select
                     onChange={(e) => {
                       if (e.target.value) {
-                        const col = collections.find((c) => c.slug === e.target.value);
-                        if (col) handleAddShowcaseItem(col);
+                        handleAddShowcaseTarget(e.target.value);
                         e.target.value = '';
                       }
                     }}
@@ -648,13 +755,35 @@ export const CollectionsPage: React.FC = () => {
                     className="p-1.5 bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] text-xs font-medium focus:outline-none focus:border-[#3F3F8F]"
                   >
                     <option value="" disabled>
-                      + Quick Add From Collection...
+                      + Quick Add From...
                     </option>
-                    {collections.map((c) => (
-                      <option key={c.id || c.slug} value={c.slug}>
-                        {c.title}
-                      </option>
-                    ))}
+                    {categories.length > 0 && (
+                      <optgroup label="Garment Categories">
+                        {categories.map((c) => (
+                          <option key={c.id} value={`cat:${c.slug}`}>
+                            📂 {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {subcategories.length > 0 && (
+                      <optgroup label="Garment Subcategories">
+                        {subcategories.map((s) => (
+                          <option key={s.id} value={`sub:${s.slug}`}>
+                            🏷️ {s.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {collections.length > 0 && (
+                      <optgroup label="Store Collections">
+                        {collections.map((c) => (
+                          <option key={c.id || c.slug} value={`col:${c.slug}`}>
+                            ✨ {c.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
 
                   <Button
@@ -686,7 +815,7 @@ export const CollectionsPage: React.FC = () => {
                         </div>
                         {item.collection_slug && (
                           <span className="text-[10px] font-mono text-[#3F3F8F] bg-[#F0F0FF] px-2 py-0.5 rounded border border-[#D5D5FF]">
-                            /collections/{item.collection_slug}
+                            {item.link || (item.collection_slug.startsWith('cat:') ? `/collections/all?category=${item.collection_slug.replace('cat:', '')}` : item.collection_slug.startsWith('sub:') ? `/collections/all?subcategory=${item.collection_slug.replace('sub:', '')}` : `/collections/${item.collection_slug}`)}
                           </span>
                         )}
                       </div>
@@ -748,29 +877,51 @@ export const CollectionsPage: React.FC = () => {
 
                       {/* Right: Form Controls */}
                       <div className="flex-1 w-full space-y-2.5">
-                        {/* Collection Selector */}
+                        {/* Target Selector */}
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1 flex items-center justify-between">
-                            <span>Select Collection to Link & Auto-Fill</span>
+                            <span>Select Category, Subcategory or Collection to Auto-Fill</span>
                             {item.collection_slug && (
                               <span className="text-[9px] text-[#3F3F8F] font-normal lowercase">
-                                synced from catalog
+                                synced with link
                               </span>
                             )}
                           </label>
                           <select
                             value={item.collection_slug || ''}
                             onChange={(e) =>
-                              handleSelectCollectionForShowcaseItem(item.id, e.target.value)
+                              handleSelectTargetForShowcaseItem(item.id, e.target.value)
                             }
                             className="w-full p-2 bg-[#F8F8F8] border border-[#E7E7E7] rounded-[4px] text-xs font-medium focus:outline-none focus:border-[#3F3F8F] focus:bg-white transition-colors"
                           >
-                            <option value="">-- Choose A Store Collection --</option>
-                            {collections.map((col) => (
-                              <option key={col.id || col.slug} value={col.slug}>
-                                {col.title} (/collections/{col.slug})
-                              </option>
-                            ))}
+                            <option value="">-- Choose Category, Subcategory or Collection --</option>
+                            {categories.length > 0 && (
+                              <optgroup label="Garment Categories">
+                                {categories.map((cat) => (
+                                  <option key={cat.id} value={`cat:${cat.slug}`}>
+                                    📂 Category: {cat.name} (/collections/all?category={cat.slug})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {subcategories.length > 0 && (
+                              <optgroup label="Garment Subcategories">
+                                {subcategories.map((sub) => (
+                                  <option key={sub.id} value={`sub:${sub.slug}`}>
+                                    🏷️ Subcategory: {sub.name} (/collections/all?subcategory={sub.slug})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {collections.length > 0 && (
+                              <optgroup label="Curated Collections">
+                                {collections.map((col) => (
+                                  <option key={col.id || col.slug} value={col.slug}>
+                                    ✨ Collection: {col.title} (/collections/{col.slug})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
                           </select>
                         </div>
 
