@@ -362,6 +362,20 @@ export const ProductDetailPage: React.FC = () => {
     }
   }, [product?.id]);
 
+  // GA4 Enhanced E-commerce: Track View Item (must remain before early returns per Rules of Hooks)
+  useEffect(() => {
+    if (!product) return;
+    const variants = product.variants || [];
+    const colorMatch = selectedColor
+      ? variants.filter((v: ProductVariant) => v.color_name === selectedColor)
+      : variants;
+    const sizeMatch = selectedSize
+      ? colorMatch.find((v: ProductVariant) => v.size === selectedSize)
+      : colorMatch.find((v: ProductVariant) => v.stock_quantity > 0) || colorMatch[0] || variants[0];
+    const currentVariant = sizeMatch || variants[0];
+    trackViewItem(product, currentVariant || undefined);
+  }, [product?.id, selectedColor, selectedSize]);
+
   // Compute Similar Products
   const similarProducts = useMemo(() => {
     if (!product) return [];
@@ -606,13 +620,6 @@ export const ProductDetailPage: React.FC = () => {
     product,
     activeVariant
   );
-
-  // GA4 Enhanced E-commerce: Track View Item
-  useEffect(() => {
-    if (product) {
-      trackViewItem(product, activeVariant || undefined);
-    }
-  }, [product?.id, activeVariant?.id]);
 
   const isOutOfStock = !activeVariant || activeVariant.stock_quantity <= 0;
   const isLowStock = !isOutOfStock && activeVariant.stock_quantity <= (activeVariant.low_stock_threshold || 5);
