@@ -61,8 +61,13 @@ export const ProductDetailPage: React.FC = () => {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const [isImageLightboxOpen, setIsImageLightboxOpen] = useState<boolean>(false);
+  const [lightboxImageIndex, setLightboxImageIndex] = useState<number>(0);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
+  const lightboxTouchStartXRef = useRef<number | null>(null);
+  const lightboxTouchEndXRef = useRef<number | null>(null);
+  const imagesLengthRef = useRef<number>(0);
 
   // Ensure the product page ALWAYS starts loading from the top (pre-paint)
   useLayoutEffect(() => {
@@ -81,6 +86,46 @@ export const ProductDetailPage: React.FC = () => {
       lenis?.scrollTo(0, { immediate: true, force: true });
     }
   }, [isLoading, product?.id]);
+
+  // Lightbox keyboard navigation (Esc to close, ArrowLeft / ArrowRight to navigate)
+  useEffect(() => {
+    if (!isImageLightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsImageLightboxOpen(false);
+      } else if (e.key === 'ArrowLeft') {
+        const len = imagesLengthRef.current;
+        if (len > 1) {
+          setLightboxImageIndex((prev) => (prev > 0 ? prev - 1 : len - 1));
+        }
+      } else if (e.key === 'ArrowRight') {
+        const len = imagesLengthRef.current;
+        if (len > 1) {
+          setLightboxImageIndex((prev) => (prev < len - 1 ? prev + 1 : 0));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImageLightboxOpen]);
+
+  // Lock background smooth scroll when image lightbox is open
+  useEffect(() => {
+    const lenis = getLenis();
+    if (isImageLightboxOpen) {
+      document.body.style.overflow = 'hidden';
+      lenis?.stop();
+    } else {
+      document.body.style.overflow = '';
+      lenis?.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      lenis?.start();
+    };
+  }, [isImageLightboxOpen]);
 
   useEffect(() => {
     if (!slug) return;
@@ -673,6 +718,7 @@ export const ProductDetailPage: React.FC = () => {
   const showSingleCustomSize = sizes.length === 1 && !isStandardSize(sizes[0].size);
 
   const images = variantSpecificImages;
+  imagesLengthRef.current = images.length;
 
   const handleAddToCart = () => {
     if (isOutOfStock || !activeVariant) {
@@ -786,7 +832,11 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
-  const handleShare = () => {
+  const handleShare = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (navigator.share) {
       navigator.share({
         title: product.title,
@@ -944,6 +994,43 @@ export const ProductDetailPage: React.FC = () => {
     touchEndXRef.current = null;
   };
 
+  const handleOpenLightbox = (index?: number) => {
+    const targetIdx = typeof index === 'number' ? index : activeImageIndex;
+    setLightboxImageIndex(targetIdx);
+    setIsImageLightboxOpen(true);
+  };
+
+  const handleCloseLightbox = () => {
+    setIsImageLightboxOpen(false);
+    setActiveImageIndex(lightboxImageIndex);
+  };
+
+  const handleLightboxTouchStart = (e: React.TouchEvent) => {
+    lightboxTouchEndXRef.current = null;
+    lightboxTouchStartXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleLightboxTouchMove = (e: React.TouchEvent) => {
+    lightboxTouchEndXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleLightboxTouchEnd = () => {
+    if (lightboxTouchStartXRef.current === null || lightboxTouchEndXRef.current === null) return;
+    const distance = lightboxTouchStartXRef.current - lightboxTouchEndXRef.current;
+    const minSwipeDistance = 40;
+    if (images.length > 1) {
+      if (distance > minSwipeDistance) {
+        // Swiped left -> next image
+        setLightboxImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+      } else if (distance < -minSwipeDistance) {
+        // Swiped right -> previous image
+        setLightboxImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+      }
+    }
+    lightboxTouchStartXRef.current = null;
+    lightboxTouchEndXRef.current = null;
+  };
+
   const handleSubscribeWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!waitlistEmail.trim() || !activeVariant) return;
@@ -1037,6 +1124,7 @@ export const ProductDetailPage: React.FC = () => {
           <div className="lg:col-span-7 space-y-4">
             {/* Main Stage Image with Smooth Sliding Effect, Navigation Arrows, and Desktop-Only Zoom Lens */}
             <div
+              onClick={() => handleOpenLightbox(activeImageIndex)}
               onMouseEnter={() => {
                 if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
                   setIsZoomed(true);
@@ -1047,8 +1135,21 @@ export const ProductDetailPage: React.FC = () => {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className="relative aspect-[4/5] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7] shadow-sm cursor-default lg:cursor-crosshair group select-none"
+              className="relative aspect-[4/5] w-full rounded-[4px] overflow-hidden bg-[#F8F8F8] border border-[#E7E7E7] shadow-sm cursor-pointer lg:cursor-zoom-in group select-none"
             >
+              {/* Fullscreen Expand Lightbox Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenLightbox(activeImageIndex);
+                }}
+                className="absolute top-4 left-4 p-2.5 rounded-full bg-white/90 hover:bg-white text-black hover:text-[#3F3F8F] shadow-md backdrop-blur-md transition-all z-20 flex items-center justify-center active:scale-95 cursor-pointer"
+                title="View Fullscreen"
+                aria-label="View Fullscreen"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
               {/* Sliding Carousel Track of Images */}
               <div
                 className="flex w-full h-full transition-transform duration-300 ease-out"
@@ -2301,6 +2402,138 @@ export const ProductDetailPage: React.FC = () => {
           {isOutOfStock ? 'SOLD OUT' : addedAnimation ? 'ADDED TO BAG ✓' : 'ADD TO BAG'}
         </Button>
       </div>
+
+      {/* Full-Screen Luxury Product Image Lightbox Modal */}
+      {isImageLightboxOpen && (
+        <div
+          data-lenis-prevent="true"
+          className="fixed inset-0 z-[100] flex flex-col justify-between bg-black/95 backdrop-blur-md select-none animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product Image Fullscreen Gallery"
+          onClick={handleCloseLightbox}
+        >
+          {/* Top Bar: Title, Count, & Close Button */}
+          <div
+            className="w-full flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-5 border-b border-white/10 text-white z-30 bg-black/40 backdrop-blur-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 truncate max-w-[70%] sm:max-w-md">
+              <span className="font-poppins text-xs sm:text-sm font-semibold tracking-wide text-white truncate">
+                {product.title}
+              </span>
+              {activeColorName && (
+                <span className="hidden sm:inline-block text-[10px] tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-300 font-medium">
+                  {activeColorName}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 sm:gap-6">
+              {images.length > 1 && (
+                <span className="text-xs sm:text-sm font-mono text-neutral-300 font-medium px-2 py-0.5 rounded bg-white/10">
+                  {lightboxImageIndex + 1} / {images.length}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={handleCloseLightbox}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer shadow-md"
+                aria-label="Close fullscreen lightbox"
+                title="Close (Esc)"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Stage: Touch & Swipeable Viewport */}
+          <div
+            className="relative flex-1 w-full flex items-center justify-center px-2 sm:px-16 py-2 sm:py-4 overflow-hidden"
+            onTouchStart={handleLightboxTouchStart}
+            onTouchMove={handleLightboxTouchMove}
+            onTouchEnd={handleLightboxTouchEnd}
+            onClick={handleCloseLightbox}
+          >
+            {/* Previous Image Arrow */}
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+                }}
+                className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-all z-30 border border-white/20 active:scale-90 shadow-xl backdrop-blur-sm cursor-pointer"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            )}
+
+            {/* Current Fullscreen Image Container */}
+            <div
+              className="relative w-full h-full flex items-center justify-center max-h-[75vh] sm:max-h-[82vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                key={images[lightboxImageIndex]?.image_url || lightboxImageIndex}
+                src={getTransformedImageUrl(
+                  images[lightboxImageIndex]?.image_url || images[0]?.image_url,
+                  { width: 2400, quality: 90 }
+                )}
+                alt={`${product.title} - View ${lightboxImageIndex + 1}`}
+                className="max-h-full max-w-full object-contain pointer-events-auto rounded-[2px] shadow-2xl transition-all duration-300"
+                draggable={false}
+              />
+            </div>
+
+            {/* Next Image Arrow */}
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+                }}
+                className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-all z-30 border border-white/20 active:scale-90 shadow-xl backdrop-blur-sm cursor-pointer"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Bar: Responsive Thumbnail Strip */}
+          {images.length > 1 && (
+            <div
+              className="w-full py-3 sm:py-4 px-4 border-t border-white/10 flex items-center justify-center overflow-x-auto z-30 bg-black/40 backdrop-blur-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex gap-2 sm:gap-3 max-w-full overflow-x-auto py-1 scrollbar-thin">
+                {images.map((img, idx) => (
+                  <button
+                    key={img.id || idx}
+                    type="button"
+                    onClick={() => setLightboxImageIndex(idx)}
+                    className={`relative w-12 h-16 sm:w-14 sm:h-18 rounded-[2px] overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                      lightboxImageIndex === idx
+                        ? 'border-white scale-105 shadow-md opacity-100 ring-2 ring-white/50'
+                        : 'border-transparent opacity-40 hover:opacity-80'
+                    }`}
+                  >
+                    <img
+                      src={getTransformedImageUrl(img.image_url, { width: 160, quality: 75 })}
+                      alt={`Thumbnail ${idx + 1}`}
+                      className="w-full h-full object-cover pointer-events-none"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
