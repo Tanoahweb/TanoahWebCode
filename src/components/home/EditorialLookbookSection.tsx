@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '../common/Button';
+import { useEditorialLookbookStore } from '../../store/useEditorialLookbookStore';
 
 interface EditorialLook {
   id: string;
@@ -67,8 +68,47 @@ const EDITORIAL_LOOKS: EditorialLook[] = [
 ];
 
 export const EditorialLookbookSection: React.FC = () => {
+  const { config, fetchConfig, hasLoaded } = useEditorialLookbookStore();
   const [activeLookIndex, setActiveLookIndex] = useState(0);
-  const currentLook = EDITORIAL_LOOKS[activeLookIndex];
+
+  useEffect(() => {
+    if (!hasLoaded) {
+      fetchConfig();
+    }
+  }, [hasLoaded, fetchConfig]);
+
+  if (!config.isEnabled) {
+    return null;
+  }
+
+  // Derive dynamic look data, defaulting to configured admin settings for Look 01
+  const currentLook: EditorialLook =
+    activeLookIndex === 0
+      ? {
+          id: 'look-01',
+          volume: config.volume || EDITORIAL_LOOKS[0].volume,
+          title: config.title || EDITORIAL_LOOKS[0].title,
+          subtitle: config.subtitle || EDITORIAL_LOOKS[0].subtitle,
+          description: config.description || EDITORIAL_LOOKS[0].description,
+          heroImage: config.heroImage || EDITORIAL_LOOKS[0].heroImage,
+          heroAlt: config.heroAlt || EDITORIAL_LOOKS[0].heroAlt,
+          detailImage: config.detailImage || EDITORIAL_LOOKS[0].detailImage,
+          detailAlt: config.detailAlt || EDITORIAL_LOOKS[0].detailAlt,
+          detailTag: config.detailTag || EDITORIAL_LOOKS[0].detailTag,
+          tag: config.tag || EDITORIAL_LOOKS[0].tag,
+          stats: {
+            value1: config.stat1Value || EDITORIAL_LOOKS[0].stats.value1,
+            label1: config.stat1Label || EDITORIAL_LOOKS[0].stats.label1,
+            value2: config.stat2Value || EDITORIAL_LOOKS[0].stats.value2,
+            label2: config.stat2Label || EDITORIAL_LOOKS[0].stats.label2,
+          },
+        }
+      : EDITORIAL_LOOKS[1];
+
+  const primaryLink = config.primaryButtonLink || '/collections/all';
+  const primaryText = config.primaryButtonText || 'VIEW FULL LOOKBOOK';
+  const secondaryLink = config.secondaryButtonLink || '/about';
+  const secondaryText = config.secondaryButtonText || 'EXPLORE ARCHIVE';
 
   return (
     <section className="py-20 sm:py-28 bg-[#FAFAFA] border-b border-[#E7E7E7] overflow-hidden">
@@ -126,7 +166,7 @@ export const EditorialLookbookSection: React.FC = () => {
                       : 'bg-white border border-[#E7E7E7] text-[#666666] hover:text-black hover:border-black'
                   }`}
                 >
-                  {look.id === 'look-01' ? 'Look 01: Linen' : 'Look 02: Indigo'}
+                  {look.id === 'look-01' ? 'Look 01: Featured' : 'Look 02: Indigo'}
                 </button>
               ))}
               <span className="text-[10px] text-[#888888] font-mono tracking-wide uppercase">
@@ -164,23 +204,41 @@ export const EditorialLookbookSection: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="pt-3 flex items-center gap-3 flex-wrap">
-              <Link to="/lookbook">
-                <Button
-                  variant="primary"
-                  size="md"
-                  icon={<ArrowRight className="w-4 h-4" />}
-                >
-                  VIEW FULL LOOKBOOK
-                </Button>
-              </Link>
-              <Link to="/collections/all">
-                <Button
-                  variant="outline"
-                  size="md"
-                >
-                  EXPLORE ARCHIVE
-                </Button>
-              </Link>
+              {primaryLink.startsWith('http') ? (
+                <a href={primaryLink} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    {primaryText}
+                  </Button>
+                </a>
+              ) : (
+                <Link to={primaryLink}>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    {primaryText}
+                  </Button>
+                </Link>
+              )}
+
+              {secondaryLink.startsWith('http') ? (
+                <a href={secondaryLink} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="md">
+                    {secondaryText}
+                  </Button>
+                </a>
+              ) : (
+                <Link to={secondaryLink}>
+                  <Button variant="outline" size="md">
+                    {secondaryText}
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import {
   Save,
   HardDrive,
   Sparkles,
+  BookOpen,
   DollarSign,
   Trash2,
   RefreshCw,
@@ -29,6 +30,7 @@ import { emailService } from '../../services/emailService';
 import { useSearchParams } from 'react-router-dom';
 import { formatBytes } from '../../utils/imageUtils';
 import { IMAGE_PRESETS } from '../../config/imagePresets';
+import { LookbookSettingsTab } from '../../components/admin/LookbookSettingsTab';
 import { AtelierSettingsTab } from '../../components/admin/AtelierSettingsTab';
 import { OfferPopupSettingsTab } from '../../components/admin/OfferPopupSettingsTab';
 import { PaymentGatewaysSettingsTab } from '../../components/admin/PaymentGatewaysSettingsTab';
@@ -43,10 +45,10 @@ export const StoreSettingsPage: React.FC = () => {
   const { addToast } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<
-    'store' | 'delivery' | 'payments' | 'editorial' | 'offer_popup' | 'email' | 'media' | 'seo'
+    'store' | 'delivery' | 'payments' | 'lookbook' | 'editorial' | 'offer_popup' | 'email' | 'media' | 'seo'
   >(() => {
     const tabParam = new URLSearchParams(window.location.search).get('tab');
-    if (['delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tabParam || '')) {
+    if (['delivery', 'payments', 'lookbook', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tabParam || '')) {
       return tabParam as any;
     }
     return 'store';
@@ -54,7 +56,7 @@ export const StoreSettingsPage: React.FC = () => {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['store', 'delivery', 'payments', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tab)) {
+    if (tab && ['store', 'delivery', 'payments', 'lookbook', 'editorial', 'offer_popup', 'email', 'media', 'seo'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -405,6 +407,20 @@ export const StoreSettingsPage: React.FC = () => {
           </button>
           <button
             onClick={() => {
+              setActiveTab('lookbook');
+              setSearchParams({ tab: 'lookbook' });
+            }}
+            className={`pb-3 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'lookbook'
+                ? 'border-b-2 border-[#3F3F8F] text-[#3F3F8F]'
+                : 'text-neutral-500 hover:text-black'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Editorial Lookbook Section</span>
+          </button>
+          <button
+            onClick={() => {
               setActiveTab('editorial');
               setSearchParams({ tab: 'editorial' });
             }}
@@ -415,7 +431,7 @@ export const StoreSettingsPage: React.FC = () => {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>Featured Editorial Section</span>
+            <span>Women's Atelier Scroll Section</span>
           </button>
           <button
             onClick={() => {
@@ -484,7 +500,10 @@ export const StoreSettingsPage: React.FC = () => {
         {/* Tab: Payment Gateways (Razorpay & Cashfree) */}
         {activeTab === 'payments' && <PaymentGatewaysSettingsTab />}
 
-        {/* Tab 0: Featured Editorial Section */}
+        {/* Tab: Editorial Lookbook Section (SS26 Botanical Linen / Inset) */}
+        {activeTab === 'lookbook' && <LookbookSettingsTab />}
+
+        {/* Tab 0: Women's Atelier Scroll Section */}
         {activeTab === 'editorial' && <AtelierSettingsTab />}
 
         {/* Tab 0.5: Special Offer Popup */}
