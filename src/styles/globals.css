@@ -1,4 +1,4 @@
-﻿@import './fonts.css';
+@import './fonts.css';
 
 @tailwind base;
 @tailwind components;
@@ -24,7 +24,7 @@
 html {
   background-color: #FFFFFF;
   color: #000000;
-  scroll-behavior: smooth;
+  scroll-behavior: auto !important;
 }
 
 /* Lenis smooth scrolling rules */
@@ -32,6 +32,8 @@ html.lenis, html.lenis body {
   height: auto;
 }
 
+html.lenis,
+html.lenis-smooth,
 .lenis.lenis-smooth {
   scroll-behavior: auto !important;
 }

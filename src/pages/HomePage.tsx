@@ -10,6 +10,7 @@ import { api } from '../services/api';
 import { Product } from '../types';
 import { SEOHead } from '../components/common/SEOHead';
 import { generateOrganizationJsonLd } from '../services/seoEngine';
+import { refreshSmoothScroll } from '../animations/smoothScroll';
 
 export const HomePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
@@ -20,6 +21,9 @@ export const HomePage: React.FC = () => {
       api.getProducts('active').then((data) => {
         if (isMounted && data) {
           setProducts(data);
+          setTimeout(() => {
+            refreshSmoothScroll();
+          }, 50);
         }
       });
     };
