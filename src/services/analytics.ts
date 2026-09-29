@@ -30,12 +30,18 @@ export function isGtagAvailable(): boolean {
  */
 function formatGAItem(product: Product, variant?: ProductVariant, quantity: number = 1) {
   const price = variant?.sale_price ?? variant?.price ?? product.sale_price ?? product.base_price ?? 0;
+  const categoryName =
+    typeof product.category === 'object' && product.category?.name
+      ? product.category.name
+      : typeof product.category === 'string'
+      ? product.category
+      : product.category_name || 'Apparel';
   
   return {
     item_id: variant?.sku || product.id,
     item_name: product.title,
     item_brand: 'TANOAH',
-    item_category: product.category?.name || 'Apparel',
+    item_category: categoryName,
     item_variant: variant ? `${variant.color_name} / ${variant.size}` : undefined,
     price: Number(price),
     quantity: Number(quantity),
