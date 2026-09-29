@@ -11,6 +11,7 @@ import { getLenis } from '../../animations/smoothScroll';
 
 import { api, isProductInCollection } from '../../services/api';
 import { Coupon, Collection } from '../../types';
+import { trackBeginCheckout, trackRemoveFromCart } from '../../services/analytics';
 
 export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
@@ -228,6 +229,7 @@ export const CartDrawer: React.FC = () => {
   };
 
   const handleCheckout = () => {
+    trackBeginCheckout(items, grandTotal);
     closeDrawer();
     navigate('/checkout');
   };

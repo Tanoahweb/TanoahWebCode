@@ -11,7 +11,7 @@ export const DEFAULT_SEO_CONFIG: StoreSEOConfig = {
   canonical_domain: DEFAULT_CANONICAL_DOMAIN,
   google_site_verification: '',
   bing_site_verification: '',
-  ga4_measurement_id: '',
+  ga4_measurement_id: 'G-532HY0E88B',
   meta_pixel_id: '',
   default_social_image: 'https://tanoah.com/Assets/brand/tanoah-social-share.jpg',
   social_links: {

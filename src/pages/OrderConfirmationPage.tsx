@@ -5,6 +5,7 @@ import { CheckCircle2, ArrowRight, Truck } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxInvoiceModal } from '../components/checkout/TaxInvoiceModal';
 import { safeGetItem } from '../utils/safeStorage';
+import { trackPurchase } from '../services/analytics';
 
 export const OrderConfirmationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,17 @@ export const OrderConfirmationPage: React.FC = () => {
 
   const rawOrder = safeGetItem('tanoah_last_order');
   const orderData = rawOrder ? JSON.parse(rawOrder) : null;
+
+  // GA4 Enhanced E-commerce: Track Purchase Conversion Event
+  useEffect(() => {
+    if (orderData && orderNumber) {
+      const total = Number(orderData.grandTotal || orderData.grand_total || 0);
+      const items = orderData.items || [];
+      const tax = Number(orderData.tax || 0);
+      const shipping = Number(orderData.shipping || 0);
+      trackPurchase(orderNumber, total, items, tax, shipping);
+    }
+  }, [orderNumber]);
 
   return (
     <div className="w-full bg-[#FAFAFA] font-poppins min-h-screen py-16">

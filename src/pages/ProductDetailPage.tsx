@@ -44,6 +44,7 @@ import { ProductImage } from '../components/common/ProductImage';
 import { getTransformedImageUrl } from '../utils/imageUtils';
 import { validateEmail, validatePhone } from '../utils/validation';
 import { getLenis } from '../animations/smoothScroll';
+import { trackViewItem, trackAddToCart } from '../services/analytics';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -606,6 +607,13 @@ export const ProductDetailPage: React.FC = () => {
     activeVariant
   );
 
+  // GA4 Enhanced E-commerce: Track View Item
+  useEffect(() => {
+    if (product) {
+      trackViewItem(product, activeVariant || undefined);
+    }
+  }, [product?.id, activeVariant?.id]);
+
   const isOutOfStock = !activeVariant || activeVariant.stock_quantity <= 0;
   const isLowStock = !isOutOfStock && activeVariant.stock_quantity <= (activeVariant.low_stock_threshold || 5);
 
@@ -665,6 +673,7 @@ export const ProductDetailPage: React.FC = () => {
       return;
     }
     addToCart(product, activeVariant, quantity);
+    trackAddToCart(product, activeVariant, quantity);
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 2000);
 

@@ -8,6 +8,7 @@ import { formatPrice, computeProductPricing } from '../utils/formatters';
 import { Button } from '../components/common/Button';
 import { FreeShippingProgressBar } from '../components/cart/FreeShippingProgressBar';
 import { api } from '../services/api';
+import { trackBeginCheckout } from '../services/analytics';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -288,7 +289,10 @@ export const CartPage: React.FC = () => {
               <Button
                 variant="primary"
                 size="lg"
-                onClick={() => navigate('/checkout')}
+                onClick={() => {
+                  trackBeginCheckout(items, grandTotal);
+                  navigate('/checkout');
+                }}
                 icon={<ArrowRight className="w-4 h-4" />}
                 className="w-full py-4 text-sm font-semibold"
               >

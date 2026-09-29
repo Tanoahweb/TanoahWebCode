@@ -7,6 +7,7 @@ import { api } from '../../services/api';
 import { Product } from '../../types';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { getLenis } from '../../animations/smoothScroll';
+import { trackSearch } from '../../services/analytics';
 
 const POPULAR_SEARCHES = [
   'Oversized T-Shirts',
@@ -89,6 +90,7 @@ export const SearchOverlay: React.FC = () => {
     const updated = [clean, ...recentSearches.filter((s) => s !== clean)].slice(0, 6);
     setRecentSearches(updated);
     localStorage.setItem('tanoah_recent_searches', JSON.stringify(updated));
+    trackSearch(clean);
     closeSearch();
     navigate(`/collections/all?search=${encodeURIComponent(clean)}`);
   };

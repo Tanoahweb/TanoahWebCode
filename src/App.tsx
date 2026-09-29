@@ -16,6 +16,7 @@ import { useSmoothScroll } from './hooks/useSmoothScroll';
 import { useAuthStore } from './store/useAuthStore';
 import { api } from './services/api';
 import { applyFavicon } from './utils/faviconUtils';
+import { trackPageView } from './services/analytics';
 
 // Customer Pages
 import { HomePage } from './pages/HomePage';
@@ -88,6 +89,20 @@ const AppContent: React.FC = () => {
       })
       .catch(() => {});
   }, [initialize]);
+
+  // Google Analytics 4: SPA Virtual Pageview Tracking
+  useEffect(() => {
+    // Exclude internal admin dashboard visits from customer analytics
+    if (isAdminRoute) return;
+
+    // Small delay ensures child pages and SEOHead have updated document.title
+    const timer = setTimeout(() => {
+      const fullPath = location.pathname + location.search;
+      trackPageView(fullPath, document.title);
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname, location.search, isAdminRoute]);
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-white text-black font-poppins selection:bg-[#3F3F8F] selection:text-white">
