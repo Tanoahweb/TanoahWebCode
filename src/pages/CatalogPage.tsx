@@ -24,7 +24,7 @@ import { api } from '../services/api';
 import { Product, Collection, Category, Subcategory, Attribute } from '../types';
 import { SEOHead } from '../components/common/SEOHead';
 import { generateCollectionJsonLd, normalizeCanonicalUrl } from '../services/seoEngine';
-import { getLenis, refreshSmoothScroll } from '../animations/smoothScroll';
+import { getLenis } from '../animations/smoothScroll';
 
 const DEFAULT_CATALOG_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
 
@@ -384,9 +384,6 @@ export const CatalogPage: React.FC = () => {
           setTotalCount(res.totalCount);
           setTotalPages(res.totalPages);
           setIsLoading(false);
-          setTimeout(() => {
-            refreshSmoothScroll();
-          }, 50);
         }
       })
       .catch((err) => {

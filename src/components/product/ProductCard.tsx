@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Eye, ShoppingBag } from 'lucide-react';
 import { Product } from '../../types';
@@ -13,7 +13,7 @@ interface ProductCardProps {
   product: Product;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -23,106 +23,94 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
 
   const isWishlisted = isInWishlist(product.id);
 
-  // Group variants by color (memoized)
-  const colors = useMemo(() => {
-    return Array.from(
-      new Map(
-        (product.variants || []).map((v) => [v.color_name, { name: v.color_name, hex: v.color_hex }])
-      ).values()
-    );
-  }, [product.variants]);
+  // Group variants by color
+  const colors = Array.from(
+    new Map(
+      product.variants.map((v) => [v.color_name, { name: v.color_name, hex: v.color_hex }])
+    ).values()
+  );
 
   const activeColor = colors[selectedColorIndex] || colors[0];
+  const activeVariants = product.variants.filter(
+    (v) => !activeColor || v.color_name === activeColor.name
+  );
 
-  const activeVariants = useMemo(() => {
-    return (product.variants || []).filter(
-      (v) => !activeColor || v.color_name === activeColor.name
-    );
-  }, [product.variants, activeColor]);
+  const firstInStockVariant =
+    activeVariants.find((v) => v.stock_quantity > 0) || activeVariants[0] || product.variants[0];
 
-  const firstInStockVariant = useMemo(() => {
-    return (
-      activeVariants.find((v) => v.stock_quantity > 0) ||
-      activeVariants[0] ||
-      (product.variants && product.variants[0])
-    );
-  }, [activeVariants, product.variants]);
+  // Filter out invalid, empty, or whitespace-only image records
+  const validImages = (product.images || []).filter(
+    (img) => img && typeof img.image_url === 'string' && img.image_url.trim().length > 0
+  );
 
-  // Primary & secondary images resolution (memoized)
-  const { primaryImage, secondaryImage } = useMemo(() => {
-    const validImages = (product.images || []).filter(
-      (img) => img && typeof img.image_url === 'string' && img.image_url.trim().length > 0
-    );
+  const validImageUrls = new Set(validImages.map((img) => img.image_url));
 
-    const validImageUrls = new Set(validImages.map((img) => img.image_url));
-    const fallbackProductImage = '/Assets/products/placeholder-product.svg';
+  const fallbackProductImage = '/Assets/products/placeholder-product.svg';
 
-    const basePrimaryImage =
-      validImages.find((img) => img.is_primary)?.image_url ||
-      validImages[0]?.image_url ||
-      fallbackProductImage;
+  // Base fallback if no color-specific match is found
+  const basePrimaryImage =
+    validImages.find((img) => img.is_primary)?.image_url ||
+    validImages[0]?.image_url ||
+    fallbackProductImage;
 
-    const matchedByTag = activeColor
-      ? validImages.find(
-          (img) =>
-            img.color_name &&
-            img.color_name.toLowerCase().trim() === activeColor.name.toLowerCase().trim()
-        )?.image_url
+  // Priority 1: Image tagged explicitly with activeColor.name
+  const matchedByTag = activeColor
+    ? validImages.find(
+        (img) =>
+          img.color_name &&
+          img.color_name.toLowerCase().trim() === activeColor.name.toLowerCase().trim()
+      )?.image_url
+    : null;
+
+  // Priority 2: Variant's explicit color_image_url (strictly verified against validImages)
+  const variantImgUrl =
+    (firstInStockVariant?.color_image_url && firstInStockVariant.color_image_url.trim()) ||
+    activeVariants.find((v) => v.color_image_url && v.color_image_url.trim())?.color_image_url;
+
+  const matchedByVariant = variantImgUrl && (validImageUrls.size === 0 || validImageUrls.has(variantImgUrl)) ? variantImgUrl : null;
+
+  // Priority 3: Image URL containing the color name (e.g. 'yellow', 'green', 'blue', 'red')
+  // Note: Skip base64 data URLs to prevent accidental substring collisions in base64 text
+  const matchedByUrl = activeColor
+    ? validImages.find((img) => {
+        if (!img.image_url || img.image_url.startsWith('data:')) return false;
+        return img.image_url.toLowerCase().includes(activeColor.name.toLowerCase().trim());
+      })?.image_url
+    : null;
+
+  // Priority 4: Index alignment (if matching valid image exists for this color index)
+  const matchedByIndex =
+    selectedColorIndex >= 0 && selectedColorIndex < validImages.length
+      ? validImages[selectedColorIndex]?.image_url
       : null;
 
-    const variantImgUrl =
-      (firstInStockVariant?.color_image_url && firstInStockVariant.color_image_url.trim()) ||
-      activeVariants.find((v) => v.color_image_url && v.color_image_url.trim())?.color_image_url;
+  const primaryImage =
+    matchedByTag ||
+    matchedByVariant ||
+    matchedByUrl ||
+    matchedByIndex ||
+    basePrimaryImage ||
+    fallbackProductImage;
 
-    const matchedByVariant =
-      variantImgUrl && (validImageUrls.size === 0 || validImageUrls.has(variantImgUrl))
-        ? variantImgUrl
-        : null;
+  // Secondary hover image: photo of the same color if available, or 2nd valid image, or primaryImage
+  const secondaryImage =
+    (activeColor &&
+      validImages.find(
+        (img) =>
+          img.image_url !== primaryImage &&
+          img.color_name &&
+          img.color_name.toLowerCase().trim() === activeColor.name.toLowerCase().trim()
+      )?.image_url) ||
+    validImages.find((img) => img.image_url !== primaryImage)?.image_url ||
+    primaryImage;
 
-    const matchedByUrl = activeColor
-      ? validImages.find((img) => {
-          if (!img.image_url || img.image_url.startsWith('data:')) return false;
-          return img.image_url.toLowerCase().includes(activeColor.name.toLowerCase().trim());
-        })?.image_url
-      : null;
+  const { currentPrice, originalPrice, isSale, discountPercent } = computeProductPricing(
+    product,
+    firstInStockVariant
+  );
 
-    const matchedByIndex =
-      selectedColorIndex >= 0 && selectedColorIndex < validImages.length
-        ? validImages[selectedColorIndex]?.image_url
-        : null;
-
-    const prim =
-      matchedByTag ||
-      matchedByVariant ||
-      matchedByUrl ||
-      matchedByIndex ||
-      basePrimaryImage ||
-      fallbackProductImage;
-
-    const sec =
-      (activeColor &&
-        validImages.find(
-          (img) =>
-            img.image_url !== prim &&
-            img.color_name &&
-            img.color_name.toLowerCase().trim() === activeColor.name.toLowerCase().trim()
-        )?.image_url) ||
-      validImages.find((img) => img.image_url !== prim)?.image_url ||
-      prim;
-
-    return { primaryImage: prim, secondaryImage: sec };
-  }, [product.images, activeColor, firstInStockVariant, activeVariants, selectedColorIndex]);
-
-  const { currentPrice, originalPrice, isSale, discountPercent } = useMemo(() => {
-    return computeProductPricing(product, firstInStockVariant);
-  }, [product, firstInStockVariant]);
-
-  const { isOutOfStock, isLowStock } = useMemo(() => {
-    const outOfStock = (product.variants || []).every((v) => v.stock_quantity <= 0);
-    const lowStock =
-      !outOfStock && (product.variants || []).some((v) => v.stock_quantity <= v.low_stock_threshold);
-    return { isOutOfStock: outOfStock, isLowStock: lowStock };
-  }, [product.variants]);
+  const isOutOfStock = product.variants.every((v) => v.stock_quantity <= 0);
+  const isLowStock = !isOutOfStock && product.variants.some((v) => v.stock_quantity <= v.low_stock_threshold);
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -200,20 +188,24 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
               src={primaryImage}
               alt={product.title}
               preset="productCard"
-              aspectRatio="3/4"
+              aspectRatio="4/5"
               className="w-full h-full object-cover object-center"
               wrapperClassName="w-full h-full"
             />
           </div>
 
-          {/* Secondary Hover Image (Lazy-mounted only on hover to prevent decode lockup during scroll) */}
-          {isHovered && secondaryImage !== primaryImage && (
-            <div className="absolute inset-0 w-full h-full transition-all duration-500 ease-out opacity-100 scale-100 animate-fadeIn">
+          {/* Secondary Hover Image */}
+          {secondaryImage !== primaryImage && (
+            <div
+              className={`absolute inset-0 w-full h-full transition-all duration-500 ease-out ${
+                isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+              }`}
+            >
               <ProductImage
                 src={secondaryImage}
                 alt={`${product.title} alternate view`}
                 preset="productCard"
-                aspectRatio="3/4"
+                aspectRatio="4/5"
                 className="w-full h-full object-cover object-center"
                 wrapperClassName="w-full h-full"
               />
@@ -355,4 +347,4 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
       </div>
     </div>
   );
-});
+};
