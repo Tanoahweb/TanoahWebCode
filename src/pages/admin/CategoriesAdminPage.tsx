@@ -23,7 +23,7 @@ import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
-import { Category, Subcategory, Product } from '../../types';
+import { Category, Subcategory, ProductTaxonomyItem } from '../../types';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 
 export const CategoriesAdminPage: React.FC = () => {
@@ -32,7 +32,7 @@ export const CategoriesAdminPage: React.FC = () => {
   // Core data states
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductTaxonomyItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Search & Expand
@@ -71,7 +71,7 @@ export const CategoriesAdminPage: React.FC = () => {
       const [catList, subList, prodList] = await Promise.all([
         api.getCategories(true),
         api.getSubcategories(undefined, true),
-        api.getProducts('all'),
+        api.getProductTaxonomyCounts(),
       ]);
       setCategories(catList || []);
       setSubcategories(subList || []);

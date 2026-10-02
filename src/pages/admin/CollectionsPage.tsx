@@ -27,7 +27,7 @@ import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../services/api';
-import { Collection, Product, FeaturedCollectionsConfig, FeaturedCollectionItem, Category, Subcategory } from '../../types';
+import { Collection, ProductTaxonomyItem, FeaturedCollectionsConfig, FeaturedCollectionItem, Category, Subcategory } from '../../types';
 import { DEFAULT_FEATURED_COLLECTIONS_CONFIG } from '../../data/mockData';
 import { SingleImageDropzone } from '../../components/common/SingleImageDropzone';
 
@@ -40,7 +40,7 @@ export const CollectionsPage: React.FC = () => {
   );
 
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductTaxonomyItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,7 +65,7 @@ export const CollectionsPage: React.FC = () => {
     setIsLoading(true);
     const [cols, prods, featCfg, cats, subs] = await Promise.all([
       api.getCollections(true),
-      api.getProducts(),
+      api.getProductTaxonomyCounts(),
       api.getFeaturedCollectionsConfig(),
       api.getCategories(false),
       api.getSubcategories(),

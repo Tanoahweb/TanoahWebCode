@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '@/types';
+import { Product, ProductTaxonomyItem, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '@/types';
 import { BlogArticle, SEORedirect, SEO404Log, SEOAuditSummary, SEOAuditIssue } from '@/types/seo';
 import { recordRedirectIfSlugChanged } from './seoEngine';
 import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
@@ -1504,6 +1504,36 @@ export const api = {
       return true;
     });
     return (filtered.length > 0 ? filtered : sample).slice(0, limit);
+  },
+
+  /**
+   * Fetches an ultra-lightweight list of product taxonomy mapping fields.
+   * Omits all descriptions, custom markdown, images, and variant matrices.
+   * Used for fast, zero-overhead badge count calculations on Categories and Collections pages.
+   */
+  async getProductTaxonomyCounts(): Promise<ProductTaxonomyItem[]> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, category_id, subcategory_id, collections, tags, category_name, product_type');
+
+      if (!error && data) {
+        return data as ProductTaxonomyItem[];
+      }
+    } catch (err) {
+      console.warn('Error fetching product taxonomy counts from Supabase:', err);
+    }
+
+    // Fallback: extract taxonomy items from sample products
+    return SAMPLE_PRODUCTS.map((p) => ({
+      id: p.id,
+      category_id: p.category_id,
+      subcategory_id: p.subcategory_id,
+      collections: p.collections,
+      tags: p.tags,
+      category_name: p.category_name,
+      product_type: p.product_type,
+    }));
   },
 
   // Single Product by slug (Direct Supabase)

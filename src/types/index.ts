@@ -119,6 +119,16 @@ export interface Product {
   updated_at?: string;
 }
 
+export interface ProductTaxonomyItem {
+  id: string;
+  category_id?: string;
+  subcategory_id?: string;
+  collections?: string[];
+  tags?: string[];
+  category_name?: string;
+  product_type?: string;
+}
+
 export interface TargetAudience {
   id: string;
   name: string;
