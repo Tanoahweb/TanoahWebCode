@@ -1392,6 +1392,55 @@ export const api = {
     return sample;
   },
 
+  // Lightweight showcase products for Home Screen (strictly capped to 24 products max)
+  async getHomeShowcaseProducts(limit: number = 24): Promise<Product[]> {
+    try {
+      // 1. Prioritize products flagged for new arrivals, best sellers, sales, or featured
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
+          images:product_images(*),
+          variants:product_variants(*)
+        `)
+        .eq('status', 'active')
+        .or('is_new_arrival.eq.true,is_best_seller.eq.true,sale_price.not.is.null,is_featured.eq.true')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && data && data.length > 0) {
+        return (data as unknown as Product[]).map(sanitizeProduct);
+      }
+
+      // 2. If no tagged items are found or fewer than expected, fallback to latest active products with strict limit
+      const fallbackRes = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
+          images:product_images(*),
+          variants:product_variants(*)
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!fallbackRes.error && fallbackRes.data) {
+        return (fallbackRes.data as unknown as Product[]).map(sanitizeProduct);
+      }
+    } catch (err) {
+      console.warn('Error fetching home showcase products from Supabase:', err);
+    }
+
+    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct).filter((p) => p.status === 'active');
+    return sample.slice(0, limit);
+  },
+
   // Single Product by slug (Direct Supabase)
   async getProductBySlug(slug: string): Promise<Product | null> {
     try {

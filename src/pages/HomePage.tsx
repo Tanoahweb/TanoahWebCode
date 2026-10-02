@@ -17,7 +17,7 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchProducts = () => {
-      api.getProducts('active').then((data) => {
+      api.getHomeShowcaseProducts(24).then((data) => {
         if (isMounted && data) {
           setProducts(data);
         }
