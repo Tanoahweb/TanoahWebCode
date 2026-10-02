@@ -12,40 +12,52 @@ export const DashboardPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadOrders = async () => {
     try {
-      const [loadedOrders, loadedProducts] = await Promise.all([
-        api.getAdminOrders(),
-        api.getProducts('all'),
-      ]);
+      const loadedOrders = await api.getAdminOrders();
       setOrders(loadedOrders || []);
+    } catch (e) {
+      console.warn('Error loading orders in dashboard:', e);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const loadedProducts = await api.getProducts('all');
       setProducts(loadedProducts || []);
+    } catch (e) {
+      console.warn('Error loading products in dashboard:', e);
+    }
+  };
+
+  const loadAllData = async () => {
+    try {
+      await Promise.all([loadOrders(), loadProducts()]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadAllData();
 
-    const handleUpdate = () => {
-      loadData();
-    };
+    const handleOrdersUpdate = () => loadOrders();
+    const handleProductsUpdate = () => loadProducts();
 
-    window.addEventListener('tanoah_orders_updated', handleUpdate);
-    window.addEventListener('tanoah_products_updated', handleUpdate);
+    window.addEventListener('tanoah_orders_updated', handleOrdersUpdate);
+    window.addEventListener('tanoah_products_updated', handleProductsUpdate);
 
-    // Supabase Realtime channel for live order updates
+    // Supabase Realtime channel for live order updates (only updates orders, never triggers product re-fetch)
     const channel = supabase
       .channel('admin_dashboard_orders_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadData();
+        loadOrders();
       })
       .subscribe();
 
     return () => {
-      window.removeEventListener('tanoah_orders_updated', handleUpdate);
-      window.removeEventListener('tanoah_products_updated', handleUpdate);
+      window.removeEventListener('tanoah_orders_updated', handleOrdersUpdate);
+      window.removeEventListener('tanoah_products_updated', handleProductsUpdate);
       supabase.removeChannel(channel);
     };
   }, []);

@@ -23,7 +23,7 @@ import { TaxInvoiceModal } from '../../components/checkout/TaxInvoiceModal';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { useUIStore } from '../../store/useUIStore';
-import { Order, Product, DispatchFromAddressConfig } from '../../types';
+import { Order, DispatchFromAddressConfig } from '../../types';
 import { safeGetItem } from '../../utils/safeStorage';
 import { PackingSlipModal } from '../../components/admin/PackingSlipModal';
 
@@ -33,7 +33,6 @@ export const OrderDetailPage: React.FC = () => {
   const { addToast } = useUIStore();
 
   const [order, setOrder] = useState<any | null>(null);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -50,11 +49,6 @@ export const OrderDetailPage: React.FC = () => {
   });
 
   useEffect(() => {
-    api.getProducts('all').then((prods) => {
-      if (prods && prods.length > 0) {
-        setAllProducts(prods);
-      }
-    });
     api.getStoreSettings().then((s) => {
       if (s?.dispatch_from_address) {
         setDispatchFromAddress(s.dispatch_from_address);
@@ -417,41 +411,7 @@ export const OrderDetailPage: React.FC = () => {
                     )?.image_url ||
                     item.product?.images?.[0]?.image_url;
 
-                  // Priority 2: Match against full catalog (custom uploaded products & sample products)
-                  if (!itemImg || itemImg === '/Assets/hero/hero-mobile.jpg' || itemImg === '/Assets/products/placeholder-product.svg') {
-                    const matchedProd = allProducts.find((p) => {
-                      if (item.product_id && (p.id === item.product_id || p.slug === item.product_id)) return true;
-                      if (itemTitle && p.title.toLowerCase().trim() === itemTitle.toLowerCase().trim()) return true;
-                      if (item.sku && p.variants.some((v) => v.sku === item.sku)) return true;
-                      return false;
-                    });
-
-                    if (matchedProd && matchedProd.images && matchedProd.images.length > 0) {
-                      if (itemColor) {
-                        const colorMatch = matchedProd.images.find(
-                          (img) =>
-                            img.color_name &&
-                            img.color_name.toLowerCase().trim() === itemColor.toLowerCase().trim()
-                        );
-                        if (colorMatch?.image_url) itemImg = colorMatch.image_url;
-
-                        const variantMatch = matchedProd.variants.find(
-                          (v) =>
-                            v.color_name &&
-                            v.color_name.toLowerCase().trim() === itemColor.toLowerCase().trim() &&
-                            v.color_image_url
-                        );
-                        if (!itemImg && variantMatch?.color_image_url) itemImg = variantMatch.color_image_url;
-                      }
-
-                      if (!itemImg || itemImg === '/Assets/hero/hero-mobile.jpg' || itemImg === '/Assets/products/placeholder-product.svg') {
-                        const primary = matchedProd.images.find((img) => img.is_primary);
-                        itemImg = primary ? primary.image_url : matchedProd.images[0].image_url;
-                      }
-                    }
-                  }
-
-                  if (!itemImg) {
+                  if (!itemImg || itemImg === '/Assets/hero/hero-mobile.jpg') {
                     itemImg = '/Assets/products/placeholder-product.svg';
                   }
 

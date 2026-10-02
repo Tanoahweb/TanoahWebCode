@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -246,34 +246,55 @@ export const AdminOmniSearch: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Live dynamic data for orders & products
+  // Live dynamic data for orders & products - loaded on-demand when search is activated
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
+  const [isLoadingSearchData, setIsLoadingSearchData] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    Promise.all([api.getProducts('all'), api.getAdminOrders()]).then(([p, o]) => {
-      if (isMounted) {
-        setProducts(p || []);
-        setOrders(o || []);
-      }
-    });
+  const loadSearchData = useCallback(async () => {
+    if (hasLoadedData || isLoadingSearchData) return;
+    setIsLoadingSearchData(true);
+    try {
+      const [p, o] = await Promise.all([api.getProducts('all'), api.getAdminOrders()]);
+      setProducts(p || []);
+      setOrders(o || []);
+      setHasLoadedData(true);
+    } catch (err) {
+      console.warn('Failed to load search data:', err);
+    } finally {
+      setIsLoadingSearchData(false);
+    }
+  }, [hasLoadedData, isLoadingSearchData]);
 
+  // Keep search data fresh if search was already loaded and an update event fires
+  useEffect(() => {
     const handleOrdersUpdate = () => {
-      api.getAdminOrders().then((o) => {
-        if (isMounted) setOrders(o || []);
-      });
+      if (hasLoadedData) {
+        api.getAdminOrders().then((o) => {
+          if (o) setOrders(o);
+        });
+      }
+    };
+
+    const handleProductsUpdate = () => {
+      if (hasLoadedData) {
+        api.getProducts('all').then((p) => {
+          if (p) setProducts(p);
+        });
+      }
     };
 
     window.addEventListener('tanoah_orders_updated', handleOrdersUpdate);
+    window.addEventListener('tanoah_products_updated', handleProductsUpdate);
     return () => {
-      isMounted = false;
       window.removeEventListener('tanoah_orders_updated', handleOrdersUpdate);
+      window.removeEventListener('tanoah_products_updated', handleProductsUpdate);
     };
-  }, []);
+  }, [hasLoadedData]);
 
   // Global keyboard shortcut: '/' or 'Cmd+K' to focus
   useEffect(() => {
@@ -286,6 +307,7 @@ export const AdminOmniSearch: React.FC = () => {
         e.preventDefault();
         inputRef.current?.focus();
         setIsOpen(true);
+        loadSearchData();
       }
       if (e.key === 'Escape') {
         setIsOpen(false);
@@ -295,7 +317,7 @@ export const AdminOmniSearch: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [loadSearchData]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -404,14 +426,23 @@ export const AdminOmniSearch: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full max-w-[200px] xs:max-w-[260px] sm:w-80 md:w-96 min-w-0" ref={containerRef}>
+    <div
+      className="relative w-full max-w-[200px] xs:max-w-[260px] sm:w-80 md:w-96 min-w-0"
+      ref={containerRef}
+      onMouseEnter={() => {
+        if (!hasLoadedData) loadSearchData();
+      }}
+    >
       {/* Search Input */}
       <div className="relative">
         <input
           ref={inputRef}
           type="text"
           value={query}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            setIsOpen(true);
+            loadSearchData();
+          }}
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
