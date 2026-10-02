@@ -1441,6 +1441,71 @@ export const api = {
     return sample.slice(0, limit);
   },
 
+  // Showcase products on-demand for Home Screen tabs ('new', 'best', 'sale')
+  async getShowcaseProductsByTab(
+    tab: 'new' | 'best' | 'sale' = 'new',
+    limit: number = 8
+  ): Promise<Product[]> {
+    try {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
+          images:product_images(*),
+          variants:product_variants(*)
+        `)
+        .eq('status', 'active');
+
+      if (tab === 'new') {
+        query = query.eq('is_new_arrival', true);
+      } else if (tab === 'best') {
+        query = query.eq('is_best_seller', true);
+      } else if (tab === 'sale') {
+        query = query.not('sale_price', 'is', null);
+      }
+
+      query = query.order('created_at', { ascending: false }).limit(limit);
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return (data as unknown as Product[]).map(sanitizeProduct);
+      }
+
+      // If no tagged items found for this specific tab, fallback to active products with limit
+      const fallbackRes = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          target_audience:target_audiences(*),
+          subcategory:subcategories(*),
+          images:product_images(*),
+          variants:product_variants(*)
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!fallbackRes.error && fallbackRes.data) {
+        return (fallbackRes.data as unknown as Product[]).map(sanitizeProduct);
+      }
+    } catch (err) {
+      console.warn(`Error fetching showcase products for tab ${tab} from Supabase:`, err);
+    }
+
+    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct).filter((p) => p.status === 'active');
+    const filtered = sample.filter((p) => {
+      if (tab === 'new') return p.is_new_arrival;
+      if (tab === 'best') return p.is_best_seller;
+      if (tab === 'sale') return p.sale_price != null && p.sale_price < p.base_price;
+      return true;
+    });
+    return (filtered.length > 0 ? filtered : sample).slice(0, limit);
+  },
+
   // Single Product by slug (Direct Supabase)
   async getProductBySlug(slug: string): Promise<Product | null> {
     try {

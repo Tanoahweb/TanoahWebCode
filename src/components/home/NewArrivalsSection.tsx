@@ -1,27 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '../product/ProductCard';
 import { Product } from '../../types';
 import { useGsapReveal } from '../../hooks/useGsapReveal';
 import { Button } from '../common/Button';
+import { api } from '../../services/api';
 
 interface NewArrivalsSectionProps {
-  products: Product[];
+  products?: Product[];
 }
 
-export const NewArrivalsSection: React.FC<NewArrivalsSectionProps> = ({ products }) => {
+export const NewArrivalsSection: React.FC<NewArrivalsSectionProps> = ({ products: initialProducts }) => {
   const [activeTab, setActiveTab] = useState<'new' | 'best' | 'sale'>('new');
+  const [cache, setCache] = useState<Record<string, Product[]>>(() => {
+    const base: Record<string, Product[]> = {};
+    if (initialProducts && initialProducts.length > 0) {
+      base.new = initialProducts.slice(0, 8);
+    }
+    return base;
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(!cache['new'] || cache['new'].length === 0);
   const containerRef = useGsapReveal({ stagger: 0.08 });
 
-  const filteredProducts = products.filter((p) => {
-    if (activeTab === 'new') return p.is_new_arrival;
-    if (activeTab === 'best') return p.is_best_seller;
-    if (activeTab === 'sale') return p.sale_price != null && p.sale_price < p.base_price;
-    return true;
-  });
+  // On-demand fetch for active tab (only runs if tab is not already cached)
+  useEffect(() => {
+    let isMounted = true;
 
-  const displayList = filteredProducts.length > 0 ? filteredProducts.slice(0, 8) : products.slice(0, 8);
+    if (cache[activeTab] && cache[activeTab].length > 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    api
+      .getShowcaseProductsByTab(activeTab, 8)
+      .then((items) => {
+        if (isMounted) {
+          setCache((prev) => ({
+            ...prev,
+            [activeTab]: items,
+          }));
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn(`Error loading showcase products for ${activeTab}:`, err);
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  // Invalidate cache and refetch active tab whenever products are updated in Admin
+  useEffect(() => {
+    const handleProductUpdate = () => {
+      setCache({});
+      setIsLoading(true);
+      api.getShowcaseProductsByTab(activeTab, 8).then((items) => {
+        setCache({ [activeTab]: items });
+        setIsLoading(false);
+      });
+    };
+
+    window.addEventListener('tanoah_products_updated', handleProductUpdate);
+    return () => {
+      window.removeEventListener('tanoah_products_updated', handleProductUpdate);
+    };
+  }, [activeTab]);
+
+  const displayList = cache[activeTab] || [];
 
   return (
     <section className="py-20 bg-white border-b border-[#E7E7E7]">
@@ -72,12 +122,24 @@ export const NewArrivalsSection: React.FC<NewArrivalsSectionProps> = ({ products
           </div>
         </div>
 
-        {/* Product Grid */}
-        <div ref={containerRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8">
-          {displayList.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {/* Product Grid or Skeletons */}
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="animate-pulse space-y-3">
+                <div className="aspect-[3/4] bg-[#F4F4F3] rounded-[2px]" />
+                <div className="h-3.5 bg-[#ECECEB] rounded w-3/4" />
+                <div className="h-3 bg-[#ECECEB] rounded w-1/3" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div key={activeTab} ref={containerRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8">
+            {displayList.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
 
         {/* View All CTA */}
         <div className="mt-14 text-center">
@@ -87,7 +149,7 @@ export const NewArrivalsSection: React.FC<NewArrivalsSectionProps> = ({ products
               size="lg"
               icon={<ArrowRight className="w-4 h-4" />}
             >
-              EXPLORE FULL CATALOG ({products.length} PIECES)
+              EXPLORE FULL ATELIER COLLECTION
             </Button>
           </Link>
         </div>
