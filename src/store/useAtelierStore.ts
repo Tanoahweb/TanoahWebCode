@@ -101,6 +101,10 @@ export const useAtelierStore = create<AtelierStoreState>((set, get) => {
         set({ config: { ...DEFAULT_ATELIER_CONFIG, ...e.detail } });
       }
     }) as EventListener);
+
+    window.addEventListener('tanoah_settings_updated', () => {
+      get().fetchConfig();
+    });
   }
 
   return {
@@ -156,13 +160,12 @@ export const useAtelierStore = create<AtelierStoreState>((set, get) => {
         }
 
         // Persist to Supabase store settings
-        try {
-          await api.saveStoreSettings({
-            ...((await api.getStoreSettings()) as any),
-            atelier_section_config: newConfig,
-          });
-        } catch (supaErr) {
-          console.warn('Could not save to Supabase remote store settings:', supaErr);
+        const remoteOk = await api.saveStoreSettings({
+          atelier_section_config: newConfig,
+        } as any);
+
+        if (!remoteOk) {
+          console.warn('Could not save atelier config to remote store settings');
         }
 
         return true;
@@ -186,12 +189,9 @@ export const useAtelierStore = create<AtelierStoreState>((set, get) => {
           );
         }
 
-        try {
-          await api.saveStoreSettings({
-            ...((await api.getStoreSettings()) as any),
-            atelier_section_config: resetConfig,
-          });
-        } catch {}
+        await api.saveStoreSettings({
+          atelier_section_config: resetConfig,
+        } as any);
 
         return true;
       } catch (err) {

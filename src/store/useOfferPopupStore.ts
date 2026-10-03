@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { api } from '../services/api';
 import { OfferPopupConfig, DEFAULT_OFFER_POPUP_CONFIG } from '../types';
 
@@ -44,6 +44,10 @@ export const useOfferPopupStore = create<OfferPopupStoreState>((set, get) => {
         set({ config: { ...DEFAULT_OFFER_POPUP_CONFIG, ...e.detail } });
       }
     }) as EventListener);
+
+    window.addEventListener('tanoah_settings_updated', () => {
+      get().fetchConfig();
+    });
   }
 
   return {
@@ -152,14 +156,12 @@ export const useOfferPopupStore = create<OfferPopupStoreState>((set, get) => {
         }
 
         // Persist to Supabase store settings
-        try {
-          const currentSettings = (await api.getStoreSettings()) as any;
-          await api.saveStoreSettings({
-            ...currentSettings,
-            offer_popup_config: newConfig,
-          });
-        } catch (supaErr) {
-          console.warn('Could not save offer popup config to Supabase:', supaErr);
+        const remoteOk = await api.saveStoreSettings({
+          offer_popup_config: newConfig,
+        } as any);
+
+        if (!remoteOk) {
+          console.warn('Could not save offer popup config to Supabase');
         }
 
         return true;
@@ -183,13 +185,9 @@ export const useOfferPopupStore = create<OfferPopupStoreState>((set, get) => {
           );
         }
 
-        try {
-          const currentSettings = (await api.getStoreSettings()) as any;
-          await api.saveStoreSettings({
-            ...currentSettings,
-            offer_popup_config: resetConfig,
-          });
-        } catch {}
+        await api.saveStoreSettings({
+          offer_popup_config: resetConfig,
+        } as any);
 
         return true;
       } catch (err) {

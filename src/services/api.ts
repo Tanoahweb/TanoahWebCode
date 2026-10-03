@@ -520,7 +520,50 @@ export const api = {
     try {
       const { data: existing } = await supabase.from('store_settings').select('id').limit(1).single();
       if (existing?.id) {
-        const { error } = await supabase.from('store_settings').update(settings).eq('id', existing.id);
+        // Whitelist actual database columns to prevent PostgREST schema cache errors on unmapped mock fields
+        const validColumns = new Set([
+          'store_name',
+          'currency',
+          'currency_symbol',
+          'contact_email',
+          'contact_phone',
+          'whatsapp_number',
+          'free_shipping_threshold',
+          'standard_shipping_rate',
+          'express_shipping_rate',
+          'cod_enabled',
+          'cod_fee',
+          'low_stock_threshold',
+          'gst_number',
+          'tax_inclusive',
+          'default_tax_rate',
+          'atelier_section_config',
+          'offer_popup_config',
+          'featured_collections_config',
+          'navigation_config',
+          'custom_product_types',
+          'payment_gateways_config',
+          'delivery_speeds_config',
+          'seo_config',
+          'logo_url',
+          'logo_white_url',
+          'favicon_url',
+          'return_address_config',
+          'lookbook_section_config',
+        ]);
+
+        const sanitized: Record<string, any> = {};
+        for (const [key, val] of Object.entries(settings)) {
+          if (validColumns.has(key)) {
+            sanitized[key] = val;
+          }
+        }
+
+        if (Object.keys(sanitized).length === 0) {
+          return true;
+        }
+
+        const { error } = await supabase.from('store_settings').update(sanitized).eq('id', existing.id);
         if (error) {
           console.error('Failed to update store settings in Supabase:', error);
           return false;
