@@ -451,6 +451,9 @@ export interface StoreSettings {
   facebook_url?: string;
   twitter_url?: string;
   seo_config?: import('./seo').StoreSEOConfig;
+  lookbook_section_config?: any;
+  atelier_section_config?: any;
+  offer_popup_config?: any;
 }
 
 export interface FeaturedCollectionItem {

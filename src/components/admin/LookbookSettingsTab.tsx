@@ -63,7 +63,7 @@ export const LookbookSettingsTab: React.FC = () => {
     try {
       try {
         const uploadRes = await api.uploadMediaFile(file, {
-          mediaType: 'banner',
+          mediaType: 'lookbook',
           preserveOriginal: true,
         });
         if (uploadRes && uploadRes.publicUrl) {
@@ -128,7 +128,7 @@ export const LookbookSettingsTab: React.FC = () => {
     try {
       try {
         const uploadRes = await api.uploadMediaFile(file, {
-          mediaType: 'banner',
+          mediaType: 'lookbook',
           preserveOriginal: true,
         });
         if (uploadRes && uploadRes.publicUrl) {

@@ -95,6 +95,10 @@ export const useEditorialLookbookStore = create<LookbookStoreState>((set, get) =
         set({ config: { ...DEFAULT_LOOKBOOK_CONFIG, ...e.detail } });
       }
     }) as EventListener);
+
+    window.addEventListener('tanoah_settings_updated', () => {
+      get().fetchConfig();
+    });
   }
 
   return {
@@ -147,13 +151,13 @@ export const useEditorialLookbookStore = create<LookbookStoreState>((set, get) =
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
         }
 
-        // Persist to store settings
-        try {
-          await api.saveStoreSettings({
-            lookbook_section_config: newConfig,
-          } as any);
-        } catch (apiErr) {
-          console.warn('Could not save lookbook to remote store settings, saved locally:', apiErr);
+        // Persist to Supabase store settings
+        const remoteOk = await api.saveStoreSettings({
+          lookbook_section_config: newConfig,
+        } as any);
+
+        if (!remoteOk) {
+          console.warn('Could not save lookbook to remote store settings, saved locally.');
         }
 
         set({ config: newConfig, isLoading: false });
