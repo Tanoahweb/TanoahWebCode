@@ -47,13 +47,19 @@ export const CartDrawer: React.FC = () => {
     validateCurrentCoupon();
   }, [items, validateCurrentCoupon]);
 
-  // Load available coupons and collections
+  // Load available coupons, collections, and store settings
   useEffect(() => {
     let isMounted = true;
-    Promise.all([api.getCoupons(), api.getCollections()]).then(([cpns, cols]) => {
+    Promise.all([api.getCoupons(), api.getCollections(), api.getStoreSettings()]).then(([cpns, cols, settings]) => {
       if (isMounted) {
         setAvailableCoupons(cpns || []);
         setCollections(cols || []);
+        if (settings) {
+          useCartStore.getState().setShippingRules(
+            Number(settings.free_shipping_threshold) || 1999,
+            Number(settings.standard_shipping_rate) || 99
+          );
+        }
       }
     });
     return () => {

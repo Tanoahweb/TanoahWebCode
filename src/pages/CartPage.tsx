@@ -35,6 +35,21 @@ export const CartPage: React.FC = () => {
     validateCurrentCoupon();
   }, [items, validateCurrentCoupon]);
 
+  React.useEffect(() => {
+    let isMounted = true;
+    api.getStoreSettings().then((settings) => {
+      if (isMounted && settings) {
+        useCartStore.getState().setShippingRules(
+          Number(settings.free_shipping_threshold) || 1999,
+          Number(settings.standard_shipping_rate) || 99
+        );
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const subtotal = getSubtotal();
   const discount = getDiscountAmount();
   const shipping = getShippingFee();

@@ -45,6 +45,8 @@ interface CartState {
   giftNote: string;
   orderNote: string;
   freeShippingThreshold: number;
+  standardShippingFee: number;
+  setShippingRules: (threshold: number, standardFee?: number) => void;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
@@ -74,6 +76,14 @@ export const useCartStore = create<CartState>()(
       giftNote: '',
       orderNote: '',
       freeShippingThreshold: 1999,
+      standardShippingFee: 99,
+
+      setShippingRules: (threshold: number, standardFee?: number) => {
+        set((state) => ({
+          freeShippingThreshold: typeof threshold === 'number' && threshold >= 0 ? threshold : state.freeShippingThreshold,
+          standardShippingFee: typeof standardFee === 'number' && standardFee >= 0 ? standardFee : state.standardShippingFee,
+        }));
+      },
 
       openDrawer: () => set({ isDrawerOpen: true }),
       closeDrawer: () => set({ isDrawerOpen: false }),
@@ -214,7 +224,7 @@ export const useCartStore = create<CartState>()(
         const subtotal = get().getSubtotal();
         if (subtotal === 0) return 0;
         if (get().isFreeShipping()) return 0;
-        return 149; // Standard shipping rate
+        return get().standardShippingFee ?? 99;
       },
 
       isFreeShipping: () => {

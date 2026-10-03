@@ -407,7 +407,7 @@ export const CouponsPage: React.FC = () => {
               <input
                 type="number"
                 min={0}
-                step={50}
+                step="any"
                 placeholder="0 (No minimum)"
                 value={minSpend || ''}
                 onChange={(e) => setMinSpend(Number(e.target.value))}
@@ -422,8 +422,8 @@ export const CouponsPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min={1}
-                  step={100}
+                  min={0}
+                  step="any"
                   placeholder="e.g. 1000"
                   value={maxDiscount}
                   onChange={(e) => setMaxDiscount(e.target.value)}
@@ -1083,6 +1083,7 @@ export const CouponsPage: React.FC = () => {
                     <input
                       type="number"
                       min={0}
+                      step="any"
                       value={editForm.min_spend}
                       onChange={(e) => setEditForm({ ...editForm, min_spend: Number(e.target.value) })}
                       className="w-full p-2.5 border border-[#E7E7E7] rounded-[4px] focus:outline-none focus:border-[#3F3F8F]"
@@ -1096,7 +1097,8 @@ export const CouponsPage: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        min={1}
+                        min={0}
+                        step="any"
                         placeholder="Optional"
                         value={editForm.max_discount}
                         onChange={(e) => setEditForm({ ...editForm, max_discount: e.target.value })}
