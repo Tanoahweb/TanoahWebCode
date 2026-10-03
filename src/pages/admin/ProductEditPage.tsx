@@ -33,7 +33,6 @@ import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { useUIStore } from '../../store/useUIStore';
-import { SAMPLE_CATEGORIES } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { Product, ProductVariant, ProductImage, ProductDetailSection, Collection, Category, SizeChart, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '../../types';
@@ -165,7 +164,7 @@ export const ProductEditPage: React.FC = () => {
   const [targetAudienceId, setTargetAudienceId] = useState<string>('');
 
   // Categories state from Supabase
-  const [categories, setCategories] = useState<Category[]>(SAMPLE_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
 
   // Subcategories state from Supabase
@@ -1188,7 +1187,7 @@ export const ProductEditPage: React.FC = () => {
       title: trimmed,
       slug: generatedSlug,
       description: newColDescription.trim() || undefined,
-      banner_image: '/Assets/hero/hero-landscape.jpg',
+      banner_image: '',
       is_smart: false,
       is_active: true,
       sort_order: availableCollections.length + 1,

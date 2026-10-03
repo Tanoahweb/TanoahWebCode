@@ -220,7 +220,7 @@ export const NavigationPage: React.FC = () => {
                     id: `bnr_${Date.now()}`,
                     badge: 'FEATURED EDIT',
                     title: `${item.label} COLLECTION`,
-                    image_url: '/Assets/hero/hero-mobile.jpg',
+                    image_url: '',
                     cta_label: 'EXPLORE COLLECTION',
                     cta_url: item.url,
                     is_active: true,
@@ -317,7 +317,7 @@ export const NavigationPage: React.FC = () => {
                 id: `bnr_${Date.now()}`,
                 badge: 'FEATURED EDIT',
                 title: `${modalLabel.trim().toUpperCase()} CAPSULE`,
-                image_url: '/Assets/hero/hero-mobile.jpg',
+                image_url: '',
                 cta_label: 'DISCOVER NOW',
                 cta_url: modalUrl.trim(),
                 is_active: true,
@@ -837,7 +837,7 @@ export const NavigationPage: React.FC = () => {
           id: `bnr_${Date.now()}`,
           badge: 'FEATURED',
           title: 'EDITORIAL CAMPAIGN',
-          image_url: '/Assets/hero/hero-mobile.jpg',
+          image_url: '',
           cta_label: 'DISCOVER NOW',
           cta_url: item.url,
           is_active: true,
@@ -1127,12 +1127,18 @@ export const NavigationPage: React.FC = () => {
                       {/* Banner Column */}
                       {banner && banner.is_active && (
                         <div className="col-span-3">
-                          <div className="relative group overflow-hidden rounded-[4px] bg-[#F8F8F8] h-44 flex flex-col justify-end p-4 border border-[#E7E7E7]">
-                            <img
-                              src={banner.image_url || '/Assets/hero/hero-mobile.jpg'}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover object-center"
-                            />
+                          <div className="relative group overflow-hidden rounded-[4px] bg-[#1E1E1E] h-44 flex flex-col justify-end p-4 border border-[#E7E7E7]">
+                            {banner.image_url ? (
+                              <img
+                                src={banner.image_url}
+                                alt=""
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                                className="absolute inset-0 w-full h-full object-cover object-center"
+                              />
+                            ) : null}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
                             <div className="relative z-10 text-white text-left">
                               <span className="text-[9px] tracking-widest uppercase font-poppins text-white/80 block">

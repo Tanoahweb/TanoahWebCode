@@ -132,10 +132,14 @@ export const BlogListPage: React.FC = () => {
               >
                 <Link to={`/blog/${article.slug}`} className="relative aspect-[16/10] overflow-hidden bg-neutral-100 block">
                   <img
-                    src={article.featured_image || '/Assets/hero/hero-landscape.jpg'}
+                    src={article.featured_image || '/Assets/products/placeholder-product.svg'}
                     alt={article.featured_image_alt || article.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      e.currentTarget.src = '/Assets/products/placeholder-product.svg';
+                    }}
                   />
                   <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 text-[10px] tracking-wider uppercase font-semibold text-[#3F3F8F]">
                     {article.category}

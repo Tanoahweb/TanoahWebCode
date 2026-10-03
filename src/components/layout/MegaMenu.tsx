@@ -185,15 +185,19 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose, activeMenuI
         {/* Promotional Editorial Campaign Banner */}
         {hasBanner && banner && (
           <div className={bannerColSpanClass}>
-            <div className="relative group overflow-hidden rounded-[4px] bg-[#F8F8F8] h-full min-h-[220px] flex flex-col justify-end p-6 border border-[#E7E7E7]">
-              <img
-                src={banner.image_url || '/Assets/hero/hero-mobile.jpg'}
-                alt={banner.title || 'Campaign'}
-                onError={(e) => {
-                  e.currentTarget.src = '/Assets/hero/hero-mobile.jpg';
-                }}
-                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-              />
+            <div className="relative group overflow-hidden rounded-[4px] bg-[#1E1E1E] h-full min-h-[220px] flex flex-col justify-end p-6 border border-[#E7E7E7]">
+              {banner.image_url ? (
+                <img
+                  src={banner.image_url}
+                  alt={banner.title || 'Campaign'}
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : null}
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
               <div className="relative z-10 text-white text-left">
                 {banner.badge && (

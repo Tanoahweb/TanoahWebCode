@@ -27,7 +27,6 @@ import {
   Loader2,
   CheckCircle2,
 } from 'lucide-react';
-import { SAMPLE_PRODUCTS } from '../data/mockData';
 import { ProductCard } from '../components/product/ProductCard';
 import { formatPrice, calculateDiscountPercentage, computeProductPricing } from '../utils/formatters';
 import { useCartStore } from '../store/useCartStore';
@@ -55,6 +54,7 @@ export const ProductDetailPage: React.FC = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(true);
 
   const [selectedColor, setSelectedColor] = useState<string>(colorQueryParam || '');
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -177,11 +177,14 @@ export const ProductDetailPage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    setIsCatalogLoading(true);
     api.getProducts('active').then((data) => {
       if (isMounted && data && data.length > 0) {
         setCatalogProducts(data);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      if (isMounted) setIsCatalogLoading(false);
+    });
     return () => {
       isMounted = false;
     };
@@ -423,9 +426,8 @@ export const ProductDetailPage: React.FC = () => {
 
   // Compute Similar Products
   const similarProducts = useMemo(() => {
-    if (!product) return [];
-    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
-    const candidates = all.filter((p) => p.id !== product.id && p.slug !== product.slug);
+    if (!product || catalogProducts.length === 0) return [];
+    const candidates = catalogProducts.filter((p) => p.id !== product.id && p.slug !== product.slug);
 
     const result: Product[] = [];
     const addedIds = new Set<string>();
@@ -489,14 +491,13 @@ export const ProductDetailPage: React.FC = () => {
 
   // Compute Recently Viewed Products (excluding current product)
   const recentlyViewedProducts = useMemo(() => {
-    if (!product) return [];
-    const all = catalogProducts.length > 0 ? catalogProducts : SAMPLE_PRODUCTS;
+    if (!product || catalogProducts.length === 0) return [];
     const otherIds = recentlyViewedIds.filter((id) => id !== product.id && id !== product.slug);
     if (otherIds.length === 0) return [];
 
     const matched: Product[] = [];
     for (const id of otherIds) {
-      const found = all.find((p) => p.id === id || p.slug === id);
+      const found = catalogProducts.find((p) => p.id === id || p.slug === id);
       if (found && !matched.some((m) => m.id === found.id)) {
         matched.push(found);
       }
@@ -1997,7 +1998,7 @@ export const ProductDetailPage: React.FC = () => {
         </div>
 
         {/* Similar Products Section */}
-        {similarProducts.length > 0 && (
+        {(isCatalogLoading || similarProducts.length > 0) && (
           <div className="mt-24 border-t border-[#E7E7E7] pt-16">
             <div className="text-center max-w-xl mx-auto mb-12">
               <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
@@ -2008,11 +2009,23 @@ export const ProductDetailPage: React.FC = () => {
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
-              {similarProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            {isCatalogLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`sim-skel-${i}`} className="animate-pulse space-y-3">
+                    <div className="aspect-[3/4] bg-[#F4F4F3] rounded-[2px]" />
+                    <div className="h-3.5 bg-[#ECECEB] rounded w-3/4" />
+                    <div className="h-3 bg-[#ECECEB] rounded w-1/3" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+                {similarProducts.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 

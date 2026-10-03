@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, Filter, Edit, Trash2, Eye, ArrowUpDown, Copy, Ruler } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
-import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { formatPrice } from '../../utils/formatters';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -14,7 +13,8 @@ import { Product, Collection, Category, Subcategory } from '../../types';
 export const ProductListPage: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useUIStore();
-  const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -26,10 +26,13 @@ export const ProductListPage: React.FC = () => {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const loadProducts = () => {
+    setIsLoading(true);
     api.getProducts('all').then((data) => {
       if (data) {
         setProducts(data);
       }
+    }).finally(() => {
+      setIsLoading(false);
     });
   };
 
@@ -283,7 +286,54 @@ export const ProductListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E7E7E7]">
-                {filtered.map((product) => {
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, idx) => (
+                    <tr key={`skel-${idx}`} className="animate-pulse">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-16 bg-[#F0F0F0] rounded-[2px] shrink-0" />
+                          <div className="space-y-2 flex-1">
+                            <div className="h-4 bg-[#F0F0F0] rounded w-36" />
+                            <div className="h-3 bg-[#F0F0F0] rounded w-20" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="h-4 bg-[#F0F0F0] rounded w-28" />
+                      </td>
+                      <td className="p-4">
+                        <div className="h-4 bg-[#F0F0F0] rounded w-16" />
+                      </td>
+                      <td className="p-4">
+                        <div className="h-4 bg-[#F0F0F0] rounded w-12" />
+                      </td>
+                      <td className="p-4">
+                        <div className="h-4 bg-[#F0F0F0] rounded w-14" />
+                      </td>
+                      <td className="p-4">
+                        <div className="h-5 bg-[#F0F0F0] rounded w-16" />
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="inline-flex gap-2">
+                          <div className="w-6 h-6 bg-[#F0F0F0] rounded" />
+                          <div className="w-6 h-6 bg-[#F0F0F0] rounded" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-12 text-center text-neutral-500">
+                      <p className="text-sm font-medium mb-1">No products found</p>
+                      <p className="text-xs text-neutral-400">
+                        {products.length === 0
+                          ? 'Catalog is empty. Click "+ Add New Product" to create your first item.'
+                          : 'No items match your active search or filter criteria.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((product) => {
                   const variants = product.variants || [];
                   const totalStock = variants.reduce((sum, v) => sum + (Number(v.stock_quantity) || 0), 0);
                   const isLow = variants.some((v) => (Number(v.stock_quantity) || 0) <= (Number(v.low_stock_threshold) || 5));
@@ -410,7 +460,7 @@ export const ProductListPage: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

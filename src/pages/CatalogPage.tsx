@@ -17,7 +17,6 @@ import {
   Tag,
 } from 'lucide-react';
 import { ProductCard } from '../components/product/ProductCard';
-import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS } from '../data/mockData';
 import { formatPrice } from '../utils/formatters';
 import { useGsapReveal } from '../hooks/useGsapReveal';
 import { api } from '../services/api';
@@ -101,7 +100,7 @@ export const CatalogPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [collectionsList, setCollectionsList] = useState<Collection[]>(SAMPLE_COLLECTIONS);
+  const [collectionsList, setCollectionsList] = useState<Collection[]>([]);
   const [refreshNonce, setRefreshNonce] = useState<number>(0);
 
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
@@ -547,7 +546,7 @@ export const CatalogPage: React.FC = () => {
       return {
         title: title || 'THE COMPLETE WARDROBE',
         description: catObj?.description || 'Explore timeless bespoke women\'s designs, artisanal weaves, and modern silhouettes.',
-        banner_image: catObj?.image_url || '/Assets/hero/hero-landscape.jpg',
+        banner_image: catObj?.image_url || '',
       };
     }
 
@@ -556,7 +555,7 @@ export const CatalogPage: React.FC = () => {
       return {
         title: 'THE COMPLETE WARDROBE',
         description: 'Explore timeless bespoke women\'s designs, tailored essentials, and modern silhouettes.',
-        banner_image: '/Assets/hero/hero-landscape.jpg',
+        banner_image: '',
       };
     }
     if (selectedCollections.length === 1) {
@@ -567,41 +566,41 @@ export const CatalogPage: React.FC = () => {
         return {
           title: "WOMEN'S COLLECTION",
           description: 'Fluid drape dresses, artisanal sarees, silk tops and sculptural tailored silhouettes.',
-          banner_image: '/Assets/hero/hero-mobile.jpg',
+          banner_image: '',
         };
       }
       if (targetSlug === 'sale') {
         return {
           title: 'SPECIAL ARCHIVAL OFFERS',
           description: 'Seasonal reductions and archival pieces crafted with exceptional heritage precision.',
-          banner_image: '/Assets/hero/hero-landscape.jpg',
+          banner_image: '',
         };
       }
       if (targetSlug === 'new-arrivals') {
         return {
           title: 'NEW ARRIVALS SS26',
           description: 'The latest silhouettes, handwoven textiles, and modern minimalist essentials.',
-          banner_image: '/Assets/hero/hero-mobile.jpg',
+          banner_image: '',
         };
       }
       if (targetSlug === 'best-sellers') {
         return {
           title: 'TANOAH BEST SELLERS',
           description: 'Our most sought-after signature pieces, worn and cherished by patrons worldwide.',
-          banner_image: '/Assets/hero/hero-landscape.jpg',
+          banner_image: '',
         };
       }
       if (targetSlug === 'monochrome') {
         return {
           title: 'THE MONOCHROME EDIT',
           description: 'Pure tonal minimalism in noir black, slate navy, and optical ivory.',
-          banner_image: '/Assets/hero/hero-mobile.jpg',
+          banner_image: '',
         };
       }
       return {
         title: targetSlug.toUpperCase().replace(/-/g, ' '),
         description: 'Curated artisanal pieces crafted with exceptional heritage precision.',
-        banner_image: '/Assets/hero/hero-landscape.jpg',
+        banner_image: '',
       };
     }
     // Multiple collections selected
@@ -611,7 +610,7 @@ export const CatalogPage: React.FC = () => {
     return {
       title: titles.join(' & '),
       description: `Curated showcase combining pieces from ${selectedCollections.length} collections: ${titles.join(', ')}.`,
-      banner_image: '/Assets/hero/hero-landscape.jpg',
+      banner_image: '',
     };
   }, [selectedCategory, selectedSubcategory, selectedCollections, categoriesList, subcategoriesList, collectionsList]);
 

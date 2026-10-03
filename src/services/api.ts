@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { Product, ProductTaxonomyItem, ProductDetailSection, SizeChart, StoreSettings, Collection, Coupon, Order, CartItem, MediaItem, NavigationConfig, FeaturedCollectionsConfig, SavedAddress, Category, DeliverySpeedTier, ProductReview, TargetAudience, Subcategory, Attribute, AttributeValue, CategoryAttribute } from '@/types';
 import { BlogArticle, SEORedirect, SEO404Log, SEOAuditSummary, SEOAuditIssue } from '@/types/seo';
 import { recordRedirectIfSlugChanged } from './seoEngine';
-import { SAMPLE_PRODUCTS, SAMPLE_COLLECTIONS, SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, SAMPLE_CATEGORIES, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
+import { SAMPLE_SETTINGS, SAMPLE_COUPONS, DEFAULT_FEATURED_COLLECTIONS_CONFIG, DEFAULT_DELIVERY_SPEEDS } from '@/data/mockData';
 import { DEFAULT_NAVIGATION_CONFIG } from '@/data/defaultNavigation';
 import { processImageForUpload } from '@/utils/imagePipeline';
 import { r2Service } from './r2Service';
@@ -687,7 +687,7 @@ export const api = {
     } catch (e) {
       console.warn('Network error fetching collections:', e);
     }
-    return SAMPLE_COLLECTIONS;
+    return [];
   },
 
   async saveCollection(collection: Collection): Promise<{ success: boolean; collection?: Collection }> {
@@ -858,7 +858,7 @@ export const api = {
     } catch (e) {
       console.warn('Network error fetching categories:', e);
     }
-    return SAMPLE_CATEGORIES;
+    return [];
   },
 
   async saveCategory(category: Category): Promise<boolean> {
@@ -1380,16 +1380,12 @@ export const api = {
         return (data as unknown as Product[]).map(sanitizeProduct);
       }
       if (error) {
-        console.warn('Supabase getProducts error, falling back to sample products:', error);
+        console.warn('Supabase getProducts error:', error);
       }
     } catch (err) {
       console.warn('Network error fetching products from Supabase:', err);
     }
-    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct);
-    if (statusFilter && statusFilter !== 'all') {
-      return sample.filter((p) => p.status === statusFilter);
-    }
-    return sample;
+    return [];
   },
 
   // Lightweight showcase products for Home Screen (strictly capped to 24 products max)
@@ -1437,8 +1433,7 @@ export const api = {
       console.warn('Error fetching home showcase products from Supabase:', err);
     }
 
-    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct).filter((p) => p.status === 'active');
-    return sample.slice(0, limit);
+    return [];
   },
 
   // Showcase products on-demand for Home Screen tabs ('new', 'best', 'sale')
@@ -1496,14 +1491,7 @@ export const api = {
       console.warn(`Error fetching showcase products for tab ${tab} from Supabase:`, err);
     }
 
-    const sample = SAMPLE_PRODUCTS.map(sanitizeProduct).filter((p) => p.status === 'active');
-    const filtered = sample.filter((p) => {
-      if (tab === 'new') return p.is_new_arrival;
-      if (tab === 'best') return p.is_best_seller;
-      if (tab === 'sale') return p.sale_price != null && p.sale_price < p.base_price;
-      return true;
-    });
-    return (filtered.length > 0 ? filtered : sample).slice(0, limit);
+    return [];
   },
 
   /**
@@ -1524,16 +1512,7 @@ export const api = {
       console.warn('Error fetching product taxonomy counts from Supabase:', err);
     }
 
-    // Fallback: extract taxonomy items from sample products
-    return SAMPLE_PRODUCTS.map((p) => ({
-      id: p.id,
-      category_id: p.category_id,
-      subcategory_id: p.subcategory_id,
-      collections: p.collections,
-      tags: p.tags,
-      category_name: p.category_name,
-      product_type: p.product_type,
-    }));
+    return [];
   },
 
   // Single Product by slug (Direct Supabase)
@@ -1558,8 +1537,7 @@ export const api = {
     } catch (e) {
       console.warn('Error fetching product by slug from Supabase:', e);
     }
-    const fallback = SAMPLE_PRODUCTS.find((p: Product) => p.slug === slug);
-    return fallback ? sanitizeProduct(fallback) : null;
+    return null;
   },
 
   // Single Product by ID (Direct Supabase)
@@ -1590,8 +1568,7 @@ export const api = {
     } catch (e) {
       console.warn('Error fetching product by ID from Supabase:', e);
     }
-    const fallback = SAMPLE_PRODUCTS.find((p: Product) => p.id === id || p.slug === id);
-    return fallback ? sanitizeProduct(fallback) : null;
+    return null;
   },
 
   // Save / Update Product (Direct Supabase)
@@ -4511,42 +4488,7 @@ export const api = {
       return items;
     }
 
-    const SAMPLE_FALLBACK: MediaItem[] = [
-      {
-        id: 'med_sample_1',
-        r2_key: 'products/hero-landscape.webp',
-        original_filename: 'hero-landscape.jpg',
-        stored_filename: 'hero-landscape.webp',
-        mime_type: 'image/webp',
-        width: 2400,
-        height: 3000,
-        file_size: 685000,
-        file_hash: '7a9b8c1d2e3f4a5b6c7d8e9f0a1b2c3d',
-        media_type: 'product',
-        storage_provider: 'cloudflare_r2',
-        created_at: new Date().toISOString(),
-        product_reference_count: 2,
-        is_orphan: false,
-      },
-      {
-        id: 'med_sample_2',
-        r2_key: 'products/hero-mobile.webp',
-        original_filename: 'hero-mobile.jpg',
-        stored_filename: 'hero-mobile.webp',
-        mime_type: 'image/webp',
-        width: 2400,
-        height: 3000,
-        file_size: 542000,
-        file_hash: '9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c',
-        media_type: 'product',
-        storage_provider: 'cloudflare_r2',
-        created_at: new Date().toISOString(),
-        product_reference_count: 1,
-        is_orphan: false,
-      },
-    ];
-
-    return localMedia.length > 0 ? localMedia : SAMPLE_FALLBACK;
+    return localMedia;
   },
 
   async uploadMediaFile(

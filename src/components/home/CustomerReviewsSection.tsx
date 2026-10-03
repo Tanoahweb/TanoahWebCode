@@ -21,7 +21,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { api, ProductReview } from '../../services/api';
 import { Product } from '../../types';
 
-// Curated luxury testimonials as graceful initial fallback
+// Curated luxury testimonials as graceful fallback text without heavy images
 const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
   {
     id: 'curated-1',
@@ -31,7 +31,7 @@ const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
     rating: 5,
     title: 'Unmatched Fabric Quality & Drape',
     review_text: 'The Heavyweight Oversized Tee exceeded all my expectations. The neckline holds its shape perfectly after dozens of washes, and the cut has that high-end designer feel.',
-    image_urls: ['/Assets/editorial/lookbook-hero-ivory.jpg'],
+    image_urls: [],
     is_verified_buyer: true,
     status: 'approved',
     is_featured: true,
@@ -45,7 +45,7 @@ const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
     rating: 5,
     title: 'The Linen Camp Shirt is Perfection',
     review_text: 'Pure effortless luxury. The French linen breathability is incredible in warm weather, and the subtle button detailing speaks volumes of the craft.',
-    image_urls: ['/Assets/editorial/lookbook-detail-embroidery.jpg'],
+    image_urls: [],
     is_verified_buyer: true,
     status: 'approved',
     is_featured: true,
@@ -59,7 +59,7 @@ const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
     rating: 5,
     title: 'Tailored Wide Trousers - 10/10',
     review_text: 'The drape and movement on these trousers are flawless. Received countless compliments at a gallery opening. Truly world-class tailoring.',
-    image_urls: ['/Assets/editorial/lookbook-hero-ivory.jpg'],
+    image_urls: [],
     is_verified_buyer: true,
     status: 'approved',
     is_featured: true,
@@ -73,7 +73,7 @@ const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
     rating: 5,
     title: 'Packaging & Delivery Like a Paris Boutique',
     review_text: 'Arrived in two days in a gorgeous branded matte box with tissue wrapping and a handwritten note. The silk slip dress fits like a glove.',
-    image_urls: ['/Assets/editorial/lookbook-detail-embroidery.jpg'],
+    image_urls: [],
     is_verified_buyer: true,
     status: 'approved',
     is_featured: true,
@@ -85,7 +85,7 @@ export const CustomerReviewsSection: React.FC = () => {
   const { addToast } = useUIStore();
   const { user, profile } = useAuthStore();
 
-  const [reviews, setReviews] = useState<ProductReview[]>(CURATED_FALLBACK_TESTIMONIALS);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -134,6 +134,8 @@ export const CustomerReviewsSection: React.FC = () => {
         if (isMounted) {
           if (featReviews && featReviews.length > 0) {
             setReviews(featReviews);
+          } else {
+            setReviews(CURATED_FALLBACK_TESTIMONIALS);
           }
           if (prods && prods.length > 0) {
             setProducts(prods);
@@ -373,9 +375,37 @@ export const CustomerReviewsSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile Horizontal Auto-Sliding Carousel */}
-        <div
-          className="md:hidden relative overflow-hidden"
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={`rev-skel-${i}`}
+                className="bg-white p-7 rounded-[4px] border border-[#E7E7E7] shadow-xs flex flex-col justify-between animate-pulse min-h-[240px]"
+              >
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="h-3.5 bg-[#EAEAEA] rounded w-24" />
+                    <div className="h-3.5 bg-[#EAEAEA] rounded w-20" />
+                  </div>
+                  <div className="h-4 bg-[#EAEAEA] rounded w-44" />
+                  <div className="space-y-1.5 pt-1">
+                    <div className="h-3 bg-[#EAEAEA] rounded w-full" />
+                    <div className="h-3 bg-[#EAEAEA] rounded w-5/6" />
+                    <div className="h-3 bg-[#EAEAEA] rounded w-2/3" />
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-[#E7E7E7] mt-4 flex justify-between items-center">
+                  <div className="h-3 bg-[#EAEAEA] rounded w-28" />
+                  <div className="h-3 bg-[#EAEAEA] rounded w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : reviews.length === 0 ? null : (
+          <>
+            {/* Mobile Horizontal Auto-Sliding Carousel */}
+            <div
+              className="md:hidden relative overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -613,6 +643,8 @@ export const CustomerReviewsSection: React.FC = () => {
             </button>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Mandatory Login Prompt Modal */}

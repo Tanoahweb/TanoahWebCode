@@ -127,7 +127,7 @@ export const CollectionsPage: React.FC = () => {
       title: name.trim(),
       slug: slug.trim() || name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
       description: description.trim(),
-      banner_image: bannerImage || '/Assets/hero/hero-landscape.jpg',
+      banner_image: bannerImage || '',
       is_smart: false,
       is_active: isActive,
       sort_order: editingCollection ? editingCollection.sort_order : collections.length + 1,
@@ -210,7 +210,7 @@ export const CollectionsPage: React.FC = () => {
           collection_slug: targetValue,
           title: cat.name.toUpperCase(),
           subtitle: cat.description || `${cat.name} Curated Edition`,
-          image: cat.image_url || '/Assets/hero/hero-mobile.jpg',
+          image: cat.image_url || '',
           link: `/collections/all?category=${cat.slug}`,
         });
         return;
@@ -226,7 +226,7 @@ export const CollectionsPage: React.FC = () => {
           collection_slug: targetValue,
           title: sub.name.toUpperCase(),
           subtitle: sub.description || `${sub.name} Edition`,
-          image: sub.image_url || '/Assets/hero/hero-mobile.jpg',
+          image: sub.image_url || '',
           link: `/collections/all?subcategory=${sub.slug}`,
         });
         return;
@@ -241,7 +241,7 @@ export const CollectionsPage: React.FC = () => {
         collection_slug: col.slug,
         title: col.title.toUpperCase(),
         subtitle: col.description || `${col.title} Curated Edition`,
-        image: col.banner_image || '/Assets/hero/hero-mobile.jpg',
+        image: col.banner_image || '',
         link: `/collections/${col.slug}`,
       });
     }
@@ -290,7 +290,7 @@ export const CollectionsPage: React.FC = () => {
       id: `fc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       title: col ? col.title.toUpperCase() : 'NEW EDITION',
       subtitle: col?.description || 'Curated Editorial Pieces',
-      image: col?.banner_image || '/Assets/hero/hero-mobile.jpg',
+      image: col?.banner_image || '',
       link: col ? `/collections/${col.slug}` : '/collections/all',
       collection_slug: col?.slug,
       collection_id: col?.id,
@@ -320,7 +320,7 @@ export const CollectionsPage: React.FC = () => {
             id: `fc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             title: cat.name.toUpperCase(),
             subtitle: cat.description || `${cat.name} Curated Edition`,
-            image: cat.image_url || '/Assets/hero/hero-mobile.jpg',
+            image: cat.image_url || '',
             link: `/collections/all?category=${cat.slug}`,
             collection_slug: targetValue,
             collection_id: cat.id,
@@ -345,7 +345,7 @@ export const CollectionsPage: React.FC = () => {
             id: `fc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             title: sub.name.toUpperCase(),
             subtitle: sub.description || `${sub.name} Edition`,
-            image: sub.image_url || '/Assets/hero/hero-mobile.jpg',
+            image: sub.image_url || '',
             link: `/collections/all?subcategory=${sub.slug}`,
             collection_slug: targetValue,
             collection_id: sub.id,
@@ -541,8 +541,12 @@ export const CollectionsPage: React.FC = () => {
                             <div className="flex items-center gap-3">
                               <div className="w-12 h-14 bg-neutral-100 rounded-[2px] overflow-hidden border border-[#E7E7E7] shrink-0">
                                 <img
-                                  src={col.banner_image || '/Assets/hero/hero-mobile.jpg'}
+                                  src={col.banner_image || '/Assets/products/placeholder-product.svg'}
                                   alt=""
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    e.currentTarget.src = '/Assets/products/placeholder-product.svg';
+                                  }}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
@@ -1031,9 +1035,17 @@ export const CollectionsPage: React.FC = () => {
                         : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
                     }`}
                   >
-                    {showcaseConfig.items
-                      .filter((cat) => cat.is_active !== false)
-                      .map((cat) => {
+                    {isLoading ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <div
+                          key={`showcase-skel-${idx}`}
+                          className="aspect-[4/5] min-h-[380px] rounded-[4px] bg-[#F0F0F0] animate-pulse border border-[#E7E7E7]"
+                        />
+                      ))
+                    ) : (
+                      showcaseConfig.items
+                        .filter((cat) => cat.is_active !== false)
+                        .map((cat) => {
                         const isSquare = showcaseConfig.aspect_ratio === '1:1';
                         return (
                           <div
@@ -1044,10 +1056,12 @@ export const CollectionsPage: React.FC = () => {
                             }`}
                           >
                             <img
-                              src={cat.image || '/Assets/hero/hero-mobile.jpg'}
+                              src={cat.image || '/Assets/products/placeholder-product.svg'}
                               alt={cat.title}
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
-                                e.currentTarget.src = '/Assets/hero/hero-mobile.jpg';
+                                e.currentTarget.src = '/Assets/products/placeholder-product.svg';
                               }}
                               className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
                             />
@@ -1070,7 +1084,8 @@ export const CollectionsPage: React.FC = () => {
                             </div>
                           </div>
                         );
-                      })}
+                      })
+                    )}
                   </div>
                 </div>
 

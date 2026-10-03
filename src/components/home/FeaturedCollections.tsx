@@ -3,16 +3,17 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { useGsapReveal } from '../../hooks/useGsapReveal';
 import { FeaturedCollectionsConfig } from '../../types';
-import { DEFAULT_FEATURED_COLLECTIONS_CONFIG } from '../../data/mockData';
 import { api } from '../../services/api';
 
 export const FeaturedCollections: React.FC = () => {
   const containerRef = useGsapReveal({ stagger: 0.12 });
-  const [config, setConfig] = useState<FeaturedCollectionsConfig>(DEFAULT_FEATURED_COLLECTIONS_CONFIG);
+  const [config, setConfig] = useState<FeaturedCollectionsConfig | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     let isMounted = true;
     const loadConfig = async () => {
+      setIsLoading(true);
       try {
         const loaded = await api.getFeaturedCollectionsConfig();
         if (isMounted && loaded) {
@@ -20,6 +21,8 @@ export const FeaturedCollections: React.FC = () => {
         }
       } catch (e) {
         console.warn('Could not load featured collections config:', e);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -28,6 +31,7 @@ export const FeaturedCollections: React.FC = () => {
     const handleUpdate = (e: CustomEvent<FeaturedCollectionsConfig>) => {
       if (e.detail) {
         setConfig(e.detail);
+        setIsLoading(false);
       } else {
         loadConfig();
       }
@@ -40,8 +44,8 @@ export const FeaturedCollections: React.FC = () => {
     };
   }, []);
 
-  const activeItems = (config.items || []).filter((cat) => cat.is_active !== false);
-  const isSquare = config.aspect_ratio === '1:1';
+  const activeItems = (config?.items || []).filter((cat) => cat.is_active !== false);
+  const isSquare = config?.aspect_ratio === '1:1';
 
   // Responsive grid layout based on number of active items
   const getGridColsClass = (count: number) => {
@@ -51,59 +55,83 @@ export const FeaturedCollections: React.FC = () => {
     return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
   };
 
+  // If loading has finished and there are no active items configured, omit section
+  if (!isLoading && activeItems.length === 0) {
+    return null;
+  }
+
   return (
     <section className="py-20 bg-white border-b border-[#E7E7E7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-xl mx-auto mb-12">
           <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
-            {config.section_subtitle || 'CURATED CATEGORIES'}
+            {config?.section_subtitle || 'CURATED CATEGORIES'}
           </span>
           <h2 className="font-wondra text-3xl sm:text-4xl text-black">
-            {config.section_title || 'EXPLORE THE EDITIONS'}
+            {config?.section_title || 'EXPLORE THE EDITIONS'}
           </h2>
         </div>
 
-        <div
-          ref={containerRef}
-          className={`grid gap-6 ${getGridColsClass(activeItems.length)}`}
-        >
-          {activeItems.map((cat) => (
-            <Link
-              key={cat.id || cat.title}
-              to={cat.link}
-              style={{ aspectRatio: isSquare ? '1 / 1' : '4 / 5' }}
-              className={`group relative rounded-[4px] overflow-hidden border border-[#E7E7E7] stagger-item flex flex-col justify-end p-8 ${
-                isSquare ? 'aspect-square' : 'aspect-[4/5] min-h-[440px]'
-              }`}
-            >
-              <img
-                src={cat.image || '/Assets/hero/hero-mobile.jpg'}
-                alt={cat.title}
-                onError={(e) => {
-                  e.currentTarget.src = '/Assets/hero/hero-mobile.jpg';
-                }}
-                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-              <div className="relative z-10 text-white space-y-1">
-                {cat.subtitle && (
-                  <span className="text-[10px] tracking-widest uppercase font-poppins text-white/80 line-clamp-1 block">
-                    {cat.subtitle}
-                  </span>
-                )}
-                <h3 className="font-wondra text-2xl text-white group-hover:text-[#EEEEF8] transition-colors leading-snug">
-                  {cat.title}
-                </h3>
-                <div className="pt-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-poppins font-semibold uppercase tracking-wider text-white underline underline-offset-4 group-hover:text-[#EEEEF8]">
-                    DISCOVER NOW <ArrowUpRight className="w-4 h-4" />
-                  </span>
+        {isLoading ? (
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={`fc-skel-${i}`}
+                className="aspect-[4/5] min-h-[440px] rounded-[4px] bg-[#F4F4F3] border border-[#E7E7E7] animate-pulse flex flex-col justify-end p-8"
+              >
+                <div className="space-y-3">
+                  <div className="h-3 bg-[#EAEAEA] rounded w-24" />
+                  <div className="h-6 bg-[#EAEAEA] rounded w-44" />
+                  <div className="h-3 bg-[#EAEAEA] rounded w-28" />
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            className={`grid gap-6 ${getGridColsClass(activeItems.length)}`}
+          >
+            {activeItems.map((cat) => (
+              <Link
+                key={cat.id || cat.title}
+                to={cat.link}
+                style={{ aspectRatio: isSquare ? '1 / 1' : '4 / 5' }}
+                className={`group relative rounded-[4px] overflow-hidden border border-[#E7E7E7] stagger-item flex flex-col justify-end p-8 ${
+                  isSquare ? 'aspect-square' : 'aspect-[4/5] min-h-[440px]'
+                }`}
+              >
+                <img
+                  src={cat.image || '/Assets/products/placeholder-product.svg'}
+                  alt={cat.title}
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.src = '/Assets/products/placeholder-product.svg';
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+
+                <div className="relative z-10 text-white space-y-1">
+                  {cat.subtitle && (
+                    <span className="text-[10px] tracking-widest uppercase font-poppins text-white/80 line-clamp-1 block">
+                      {cat.subtitle}
+                    </span>
+                  )}
+                  <h3 className="font-wondra text-2xl text-white group-hover:text-[#EEEEF8] transition-colors leading-snug">
+                    {cat.title}
+                  </h3>
+                  <div className="pt-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-poppins font-semibold uppercase tracking-wider text-white underline underline-offset-4 group-hover:text-[#EEEEF8]">
+                      DISCOVER NOW <ArrowUpRight className="w-4 h-4" />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

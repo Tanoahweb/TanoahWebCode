@@ -118,12 +118,18 @@ export const EditorialLookbookSection: React.FC = () => {
           <div className="lg:col-span-7 relative">
             {/* Main Editorial Hero Frame */}
             <div className="relative aspect-[3/4] sm:aspect-[4/5] rounded-[4px] overflow-hidden bg-[#ECECEB] border border-[#E7E7E7] shadow-xl group">
-              <img
-                key={currentLook.heroImage}
-                src={currentLook.heroImage}
-                alt={currentLook.heroAlt}
-                className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
-              />
+              {!hasLoaded ? (
+                <div className="w-full h-full bg-[#EAEAEA] animate-pulse" />
+              ) : (
+                <img
+                  key={currentLook.heroImage}
+                  src={currentLook.heroImage}
+                  alt={currentLook.heroAlt}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
+                />
+              )}
 
               {/* Editorial Frame Badge */}
               <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-[2px] border border-black/5 shadow-sm text-left">
@@ -135,11 +141,17 @@ export const EditorialLookbookSection: React.FC = () => {
 
             {/* Overlapping Floating Detail Card */}
             <div className="absolute -bottom-6 -right-2 sm:-bottom-8 sm:-right-6 w-44 sm:w-56 aspect-[3/4] rounded-[4px] overflow-hidden border-4 border-white shadow-2xl bg-white transition-all duration-500 hover:-translate-y-1.5">
-              <img
-                src={currentLook.detailImage}
-                alt={currentLook.detailAlt}
-                className="w-full h-full object-cover"
-              />
+              {!hasLoaded ? (
+                <div className="w-full h-full bg-[#EAEAEA] animate-pulse" />
+              ) : (
+                <img
+                  src={currentLook.detailImage}
+                  alt={currentLook.detailAlt}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
+              )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-3 text-left">
                 <span className="text-[9px] uppercase tracking-wider text-white/70 block font-poppins">
                   FIG. 01 — TACTILE CRAFT

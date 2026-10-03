@@ -5,7 +5,6 @@ import { useUIStore } from '../../store/useUIStore';
 import { formatPrice, computeProductPricing } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { Product } from '../../types';
-import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { getLenis } from '../../animations/smoothScroll';
 import { trackSearch } from '../../services/analytics';
 
@@ -21,7 +20,8 @@ const POPULAR_SEARCHES = [
 export const SearchOverlay: React.FC = () => {
   const { isSearchOpen, closeSearch } = useUIStore();
   const [query, setQuery] = useState('');
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(true);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -29,10 +29,13 @@ export const SearchOverlay: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const loadProducts = () => {
+      setIsCatalogLoading(true);
       api.getProducts('active').then((data) => {
         if (isMounted && data && data.length > 0) {
           setCatalogProducts(data);
         }
+      }).finally(() => {
+        if (isMounted) setIsCatalogLoading(false);
       });
     };
 
@@ -196,7 +199,20 @@ export const SearchOverlay: React.FC = () => {
                   )}
                 </div>
 
-                {filteredResults.length === 0 ? (
+                {isCatalogLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={`srch-skel-${i}`} className="flex gap-3 p-2.5 rounded-[4px] border border-[#E7E7E7] animate-pulse">
+                        <div className="w-16 h-20 bg-[#F0F0F0] rounded-[2px] shrink-0" />
+                        <div className="flex-1 space-y-2 py-2">
+                          <div className="h-2.5 bg-[#F0F0F0] rounded w-16" />
+                          <div className="h-3.5 bg-[#F0F0F0] rounded w-24" />
+                          <div className="h-3 bg-[#F0F0F0] rounded w-14" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredResults.length === 0 ? (
                   <div className="py-12 text-center space-y-2">
                     <p className="text-sm font-poppins text-[#666666]">
                       No fashion items matched <strong className="text-black">"{query}"</strong>
