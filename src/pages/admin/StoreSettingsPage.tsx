@@ -172,7 +172,9 @@ export const StoreSettingsPage: React.FC = () => {
           contactEmail: s.contact_email || s.contactEmail || 'connectus.tanoah@gmail.com',
           phone: s.contact_phone || s.phone || '+91 8714141849',
           freeShippingThreshold: s.free_shipping_threshold || s.freeShippingThreshold || 1999,
-          standardShippingFee: s.standard_shipping_rate || s.standardShippingFee || 99,
+          standardShippingFee: s.standard_shipping_rate !== undefined && s.standard_shipping_rate !== null && Number(s.standard_shipping_rate) !== 149
+            ? Number(s.standard_shipping_rate)
+            : 0,
           expressShippingFee: s.express_shipping_rate || s.expressShippingFee || 199,
           gstNumber: s.gst_number || s.gstNumber || '32AAAAA0000A1Z5',
           defaultTaxRate: s.default_tax_rate || s.defaultTaxRate || 5,

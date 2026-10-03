@@ -76,7 +76,7 @@ export const useCartStore = create<CartState>()(
       giftNote: '',
       orderNote: '',
       freeShippingThreshold: 1999,
-      standardShippingFee: 99,
+      standardShippingFee: 0,
 
       setShippingRules: (threshold: number, standardFee?: number) => {
         set((state) => ({
@@ -224,14 +224,16 @@ export const useCartStore = create<CartState>()(
         const subtotal = get().getSubtotal();
         if (subtotal === 0) return 0;
         if (get().isFreeShipping()) return 0;
-        return get().standardShippingFee ?? 99;
+        return get().standardShippingFee ?? 0;
       },
 
       isFreeShipping: () => {
-        const { coupon, freeShippingThreshold } = get();
+        const { coupon, freeShippingThreshold, standardShippingFee } = get();
+        if (standardShippingFee === 0) return true;
         if (coupon?.discount_type === 'free_shipping') {
           if (!coupon.min_spend || get().getSubtotal() >= coupon.min_spend) return true;
         }
+        if (freeShippingThreshold <= 0) return true;
         return get().getSubtotal() >= freeShippingThreshold;
       },
 

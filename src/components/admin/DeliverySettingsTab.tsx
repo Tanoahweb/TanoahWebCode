@@ -233,10 +233,12 @@ export const DeliverySettingsTab: React.FC = () => {
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
+      const defaultTier = tiers.find((t) => t.is_default && t.is_active) || tiers.find((t) => t.is_active) || tiers[0];
       const [saveSpeedsRes, saveSettingsRes] = await Promise.all([
         api.saveDeliverySpeeds(tiers),
         api.saveStoreSettings({
           free_shipping_threshold: Number(freeShippingThreshold),
+          standard_shipping_rate: defaultTier ? Number(defaultTier.charge) : 0,
           delivery_speeds_config: tiers,
         }),
       ]);

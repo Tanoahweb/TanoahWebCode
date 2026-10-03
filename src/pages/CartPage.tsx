@@ -39,10 +39,15 @@ export const CartPage: React.FC = () => {
     let isMounted = true;
     api.getStoreSettings().then((settings) => {
       if (isMounted && settings) {
-        useCartStore.getState().setShippingRules(
-          Number(settings.free_shipping_threshold) || 1999,
-          Number(settings.standard_shipping_rate) || 99
-        );
+        const speeds = (settings.delivery_speeds_config as any[]) || [];
+        const activeSpeeds = speeds.filter((s) => s.is_active);
+        const defaultTier = activeSpeeds.find((s) => s.is_default) || activeSpeeds[0];
+        const fee = defaultTier !== undefined
+          ? Number(defaultTier.charge)
+          : (Number(settings.standard_shipping_rate) === 149 ? 0 : Number(settings.standard_shipping_rate) || 0);
+        const rawThreshold = Number(settings.free_shipping_threshold);
+        const threshold = !isNaN(rawThreshold) ? rawThreshold : 1999;
+        useCartStore.getState().setShippingRules(threshold, fee);
       }
     });
     return () => {
