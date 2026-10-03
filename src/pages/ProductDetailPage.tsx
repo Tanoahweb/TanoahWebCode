@@ -602,14 +602,14 @@ export const ProductDetailPage: React.FC = () => {
 
   const avgRating = reviews.length > 0
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
-    : '5.0';
+    : '0.0';
 
   const totalReviewsCount = reviews.length;
 
   // 5-to-1 Star Distribution (Myntra-style)
   const ratingDistribution = [5, 4, 3, 2, 1].map((stars) => {
     const count = reviews.filter((r) => r.rating === stars).length;
-    const percentage = totalReviewsCount > 0 ? Math.round((count / totalReviewsCount) * 100) : (stars === 5 ? 100 : 0);
+    const percentage = totalReviewsCount > 0 ? Math.round((count / totalReviewsCount) * 100) : 0;
     return { stars, count, percentage };
   });
 
@@ -1279,18 +1279,31 @@ export const ProductDetailPage: React.FC = () => {
                     ? product.collections.join(' • ').toUpperCase()
                     : 'TANOAH ATELIER'}
                 </span>
-                <div 
-                  onClick={() => {
-                    const el = document.getElementById('ratings-and-reviews-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="flex items-center gap-1 text-[#3F3F8F] text-xs cursor-pointer hover:underline"
-                  title="View client ratings and customer photos"
-                >
-                  <Star className="w-3.5 h-3.5 fill-current" />
-                  <span className="font-semibold">{avgRating}</span>
-                  <span className="text-[#888888]">({reviews.length} reviews)</span>
-                </div>
+                {reviews.length > 0 ? (
+                  <div 
+                    onClick={() => {
+                      const el = document.getElementById('ratings-and-reviews-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex items-center gap-1 text-[#3F3F8F] text-xs cursor-pointer hover:underline"
+                    title="View client ratings and customer photos"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-current" />
+                    <span className="font-semibold">{avgRating}</span>
+                    <span className="text-[#888888]">({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})</span>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => {
+                      const el = document.getElementById('ratings-and-reviews-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[#888888] hover:text-black cursor-pointer transition-colors"
+                  >
+                    <Star className="w-3.5 h-3.5 text-neutral-300" />
+                    <span>No reviews yet</span>
+                  </div>
+                )}
               </div>
 
               <h1 className="font-wondra text-3xl sm:text-4xl text-black mt-1 leading-tight">
@@ -1658,44 +1671,65 @@ export const ProductDetailPage: React.FC = () => {
                 >
                   <span className="flex items-center gap-2">
                     <span>CLIENT REVIEWS ({reviews.length})</span>
-                    <span className="flex text-amber-500 text-xs">
-                      {'★'.repeat(Math.min(5, Math.max(1, Math.round(Number(avgRating)))))}
-                    </span>
+                    {reviews.length > 0 && (
+                      <span className="flex text-amber-500 text-xs">
+                        {'★'.repeat(Math.min(5, Math.max(1, Math.round(Number(avgRating)))))}
+                      </span>
+                    )}
                   </span>
                   {openAccordion === 'reviews' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {openAccordion === 'reviews' && (
                   <div className="pt-3 space-y-4">
-                    <div className="flex justify-between items-center border-b border-[#E7E7E7] pb-3">
-                      <div>
-                        <div className="font-semibold text-black">Verified Buyer Reviews</div>
-                        <div className="text-[11px] text-[#666666]">Average Rating: {avgRating} / 5.0 ({reviews.length})</div>
+                    {reviews.length > 0 ? (
+                      <>
+                        <div className="flex justify-between items-center border-b border-[#E7E7E7] pb-3">
+                          <div>
+                            <div className="font-semibold text-black">Verified Buyer Reviews</div>
+                            <div className="text-[11px] text-[#666666]">Average Rating: {avgRating} / 5.0 ({reviews.length})</div>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleOpenReviewModal}
+                            isLoading={isCheckingPurchase}
+                            className="text-[11px]"
+                          >
+                            WRITE A REVIEW
+                          </Button>
+                        </div>
+
+                        <p className="text-xs text-[#666666] leading-relaxed">
+                          Read authentic client feedback and inspect real customer photos for this silhouette.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById('ratings-and-reviews-section');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="w-full py-2 bg-neutral-100 hover:bg-neutral-200 text-black text-xs font-semibold rounded uppercase tracking-wider transition-colors text-center block"
+                        >
+                          View Full Ratings & Customer Photos ({customerPhotos.length}) ↓
+                        </button>
+                      </>
+                    ) : (
+                      <div className="py-2 space-y-3">
+                        <p className="text-xs text-[#666666] leading-relaxed">
+                          No reviews yet. Be the first verified buyer to share your feedback on this silhouette.
+                        </p>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleOpenReviewModal}
+                          isLoading={isCheckingPurchase}
+                          className="text-[11px] w-full"
+                        >
+                          WRITE A REVIEW
+                        </Button>
                       </div>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleOpenReviewModal}
-                        isLoading={isCheckingPurchase}
-                        className="text-[11px]"
-                      >
-                        WRITE A REVIEW
-                      </Button>
-                    </div>
-
-                    <p className="text-xs text-[#666666] leading-relaxed">
-                      Read authentic client feedback and inspect real customer photos for this silhouette.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const el = document.getElementById('ratings-and-reviews-section');
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="w-full py-2 bg-neutral-100 hover:bg-neutral-200 text-black text-xs font-semibold rounded uppercase tracking-wider transition-colors text-center block"
-                    >
-                      View Full Ratings & Customer Photos ({customerPhotos.length}) ↓
-                    </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1734,8 +1768,32 @@ export const ProductDetailPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Top Rating Summary Card & Distribution Bar Chart (Myntra Layout) */}
-          <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-6 sm:p-8 mb-10">
+          {reviews.length === 0 ? (
+            <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-10 sm:p-14 text-center max-w-xl mx-auto my-6">
+              <div className="w-12 h-12 rounded-full bg-white border border-[#E7E7E7] flex items-center justify-center mx-auto mb-4 text-[#888888] shadow-xs">
+                <Star className="w-5 h-5 text-neutral-400 stroke-1" />
+              </div>
+              <h3 className="font-wondra text-xl sm:text-2xl text-black mb-2">
+                NO REVIEWS YET
+              </h3>
+              <p className="text-xs text-[#666666] font-poppins leading-relaxed max-w-md mx-auto mb-6">
+                There are currently no customer reviews for this silhouette. Verified patrons who have purchased this piece are invited to share their experience.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleOpenReviewModal}
+                isLoading={isCheckingPurchase}
+                icon={<MessageSquarePlus className="w-3.5 h-3.5" />}
+                className="text-xs uppercase tracking-wider px-6 py-2.5 mx-auto"
+              >
+                Write The First Review
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Top Rating Summary Card & Distribution Bar Chart (Myntra Layout) */}
+              <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-6 sm:p-8 mb-10">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
               {/* Left: Overall Big Score */}
               <div className="md:col-span-4 flex flex-col items-center md:items-start justify-center border-b md:border-b-0 md:border-r border-[#E7E7E7] pb-6 md:pb-0 md:pr-8">
@@ -1879,19 +1937,18 @@ export const ProductDetailPage: React.FC = () => {
           {/* Individual Reviews Cards List */}
           {filteredReviews.length === 0 ? (
             <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-10 text-center">
-              <Star className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
-              <h3 className="font-semibold text-black text-base">No reviews match your selection</h3>
+              <Star className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
+              <h3 className="font-semibold text-black text-sm">No reviews match your filter</h3>
               <p className="text-xs text-[#666666] mt-1 mb-4">
-                Be the first verified connoisseur to review this silhouette.
+                Try selecting another rating or view all reviews for this silhouette.
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleOpenReviewModal}
-                isLoading={isCheckingPurchase}
+                onClick={() => setReviewsFilter('all')}
                 className="text-xs uppercase"
               >
-                Write a Review
+                View All Reviews ({reviews.length})
               </Button>
             </div>
           ) : (
@@ -1994,6 +2051,8 @@ export const ProductDetailPage: React.FC = () => {
                 );
               })}
             </div>
+          )}
+            </>
           )}
         </div>
 

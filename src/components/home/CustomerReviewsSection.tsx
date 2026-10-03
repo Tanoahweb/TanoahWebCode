@@ -21,66 +21,6 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { api, ProductReview } from '../../services/api';
 import { Product } from '../../types';
 
-// Curated luxury testimonials as graceful fallback text without heavy images
-const CURATED_FALLBACK_TESTIMONIALS: ProductReview[] = [
-  {
-    id: 'curated-1',
-    product_id: '11111111-1111-1111-1111-111111111111',
-    product_title: 'Signature Heavyweight Oversized Tee',
-    author_name: 'Aarav Mehta (Mumbai)',
-    rating: 5,
-    title: 'Unmatched Fabric Quality & Drape',
-    review_text: 'The Heavyweight Oversized Tee exceeded all my expectations. The neckline holds its shape perfectly after dozens of washes, and the cut has that high-end designer feel.',
-    image_urls: [],
-    is_verified_buyer: true,
-    status: 'approved',
-    is_featured: true,
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-  {
-    id: 'curated-2',
-    product_id: '22222222-2222-2222-2222-222222222222',
-    product_title: 'French Linen Relaxed Camp Shirt',
-    author_name: 'Ananya Sharma (Bengaluru)',
-    rating: 5,
-    title: 'The Linen Camp Shirt is Perfection',
-    review_text: 'Pure effortless luxury. The French linen breathability is incredible in warm weather, and the subtle button detailing speaks volumes of the craft.',
-    image_urls: [],
-    is_verified_buyer: true,
-    status: 'approved',
-    is_featured: true,
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-  },
-  {
-    id: 'curated-3',
-    product_id: '44444444-4444-4444-4444-444444444444',
-    product_title: 'Tailored Wide-Leg Pleated Trouser',
-    author_name: 'Rohan Verma (New Delhi)',
-    rating: 5,
-    title: 'Tailored Wide Trousers - 10/10',
-    review_text: 'The drape and movement on these trousers are flawless. Received countless compliments at a gallery opening. Truly world-class tailoring.',
-    image_urls: [],
-    is_verified_buyer: true,
-    status: 'approved',
-    is_featured: true,
-    created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
-  },
-  {
-    id: 'curated-4',
-    product_id: '33333333-3333-3333-3333-333333333333',
-    product_title: 'Silk Crepe Fluid Slip Dress',
-    author_name: 'Priya Iyer (Chennai)',
-    rating: 5,
-    title: 'Packaging & Delivery Like a Paris Boutique',
-    review_text: 'Arrived in two days in a gorgeous branded matte box with tissue wrapping and a handwritten note. The silk slip dress fits like a glove.',
-    image_urls: [],
-    is_verified_buyer: true,
-    status: 'approved',
-    is_featured: true,
-    created_at: new Date(Date.now() - 86400000 * 18).toISOString(),
-  },
-];
-
 export const CustomerReviewsSection: React.FC = () => {
   const { addToast } = useUIStore();
   const { user, profile } = useAuthStore();
@@ -135,7 +75,7 @@ export const CustomerReviewsSection: React.FC = () => {
           if (featReviews && featReviews.length > 0) {
             setReviews(featReviews);
           } else {
-            setReviews(CURATED_FALLBACK_TESTIMONIALS);
+            setReviews([]);
           }
           if (prods && prods.length > 0) {
             setProducts(prods);
@@ -143,7 +83,8 @@ export const CustomerReviewsSection: React.FC = () => {
           }
         }
       } catch (err) {
-        console.warn('Testimonials load fallback:', err);
+        console.warn('Testimonials load error:', err);
+        if (isMounted) setReviews([]);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -326,6 +267,16 @@ export const CustomerReviewsSection: React.FC = () => {
     }
   };
 
+  // If no reviews available or still loading, do not render this section on the home screen
+  if (isLoading || reviews.length === 0) {
+    return null;
+  }
+
+  // Calculate dynamic average rating from genuine reviews
+  const avgRating = (
+    reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / reviews.length
+  ).toFixed(1);
+
   // Visible carousel items (up to 3)
   const visibleReviews: ProductReview[] = [];
   const displayCount = Math.min(3, reviews.length);
@@ -346,12 +297,12 @@ export const CustomerReviewsSection: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="flex text-amber-500">
-                {[...Array(5)].map((_, i) => (
+                {[...Array(Math.min(5, Math.max(1, Math.round(Number(avgRating)))))].map((_, i) => (
                   <Star key={i} className="w-4 h-4 fill-current" />
                 ))}
               </div>
-              <span className="font-bold text-black text-sm">4.9 / 5.0</span>
-              <span className="text-[#888888] text-xs">• Verified Customer Reviews</span>
+              <span className="font-bold text-black text-sm">{avgRating} / 5.0</span>
+              <span className="text-[#888888] text-xs">• Verified Customer Reviews ({reviews.length})</span>
             </div>
             <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase block mb-1">
               CLIENT TESTIMONIALS
@@ -375,37 +326,9 @@ export const CustomerReviewsSection: React.FC = () => {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={`rev-skel-${i}`}
-                className="bg-white p-7 rounded-[4px] border border-[#E7E7E7] shadow-xs flex flex-col justify-between animate-pulse min-h-[240px]"
-              >
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="h-3.5 bg-[#EAEAEA] rounded w-24" />
-                    <div className="h-3.5 bg-[#EAEAEA] rounded w-20" />
-                  </div>
-                  <div className="h-4 bg-[#EAEAEA] rounded w-44" />
-                  <div className="space-y-1.5 pt-1">
-                    <div className="h-3 bg-[#EAEAEA] rounded w-full" />
-                    <div className="h-3 bg-[#EAEAEA] rounded w-5/6" />
-                    <div className="h-3 bg-[#EAEAEA] rounded w-2/3" />
-                  </div>
-                </div>
-                <div className="pt-4 border-t border-[#E7E7E7] mt-4 flex justify-between items-center">
-                  <div className="h-3 bg-[#EAEAEA] rounded w-28" />
-                  <div className="h-3 bg-[#EAEAEA] rounded w-20" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : reviews.length === 0 ? null : (
-          <>
-            {/* Mobile Horizontal Auto-Sliding Carousel */}
-            <div
-              className="md:hidden relative overflow-hidden"
+        {/* Mobile Horizontal Auto-Sliding Carousel */}
+        <div
+          className="md:hidden relative overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -643,8 +566,6 @@ export const CustomerReviewsSection: React.FC = () => {
             </button>
           </div>
         </div>
-          </>
-        )}
       </div>
 
       {/* Mandatory Login Prompt Modal */}

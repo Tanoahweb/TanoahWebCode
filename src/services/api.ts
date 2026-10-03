@@ -2253,39 +2253,9 @@ export const api = {
       }
     }
 
-    // Default curated reviews only if no remote or local reviews exist yet
-    const defaultReviews: ProductReview[] = [
-      {
-        id: `rev-${productId}-1`,
-        product_id: productId,
-        author_name: 'Devansh K.',
-        rating: 5,
-        title: 'Impeccable Drape & Material',
-        review_text: 'The tailoring and fabric weight are world-class. Holds structure throughout the entire day without losing shape. Highly recommended.',
-        is_verified_buyer: true,
-        status: 'approved',
-        is_featured: false,
-        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      },
-      {
-        id: `rev-${productId}-2`,
-        product_id: productId,
-        author_name: 'Meera R.',
-        rating: 5,
-        title: 'Effortless Luxury Aesthetic',
-        review_text: 'Subtle, understated elegance. The stitching details and tactile feel match international designer standards.',
-        is_verified_buyer: true,
-        status: 'approved',
-        is_featured: false,
-        created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
-      },
-    ];
-
-    const baseReviews = remoteReviews.length > 0 ? remoteReviews : (localReviews.length > 0 ? [] : defaultReviews);
-    
     // Deduplicate
     const reviewMap = new Map<string, ProductReview>();
-    [...localReviews, ...baseReviews].forEach((r) => {
+    [...localReviews, ...remoteReviews].forEach((r) => {
       if (r.id) reviewMap.set(r.id, r);
     });
 
