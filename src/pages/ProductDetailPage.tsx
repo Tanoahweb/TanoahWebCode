@@ -1279,7 +1279,7 @@ export const ProductDetailPage: React.FC = () => {
                     ? product.collections.join(' • ').toUpperCase()
                     : 'TANOAH ATELIER'}
                 </span>
-                {reviews.length > 0 ? (
+                {reviews.length > 0 && (
                   <div 
                     onClick={() => {
                       const el = document.getElementById('ratings-and-reviews-section');
@@ -1291,17 +1291,6 @@ export const ProductDetailPage: React.FC = () => {
                     <Star className="w-3.5 h-3.5 fill-current" />
                     <span className="font-semibold">{avgRating}</span>
                     <span className="text-[#888888]">({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})</span>
-                  </div>
-                ) : (
-                  <div 
-                    onClick={() => {
-                      const el = document.getElementById('ratings-and-reviews-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="flex items-center gap-1.5 text-xs text-[#888888] hover:text-black cursor-pointer transition-colors"
-                  >
-                    <Star className="w-3.5 h-3.5 text-neutral-300" />
-                    <span>No reviews yet</span>
                   </div>
                 )}
               </div>
@@ -1740,60 +1729,37 @@ export const ProductDetailPage: React.FC = () => {
         {/* ========================================================================= */}
         {/* MYNTRA-STYLE RATINGS & REVIEWS SECTION */}
         {/* ========================================================================= */}
-        <div id="ratings-and-reviews-section" className="mt-20 border-t border-[#E7E7E7] pt-16">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase">
-                  VERIFIED CLIENT FEEDBACK
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                  <ShieldCheck className="w-3 h-3" /> 100% Genuine Verified Reviews
-                </span>
+        {reviews.length > 0 && (
+          <div id="ratings-and-reviews-section" className="mt-20 border-t border-[#E7E7E7] pt-16">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-poppins tracking-widest text-[#3F3F8F] font-semibold uppercase">
+                    VERIFIED CLIENT FEEDBACK
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                    <ShieldCheck className="w-3 h-3" /> 100% Genuine Verified Reviews
+                  </span>
+                </div>
+                <h2 className="font-wondra text-2xl sm:text-3xl text-black">
+                  RATINGS & CUSTOMER REVIEWS
+                </h2>
               </div>
-              <h2 className="font-wondra text-2xl sm:text-3xl text-black">
-                RATINGS & CUSTOMER REVIEWS
-              </h2>
-            </div>
 
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleOpenReviewModal}
-              isLoading={isCheckingPurchase}
-              icon={<MessageSquarePlus className="w-4 h-4" />}
-              className="text-xs uppercase tracking-wider px-6 py-3 shrink-0"
-            >
-              Rate & Review Product
-            </Button>
-          </div>
-
-          {reviews.length === 0 ? (
-            <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-10 sm:p-14 text-center max-w-xl mx-auto my-6">
-              <div className="w-12 h-12 rounded-full bg-white border border-[#E7E7E7] flex items-center justify-center mx-auto mb-4 text-[#888888] shadow-xs">
-                <Star className="w-5 h-5 text-neutral-400 stroke-1" />
-              </div>
-              <h3 className="font-wondra text-xl sm:text-2xl text-black mb-2">
-                NO REVIEWS YET
-              </h3>
-              <p className="text-xs text-[#666666] font-poppins leading-relaxed max-w-md mx-auto mb-6">
-                There are currently no customer reviews for this silhouette. Verified patrons who have purchased this piece are invited to share their experience.
-              </p>
               <Button
                 variant="primary"
-                size="sm"
+                size="md"
                 onClick={handleOpenReviewModal}
                 isLoading={isCheckingPurchase}
-                icon={<MessageSquarePlus className="w-3.5 h-3.5" />}
-                className="text-xs uppercase tracking-wider px-6 py-2.5 mx-auto"
+                icon={<MessageSquarePlus className="w-4 h-4" />}
+                className="text-xs uppercase tracking-wider px-6 py-3 shrink-0"
               >
-                Write The First Review
+                Rate & Review Product
               </Button>
             </div>
-          ) : (
-            <>
-              {/* Top Rating Summary Card & Distribution Bar Chart (Myntra Layout) */}
-              <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-6 sm:p-8 mb-10">
+
+            {/* Top Rating Summary Card & Distribution Bar Chart (Myntra Layout) */}
+            <div className="bg-[#FAFAFA] border border-[#E7E7E7] rounded-lg p-6 sm:p-8 mb-10">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
               {/* Left: Overall Big Score */}
               <div className="md:col-span-4 flex flex-col items-center md:items-start justify-center border-b md:border-b-0 md:border-r border-[#E7E7E7] pb-6 md:pb-0 md:pr-8">
@@ -2052,9 +2018,8 @@ export const ProductDetailPage: React.FC = () => {
               })}
             </div>
           )}
-            </>
-          )}
         </div>
+      )}
 
         {/* Similar Products Section */}
         {(isCatalogLoading || similarProducts.length > 0) && (
