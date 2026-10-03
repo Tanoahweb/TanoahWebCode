@@ -521,6 +521,8 @@ export const SAMPLE_SETTINGS: StoreSettings = {
   low_stock_threshold: 3,
   order_prefix: 'TAN-',
   invoice_prefix: 'INV-TAN-',
+  instagram_url: 'https://www.instagram.com/_tanoah_/',
+  facebook_url: 'https://www.facebook.com/people/Tanoah/61583636080509/',
 };
 
 export const SAMPLE_COUPONS: Coupon[] = [

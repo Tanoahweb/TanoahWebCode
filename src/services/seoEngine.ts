@@ -15,8 +15,8 @@ export const DEFAULT_SEO_CONFIG: StoreSEOConfig = {
   meta_pixel_id: '',
   default_social_image: 'https://tanoah.com/Assets/brand/tanoah-social-share.jpg',
   social_links: {
-    instagram: 'https://instagram.com/tanoah',
-    facebook: 'https://facebook.com/tanoah',
+    instagram: 'https://www.instagram.com/_tanoah_/',
+    facebook: 'https://www.facebook.com/people/Tanoah/61583636080509/',
     pinterest: 'https://pinterest.com/tanoah',
   },
 };

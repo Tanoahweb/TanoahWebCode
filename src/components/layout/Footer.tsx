@@ -7,10 +7,49 @@ import { DEFAULT_NAVIGATION_CONFIG } from '../../data/defaultNavigation';
 import { api } from '../../services/api';
 import { validateEmail } from '../../utils/validation';
 
+const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/_tanoah_/';
+const DEFAULT_FACEBOOK_URL = 'https://www.facebook.com/people/Tanoah/61583636080509/';
+
+const InstagramIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="24"
+    height="24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+);
+
+const FacebookIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="24"
+    height="24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
+
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(1599);
+  const [socialLinks, setSocialLinks] = useState({
+    instagram: DEFAULT_INSTAGRAM_URL,
+    facebook: DEFAULT_FACEBOOK_URL,
+  });
   const { addToast } = useUIStore();
   const { config, hasLoaded, fetchNavigation } = useNavigationStore();
 
@@ -24,6 +63,18 @@ export const Footer: React.FC = () => {
         if (settings?.free_shipping_threshold) {
           setFreeShippingThreshold(Number(settings.free_shipping_threshold));
         }
+        const insta =
+          settings?.instagram_url ||
+          settings?.seo_config?.social_links?.instagram ||
+          DEFAULT_INSTAGRAM_URL;
+        const fb =
+          settings?.facebook_url ||
+          settings?.seo_config?.social_links?.facebook ||
+          DEFAULT_FACEBOOK_URL;
+        setSocialLinks({
+          instagram: insta,
+          facebook: fb,
+        });
       } catch {}
     };
     loadSettings();
@@ -165,6 +216,35 @@ export const Footer: React.FC = () => {
               By subscribing you agree to our Terms and Privacy Policy.
             </p>
           </form>
+
+          {/* Social Media Links */}
+          <div className="pt-2">
+            <span className="text-[11px] font-poppins tracking-wider uppercase font-semibold text-white/90 block mb-3">
+              FOLLOW OUR JOURNEY
+            </span>
+            <div className="flex items-center gap-3">
+              <a
+                href={socialLinks.instagram}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Follow Tanoah on Instagram"
+                title="Follow Tanoah on Instagram"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white text-white hover:text-[#3F3F8F] flex items-center justify-center transition-all duration-200 border border-white/15 hover:border-white shadow-sm hover:scale-105"
+              >
+                <InstagramIcon className="w-4 h-4" />
+              </a>
+              <a
+                href={socialLinks.facebook}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Follow Tanoah on Facebook"
+                title="Follow Tanoah on Facebook"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white text-white hover:text-[#3F3F8F] flex items-center justify-center transition-all duration-200 border border-white/15 hover:border-white shadow-sm hover:scale-105"
+              >
+                <FacebookIcon className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Dynamic Footer Menu Columns */}
