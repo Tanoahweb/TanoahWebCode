@@ -399,7 +399,9 @@ export const CategoriesAdminPage: React.FC = () => {
             <div className="space-y-3">
               {filteredCategories.map((cat) => {
                 const catSubs = subcategories.filter((s) => s.category_id === cat.id);
-                const assignedProds = products.filter((p) => p.category_id === cat.id);
+                const assignedProds = products.filter(
+                  (p) => p.category_id === cat.id || catSubs.some((s) => s.id === p.subcategory_id)
+                );
                 const isExpanded = expandedCategories[cat.id] ?? true;
 
                 return (

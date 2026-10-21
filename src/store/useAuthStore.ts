@@ -59,8 +59,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: async () => {
     set({ isLoading: true });
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
       
+      if (error) {
+        // If the stored refresh token is expired or invalid (HTTP 400), cleanly purge the dead session
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+          if (typeof window !== 'undefined') {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+                localStorage.removeItem(k);
+              }
+            }
+          }
+        }
+        set({ user: null, session: null, profile: null, isAdmin: false, isLoading: false });
+        return;
+      }
+
+      const session = data?.session;
       if (session?.user) {
         const user = session.user;
         const isAdmin = await verifyAdminPrivileges(user);
@@ -84,7 +103,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Listen for auth state changes
-      supabase.auth.onAuthStateChange(async (_event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
+          set({ user: null, session: null, profile: null, isAdmin: false, isLoading: false });
+          return;
+        }
+
         if (session?.user) {
           const user = session.user;
           const isAdmin = await verifyAdminPrivileges(user);
@@ -105,7 +129,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       });
     } catch (err) {
-      console.error('Auth initialization error:', err);
+      console.warn('[useAuthStore] Auth initialization error (handled):', err);
       set({ isLoading: false });
     }
   },

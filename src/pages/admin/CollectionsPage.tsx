@@ -529,10 +529,14 @@ export const CollectionsPage: React.FC = () => {
                   ) : (
                     filtered.map((col) => {
                       const matchingProductsCount = products.filter((p) => {
-                        const colMatch = p.collections?.some((c) => c.toLowerCase() === col.slug.toLowerCase());
-                        const tagMatch = p.tags?.some((t) => t.toLowerCase() === col.slug.toLowerCase());
-                        const catMatch = p.category_name?.toLowerCase().includes(col.slug.toLowerCase());
-                        return colMatch || tagMatch || catMatch;
+                        const colSlugLower = (col.slug || '').toLowerCase();
+                        const colMatch = p.collections?.some((c) => c && c.toLowerCase() === colSlugLower);
+                        const tagMatch = p.tags?.some((t) => t && t.toLowerCase() === colSlugLower);
+                        const cat = categories.find((c) => c.id === p.category_id);
+                        const catMatch = Boolean(cat && (cat.slug.toLowerCase() === colSlugLower || cat.name.toLowerCase().includes(colSlugLower)));
+                        const sub = subcategories.find((s) => s.id === p.subcategory_id);
+                        const subMatch = Boolean(sub && (sub.slug.toLowerCase() === colSlugLower || sub.name.toLowerCase().includes(colSlugLower)));
+                        return colMatch || tagMatch || catMatch || subMatch;
                       }).length;
 
                       return (

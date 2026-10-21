@@ -60,10 +60,11 @@ export const CustomersPage: React.FC = () => {
 
   const filtered = customers.filter((c) => {
     const matchesTab = activeTab === 'all' || (activeTab === 'vip' && c.isVip);
+    const term = (searchTerm || '').toLowerCase();
     const matchesSearch =
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.city.toLowerCase().includes(searchTerm.toLowerCase());
+      (c.name || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term) ||
+      (c.city || '').toLowerCase().includes(term);
     return matchesTab && matchesSearch;
   });
 

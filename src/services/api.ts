@@ -504,17 +504,47 @@ export function isProductInCollection(product: Product, collectionSlugOrId: stri
   return false;
 }
 
+let cachedStoreSettings: StoreSettings | null = null;
+let storeSettingsPromise: Promise<StoreSettings> | null = null;
+let lastStoreSettingsFetch = 0;
+
+let cachedCoupons: Coupon[] | null = null;
+let couponsPromise: Promise<Coupon[]> | null = null;
+let lastCouponsFetch = 0;
+
 export const api = {
-  // Store Settings (Direct Supabase)
-  async getStoreSettings(): Promise<StoreSettings> {
-    try {
-      const { data, error } = await supabase.from('store_settings').select('*').limit(1).single();
-      if (!error && data) return { ...SAMPLE_SETTINGS, ...data } as StoreSettings;
-      if (error) console.warn('Supabase getStoreSettings warning:', error);
-    } catch (e) {
-      console.warn('Network error fetching store settings:', e);
+  // Store Settings (Direct Supabase with in-flight deduplication and short-term cache)
+  async getStoreSettings(forceRefresh = false): Promise<StoreSettings> {
+    const now = Date.now();
+    if (!forceRefresh && cachedStoreSettings && now - lastStoreSettingsFetch < 60000) {
+      return cachedStoreSettings;
     }
-    return SAMPLE_SETTINGS;
+    if (!forceRefresh && storeSettingsPromise) {
+      return storeSettingsPromise;
+    }
+
+    storeSettingsPromise = (async () => {
+      try {
+        const { data, error } = await supabase.from('store_settings').select('*').limit(1).single();
+        if (!error && data) {
+          cachedStoreSettings = { ...SAMPLE_SETTINGS, ...data } as StoreSettings;
+          lastStoreSettingsFetch = Date.now();
+          return cachedStoreSettings;
+        }
+        if (error && typeof navigator !== 'undefined' && navigator.onLine) {
+          console.warn('Supabase getStoreSettings warning:', error);
+        }
+      } catch (e) {
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          console.warn('Network error fetching store settings:', e);
+        }
+      } finally {
+        storeSettingsPromise = null;
+      }
+      return cachedStoreSettings || SAMPLE_SETTINGS;
+    })();
+
+    return storeSettingsPromise;
   },
 
   async saveStoreSettings(settings: Partial<StoreSettings>): Promise<boolean> {
@@ -570,6 +600,7 @@ export const api = {
           return false;
         }
       }
+      cachedStoreSettings = null;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_settings_updated'));
       }
@@ -1547,10 +1578,27 @@ export const api = {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, category_id, subcategory_id, collections, tags, category_name, product_type');
+        .select('id, category_id, subcategory_id, tags, product_type, structured_attributes');
 
       if (!error && data) {
-        return data as ProductTaxonomyItem[];
+        return data.map((p) => {
+          let cols: string[] = [];
+          if (p.structured_attributes && typeof p.structured_attributes === 'object') {
+            const rawCols = (p.structured_attributes as any).collections;
+            if (Array.isArray(rawCols)) cols = rawCols;
+          }
+          return {
+            id: p.id,
+            category_id: p.category_id || undefined,
+            subcategory_id: p.subcategory_id || undefined,
+            collections: cols,
+            tags: p.tags || [],
+            product_type: p.product_type || undefined,
+          };
+        }) as ProductTaxonomyItem[];
+      }
+      if (error) {
+        console.warn('Supabase getProductTaxonomyCounts warning:', error);
       }
     } catch (err) {
       console.warn('Error fetching product taxonomy counts from Supabase:', err);
@@ -1721,9 +1769,9 @@ export const api = {
 
     // Sync Variants to Supabase
     if (sanitized.variants && sanitized.variants.length > 0) {
-      await supabase.from('product_variants').delete().eq('product_id', targetId);
       const variantRows = sanitized.variants.map((v) => {
         const varId = uuidRegex.test(v.id) ? v.id : crypto.randomUUID();
+        v.id = varId;
         const varPrice = v.price != null && Number(v.price) > 0 ? Number(v.price) : sanitized.base_price;
         const varCompare = v.compare_at_price != null && Number(v.compare_at_price) > 0
           ? Number(v.compare_at_price)
@@ -1751,9 +1799,21 @@ export const api = {
           is_active: v.is_active !== false,
         };
       });
-      const { error: insVarErr } = await supabase.from('product_variants').insert(variantRows);
-      if (insVarErr) {
-        console.error('Supabase product variants insert failed:', insVarErr);
+
+      // Upsert variants to preserve variant IDs, inventory logs, and waitlists
+      const { error: upsertVarErr } = await supabase.from('product_variants').upsert(variantRows);
+      if (upsertVarErr) {
+        console.error('Supabase product variants upsert failed:', upsertVarErr);
+      }
+
+      // Delete only variants that were removed in the editor
+      const currentIds = variantRows.map((vr) => vr.id);
+      if (currentIds.length > 0) {
+        await supabase
+          .from('product_variants')
+          .delete()
+          .eq('product_id', targetId)
+          .not('id', 'in', `(${currentIds.join(',')})`);
       }
     }
 
@@ -2664,77 +2724,97 @@ export const api = {
     return success;
   },
 
-  // Coupon Management (Dual-sync)
-  async getCoupons(): Promise<Coupon[]> {
-    const isUuid = (str?: string): boolean =>
-      Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
-
-    // 1. Get tombstoned (deleted) coupons list
-    let deletedCodes: string[] = [];
-    try {
-      const raw = localStorage.getItem('tanoah_deleted_coupons');
-      if (raw) {
-        deletedCodes = (JSON.parse(raw) as string[]).map((c) => c.trim().toUpperCase());
-      }
-    } catch {}
-
-    // 2. Fetch custom coupons from local storage
-    let customCoupons: Coupon[] = [];
-    try {
-      const raw = localStorage.getItem('tanoah_custom_coupons');
-      if (raw) {
-        customCoupons = (JSON.parse(raw) as Coupon[]).filter(
-          (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
-        );
-      }
-    } catch {}
-
-    // 3. Fetch remote coupons from Supabase
-    let remoteCoupons: Coupon[] = [];
-    try {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        remoteCoupons = (data as Coupon[]).filter(
-          (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
-        );
-      }
-    } catch (e) {
-      console.warn('Supabase fetch coupons warning:', e);
+  // Coupon Management (Dual-sync with in-flight deduplication and short-term cache)
+  async getCoupons(forceRefresh = false): Promise<Coupon[]> {
+    const now = Date.now();
+    if (!forceRefresh && cachedCoupons && now - lastCouponsFetch < 30000) {
+      return cachedCoupons;
+    }
+    if (!forceRefresh && couponsPromise) {
+      return couponsPromise;
     }
 
-    // 4. Merge: Supabase is authoritative for records in DB
-    const mergedMap = new Map<string, Coupon>();
+    couponsPromise = (async () => {
+      try {
+        const isUuid = (str?: string): boolean =>
+          Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
 
-    remoteCoupons.forEach((rc) => {
-      mergedMap.set(rc.code.trim().toUpperCase(), rc);
-    });
+        // 1. Get tombstoned (deleted) coupons list
+        let deletedCodes: string[] = [];
+        try {
+          const raw = localStorage.getItem('tanoah_deleted_coupons');
+          if (raw) {
+            deletedCodes = (JSON.parse(raw) as string[]).map((c) => c.trim().toUpperCase());
+          }
+        } catch {}
 
-    customCoupons.forEach((cc) => {
-      const upper = cc.code.trim().toUpperCase();
-      if (!mergedMap.has(upper)) {
-        mergedMap.set(upper, cc);
+        // 2. Fetch custom coupons from local storage
+        let customCoupons: Coupon[] = [];
+        try {
+          const raw = localStorage.getItem('tanoah_custom_coupons');
+          if (raw) {
+            customCoupons = (JSON.parse(raw) as Coupon[]).filter(
+              (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
+            );
+          }
+        } catch {}
+
+        // 3. Fetch remote coupons from Supabase
+        let remoteCoupons: Coupon[] = [];
+        try {
+          const { data, error } = await supabase
+            .from('coupons')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data) {
+            remoteCoupons = (data as Coupon[]).filter(
+              (c) => c.code && !deletedCodes.includes(c.code.trim().toUpperCase())
+            );
+          }
+        } catch (e) {
+          if (typeof navigator !== 'undefined' && navigator.onLine) {
+            console.warn('Supabase fetch coupons warning:', e);
+          }
+        }
+
+        // 4. Merge: Supabase is authoritative for records in DB
+        const mergedMap = new Map<string, Coupon>();
+
+        remoteCoupons.forEach((rc) => {
+          mergedMap.set(rc.code.trim().toUpperCase(), rc);
+        });
+
+        customCoupons.forEach((cc) => {
+          const upper = cc.code.trim().toUpperCase();
+          if (!mergedMap.has(upper)) {
+            mergedMap.set(upper, cc);
+          }
+        });
+
+        // 5. Sample coupons: include only if NOT in deletedCodes AND not already present
+        SAMPLE_COUPONS.forEach((sc) => {
+          const upper = sc.code.trim().toUpperCase();
+          if (!deletedCodes.includes(upper) && !mergedMap.has(upper)) {
+            mergedMap.set(upper, sc);
+          }
+        });
+
+        const result = Array.from(mergedMap.values());
+
+        // Keep local storage synchronized
+        try {
+          localStorage.setItem('tanoah_custom_coupons', JSON.stringify(result));
+        } catch {}
+
+        cachedCoupons = result;
+        lastCouponsFetch = Date.now();
+        return result;
+      } finally {
+        couponsPromise = null;
       }
-    });
+    })();
 
-    // 5. Sample coupons: include only if NOT in deletedCodes AND not already present
-    SAMPLE_COUPONS.forEach((sc) => {
-      const upper = sc.code.trim().toUpperCase();
-      if (!deletedCodes.includes(upper) && !mergedMap.has(upper)) {
-        mergedMap.set(upper, sc);
-      }
-    });
-
-    const result = Array.from(mergedMap.values());
-
-    // Keep local storage synchronized
-    try {
-      localStorage.setItem('tanoah_custom_coupons', JSON.stringify(result));
-    } catch {}
-
-    return result;
+    return couponsPromise;
   },
 
   async createCoupon(coupon: {
@@ -2846,6 +2926,7 @@ export const api = {
       console.error('Error saving custom coupon:', e);
     }
 
+    cachedCoupons = null;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
     }
@@ -2895,6 +2976,7 @@ export const api = {
         if (error) console.warn('Supabase update coupon by code notice:', error);
       }
 
+      cachedCoupons = null;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
       }
@@ -2952,6 +3034,7 @@ export const api = {
         console.warn('Supabase delete coupon notice:', dbErr);
       }
 
+      cachedCoupons = null;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('tanoah_coupons_updated'));
       }
@@ -3119,16 +3202,26 @@ export const api = {
     const pointsRedeemed = Math.max(0, Math.floor(Number(params.points_redeemed || 0)));
     let pointsDiscount = Math.max(0, Number(params.points_discount || 0));
 
-    // Hard ceiling: max 500 points per order
-    if (pointsRedeemed > 500) {
-      return { success: false, error: 'Maximum reward points redemption limit is 500 points per order.' };
+    let maxRedeemCap = 500;
+    let maxOrderPercentCap = 20.0;
+    try {
+      const rewSettings = await rewardsService.getSettings();
+      if (rewSettings) {
+        maxRedeemCap = rewSettings.max_redeem_points || 500;
+        maxOrderPercentCap = rewSettings.max_order_percentage || 20.0;
+      }
+    } catch {}
+
+    // Ceiling: max redeemable points per order according to admin settings
+    if (pointsRedeemed > maxRedeemCap) {
+      return { success: false, error: `Maximum reward points redemption limit is ${maxRedeemCap} points per order.` };
     }
     // Hard ceiling: discount cannot exceed redeemed points (1 point = 1 INR)
     if (pointsDiscount > pointsRedeemed) {
       pointsDiscount = pointsRedeemed;
     }
-    // Hard ceiling: discount cannot exceed 20% of subtotal
-    const maxAllowedDiscount = Math.floor(params.subtotal * 0.20);
+    // Dynamic ceiling: discount cannot exceed configured max_order_percentage of subtotal
+    const maxAllowedDiscount = Math.floor((params.subtotal * maxOrderPercentCap) / 100);
     if (pointsDiscount > maxAllowedDiscount) {
       pointsDiscount = maxAllowedDiscount;
     }
@@ -3211,9 +3304,11 @@ export const api = {
     saveCustomOrderToStorage(localOrder);
 
     // Atomically finalize stock reservation in PostgreSQL (Approach A)
-    await reservationService.finalizeOrderReservation(orderNumber);
-    // Fallback adjustment for any non-reserved or legacy items
-    await this.adjustInventoryForOrder(params.items);
+    const finalized = await reservationService.finalizeOrderReservation(orderNumber);
+    // Fallback adjustment for any non-reserved or legacy items only if PostgreSQL reservation was not utilized
+    if (!finalized?.success) {
+      await this.adjustInventoryForOrder(params.items);
+    }
 
     try {
       const { data: orderData, error: orderErr } = await supabase
@@ -5122,11 +5217,12 @@ export const api = {
     const isFirst = existing.length === 0;
     const shouldBeDefault = address.is_default ?? isFirst;
 
-    const id =
-      address.id ||
-      (typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `addr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const id = address.id && uuidRegex.test(address.id)
+      ? address.id
+      : (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0').slice(-12));
 
     const newAddress: SavedAddress = {
       id,

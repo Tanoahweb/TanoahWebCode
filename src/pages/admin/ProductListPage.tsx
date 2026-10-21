@@ -106,10 +106,11 @@ export const ProductListPage: React.FC = () => {
   };
 
   const filtered = products.filter((p) => {
+    const term = (searchTerm || '').toLowerCase();
     const matchesSearch =
-      p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.variants.some((v) => v.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+      (p.title || '').toLowerCase().includes(term) ||
+      (p.brand || '').toLowerCase().includes(term) ||
+      p.variants.some((v) => (v.sku || '').toLowerCase().includes(term));
 
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
 
