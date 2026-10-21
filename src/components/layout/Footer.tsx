@@ -45,7 +45,6 @@ const FacebookIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' 
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(1599);
   const [socialLinks, setSocialLinks] = useState({
     instagram: DEFAULT_INSTAGRAM_URL,
     facebook: DEFAULT_FACEBOOK_URL,
@@ -60,9 +59,6 @@ export const Footer: React.FC = () => {
     const loadSettings = async () => {
       try {
         const settings = await api.getStoreSettings();
-        if (settings?.free_shipping_threshold) {
-          setFreeShippingThreshold(Number(settings.free_shipping_threshold));
-        }
         const insta =
           settings?.instagram_url ||
           settings?.seo_config?.social_links?.instagram ||
@@ -141,7 +137,7 @@ export const Footer: React.FC = () => {
             </div>
             <div>
               <h4 className="text-xs font-poppins font-semibold uppercase tracking-wider">COMPLIMENTARY SHIPPING</h4>
-              <p className="text-[11px] text-white/70 font-poppins mt-0.5">On all domestic orders over ₹{freeShippingThreshold.toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-white/70 font-poppins mt-0.5">Free All India Delivery</p>
             </div>
           </div>
 
