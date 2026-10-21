@@ -139,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
         </div>
 
         {/* Right: Actions (Search, Rewards, Account, Wishlist, Cart) */}
-        <div className="flex items-center gap-3 sm:gap-6 text-black">
+        <div className="flex items-center gap-4 sm:gap-6 text-black">
           {/* Search Button */}
           <button
             onClick={toggleSearch}
@@ -149,15 +149,15 @@ export const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
             <Search className="w-5 h-5" />
           </button>
 
-          {/* Rewards Wallet Points Pill (Reminds logged in customers about their points) */}
+          {/* Rewards Wallet Points Pill (Desktop & Tablet only - keeps mobile header standard and uncluttered) */}
           {user && (
             <Link
               to="/account?tab=rewards"
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-[#EEEEF8] hover:bg-[#3F3F8F] text-[#3F3F8F] hover:text-white transition-all text-xs font-semibold group cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EEEEF8] hover:bg-[#3F3F8F] text-[#3F3F8F] hover:text-white transition-all text-xs font-semibold group cursor-pointer"
               title="Rewards Wallet: Click to view details and spend points"
             >
               <Gift className="w-3.5 h-3.5 text-[#3F3F8F] group-hover:text-white transition-colors shrink-0" />
-              <span className="font-mono font-bold text-[10px] sm:text-[11px] tracking-tight">
+              <span className="font-mono font-bold text-[11px] tracking-tight">
                 {wallet ? `${wallet.balance_points} pts` : '0 pts'}
               </span>
             </Link>

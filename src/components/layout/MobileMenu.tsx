@@ -142,6 +142,35 @@ export const MobileMenu: React.FC = () => {
             </button>
           </div>
 
+          {/* Customer Welcome & Rewards Balance Card (Standard App-Style) */}
+          {user && (
+            <div className="p-4 border-b border-[#E7E7E7] bg-[#FAF9FE]">
+              <Link
+                to="/account?tab=rewards"
+                onClick={closeMobileMenu}
+                className="block space-y-1.5"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-neutral-900 truncate">
+                    Hi, {user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'Customer'}
+                  </span>
+                  <span className="text-[11px] text-[#3F3F8F] font-semibold flex items-center">
+                    Wallet &rarr;
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded bg-white border border-[#3F3F8F]/20 shadow-2xs">
+                  <span className="flex items-center gap-1.5 text-xs text-neutral-700 font-medium">
+                    <Gift className="w-4 h-4 text-[#3F3F8F]" />
+                    Rewards Balance
+                  </span>
+                  <span className="font-mono font-bold text-xs text-[#3F3F8F]">
+                    {wallet ? `${wallet.balance_points} pts (₹${wallet.balance_points})` : '0 pts'}
+                  </span>
+                </div>
+              </Link>
+            </div>
+          )}
+
           {/* Dynamic Navigation Accordion */}
           <nav className="p-4 space-y-2 font-poppins text-xs uppercase tracking-wider">
             {activeMenuItems.map((item) => {
