@@ -461,9 +461,9 @@ export const CartDrawer: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsOffersOpen(true)}
-                        className="text-xs text-[#3F3F8F] font-medium hover:underline flex items-center gap-1"
+                        className="text-xs text-[#3F3F8F] font-medium hover:underline"
                       >
-                        <Sparkles className="w-3 h-3" /> Offers
+                        Offers
                       </button>
                       <button
                         type="button"
@@ -513,10 +513,9 @@ export const CartDrawer: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsOffersOpen(true)}
-                      className="text-[11px] text-[#3F3F8F] hover:underline font-medium flex items-center gap-1 text-left pt-0.5"
+                      className="text-[11px] text-[#3F3F8F] hover:underline font-medium block text-left pt-0.5"
                     >
-                      <Sparkles className="w-3 h-3 text-[#3F3F8F]" />
-                      <span>View available offers & coupons</span>
+                      View available offers & coupons
                     </button>
                   </div>
                 )}
@@ -544,10 +543,7 @@ export const CartDrawer: React.FC = () => {
                 <span>{shipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(shipping)}</span>
               </div>
               <div className="flex justify-between text-[#3F3F8F] bg-[#EEEEF8] px-2.5 py-1.5 rounded-[4px] font-medium text-[11px] items-center">
-                <span className="flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-[#3F3F8F]" />
-                  Rewards to Earn
-                </span>
+                <span>Rewards to Earn</span>
                 <span className="font-bold">+{Math.round((subtotal * 10) / 100)} pts ({formatPrice(Math.round((subtotal * 10) / 100))})</span>
               </div>
               <div className="flex justify-between text-sm font-semibold text-black pt-2 border-t border-[#E7E7E7]">

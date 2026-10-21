@@ -301,8 +301,7 @@ export const CartPage: React.FC = () => {
                   <span>{shipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(shipping)}</span>
                 </div>
                 <div className="flex justify-between text-[#3F3F8F] bg-[#EEEEF8] px-3 py-2 rounded-[4px] font-medium text-xs items-center">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                  <span>
                     Rewards to Earn
                   </span>
                   <span className="font-bold">+{Math.round((subtotal * 10) / 100)} pts ({formatPrice(Math.round((subtotal * 10) / 100))})</span>

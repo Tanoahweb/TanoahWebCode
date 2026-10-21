@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, Sparkles, LogOut, Check, Clock, Gift } from 'lucide-react';
+import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, LogOut, Check, Clock, Gift } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useUIStore } from '../store/useUIStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -1318,102 +1318,58 @@ export const CheckoutPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Rewards Wallet Redemption Box */}
-              <div className="pt-3 border-t border-[#E7E7E7] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-black uppercase tracking-wider">
-                    <Gift className="w-4 h-4 text-[#3F3F8F]" />
-                    <span>Rewards Wallet</span>
+              {/* Rewards Wallet Box (Screenshot 4 Minimal Style) */}
+              <div className="pt-3 border-t border-[#E7E7E7]">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-2.5">
+                    <Gift className="w-5 h-5 text-[#3F3F8F] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-bold text-xs uppercase tracking-wide text-neutral-900 block">
+                        REWARDS WALLET
+                      </span>
+                      <span className="text-[11px] text-[#666666] block mt-0.5">
+                        Available balance: {user ? walletBalance : 0} points
+                      </span>
+                    </div>
                   </div>
-                  {user ? (
-                    <span className="text-[11px] font-mono font-medium text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded">
-                      Balance: {walletBalance} pts ({formatPrice(walletBalance)})
-                    </span>
-                  ) : (
-                    <Link
-                      to={`/login?from=${encodeURIComponent('/checkout')}`}
-                      className="text-[11px] text-[#3F3F8F] font-semibold hover:underline"
-                    >
-                      Sign In to Use Points &rarr;
-                    </Link>
-                  )}
-                </div>
 
-                {user && (
-                  <>
-                    {redeemedPoints > 0 ? (
-                      <div className="flex items-center justify-between p-2.5 bg-[#EEEEF8] border border-[#3F3F8F]/30 rounded-[4px]">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-[#3F3F8F]" />
-                          <div>
-                            <span className="font-bold text-[#3F3F8F] font-mono text-xs">
-                              {redeemedPoints} Loyalty Points Applied
-                            </span>
-                            <span className="text-[10px] text-[#666666] ml-2">
-                              (-{formatPrice(pointsDiscount)} discount)
-                            </span>
-                          </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold text-[#3F3F8F] block font-sans">
+                      {user ? walletBalance : 0} points = {formatPrice(Math.round((user ? walletBalance : 0) * pointRatio))}
+                    </span>
+                    {user ? (
+                      redeemedPoints > 0 ? (
+                        <div className="flex items-center justify-end gap-1.5 pt-1">
+                          <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Applied
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleRemovePoints}
+                            className="text-[11px] text-neutral-400 hover:text-red-500 underline ml-1 cursor-pointer"
+                          >
+                            Remove
+                          </button>
                         </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={handleRemovePoints}
-                          className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                          onClick={() => handleApplyPoints(maxAllowedForOrder)}
+                          className="text-xs font-bold text-[#3F3F8F] hover:underline cursor-pointer block text-right pt-1"
                         >
-                          Remove
+                          Apply
                         </button>
-                      </div>
-                    ) : isEligibleForRedemption ? (
-                      <div className="space-y-2 bg-[#FAFAFA] p-3 rounded border border-[#E7E7E7]">
-                        <div className="flex items-center justify-between text-[11px] text-[#666666]">
-                          <span>Use points to discount this order (Max {maxAllowedForOrder} pts)</span>
-                          <button
-                            type="button"
-                            onClick={() => handleApplyPoints(maxAllowedForOrder)}
-                            className="text-[#3F3F8F] font-semibold hover:underline cursor-pointer"
-                          >
-                            Apply Max ({maxAllowedForOrder} pts)
-                          </button>
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            min={minRedeem}
-                            max={maxAllowedForOrder}
-                            placeholder={`Points to use (min ${minRedeem})`}
-                            value={pointsInput}
-                            onChange={(e) => setPointsInput(e.target.value)}
-                            className="flex-1 p-2 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleApplyPoints(Number(pointsInput));
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleApplyPoints(Number(pointsInput))}
-                            disabled={!pointsInput || Number(pointsInput) <= 0}
-                            className="px-4 py-2 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            APPLY
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-[#888888]">
-                          1 Point = ₹1 • Max {settings?.max_order_percentage || 20}% of order subtotal
-                        </p>
-                      </div>
+                      )
                     ) : (
-                      <div className="p-2.5 bg-[#FBFBFB] border border-[#E7E7E7] rounded-[4px] text-[11px] text-[#777777] flex items-center justify-between">
-                        <span>
-                          {walletBalance < minRedeem
-                            ? `Earn ${minRedeem - walletBalance} more points to unlock checkout discounts (Min ${minRedeem} pts).`
-                            : `Order subtotal too low for points redemption (Max ${settings?.max_order_percentage || 20}% of order).`}
-                        </span>
-                      </div>
+                      <Link
+                        to={`/login?from=${encodeURIComponent('/checkout')}`}
+                        className="text-[11px] text-[#3F3F8F] font-semibold hover:underline block pt-1"
+                      >
+                        Sign In
+                      </Link>
                     )}
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
 
               {/* Voucher / Promo Code Box & Dynamic Available Offers */}
@@ -1467,8 +1423,7 @@ export const CheckoutPage: React.FC = () => {
                 {sortedCoupons.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-[#F0F0F0]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-700 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-700">
                         Available Offers & Coupons
                       </span>
                       <span className="text-[10px] text-neutral-400 font-medium">
@@ -1594,8 +1549,7 @@ export const CheckoutPage: React.FC = () => {
 
                 {estEarnedPoints > 0 && (
                   <div className="mt-2 p-2.5 rounded-[4px] bg-amber-50/70 border border-amber-200/60 flex items-center justify-between text-[11px] text-amber-900">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span className="font-medium">
                       Rewards you'll earn on this order:
                     </span>
                     <span className="font-bold text-amber-800">

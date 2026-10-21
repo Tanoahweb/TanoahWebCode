@@ -4,6 +4,7 @@ import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download
 import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
+import { useRewardsStore } from '../../store/useRewardsStore';
 import { useUIStore } from '../../store/useUIStore';
 import { formatPrice } from '../../utils/formatters';
 import { Button } from '../../components/common/Button';
@@ -16,12 +17,19 @@ import { validatePhone } from '../../utils/validation';
 export const AccountPage: React.FC = () => {
   const { user, profile, signOut, initialize } = useAuthStore();
   const wishlistItems = useWishlistStore((s) => s.items);
+  const { wallet, loadWallet } = useRewardsStore();
   const { addToast } = useUIStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') === 'rewards' ? 'rewards' : 'orders';
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'returns' | 'profile' | 'rewards'>(initialTab);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadWallet(user.id, user.email, profile?.full_name);
+    }
+  }, [user?.id, user?.email, profile?.full_name, loadWallet]);
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
@@ -290,8 +298,8 @@ export const AccountPage: React.FC = () => {
                 <Gift className="w-4 h-4" />
                 <span>Rewards Wallet</span>
               </div>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${activeTab === 'rewards' ? 'bg-white/20 text-white' : 'bg-[#EEEEF8] text-[#3F3F8F]'}`}>
-                ₹1=1pt
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${activeTab === 'rewards' ? 'bg-white/20 text-white' : 'bg-[#EEEEF8] text-[#3F3F8F]'}`}>
+                {wallet ? `${wallet.balance_points} pts` : '0 pts'}
               </span>
             </button>
 
