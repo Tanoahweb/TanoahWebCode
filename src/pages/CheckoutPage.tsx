@@ -500,48 +500,84 @@ export const CheckoutPage: React.FC = () => {
       }
     }
 
-    const res = await api.createOrder({
-      user_id: user?.id || null,
-      guest_email: formData.email,
-      guest_phone: formData.phone,
-      shipping_address: {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        address: formData.address,
-        apartment: formData.apartment,
-        city: formData.city,
-        state: formData.state,
-        postal_code: formData.postalCode,
-        country: 'India',
-      },
-      payment_method: formData.paymentMethod,
-      payment_status: paymentStatus,
-      payment_gateway_ref: paymentRef,
-      courier_name: `India Post (${selectedSpeed?.name || 'Standard'})`,
-      subtotal,
-      discount_total: discount,
-      shipping_total: shipping,
-      tax_total: Math.round(subtotal - (subtotal / 1.05)), // 5% GST included in price
-      grand_total: grandTotal,
-      points_redeemed: redeemedPoints,
-      points_discount: pointsDiscount,
-      reward_points_earned: estEarnedPoints,
-      items,
-    });
+    const orderNum = 'TAN-' + Math.floor(100000 + Math.random() * 900000);
+    let pointsSuccessfullyRedeemed = false;
+
+    // Atomically redeem points from customer's Rewards Wallet (FIFO batches) BEFORE creating order
+    if (redeemedPoints > 0 && user?.id) {
+      try {
+        const ptsRes = await rewardsService.redeemPoints(user.id, orderNum, redeemedPoints);
+        if (!ptsRes || !ptsRes.success) {
+          throw new Error(ptsRes?.message || 'Insufficient or invalid reward points balance.');
+        }
+        pointsSuccessfullyRedeemed = true;
+      } catch (ptsErr: any) {
+        console.error('Failed to redeem reward points:', ptsErr);
+        setIsProcessing(false);
+        addToast({
+          type: 'error',
+          title: 'Reward Points Error',
+          description: ptsErr?.message || 'Unable to redeem your reward points. Please review your balance.',
+        });
+        return;
+      }
+    }
+
+    let res;
+    try {
+      res = await api.createOrder({
+        order_number: orderNum,
+        user_id: user?.id || null,
+        guest_email: formData.email,
+        guest_phone: formData.phone,
+        shipping_address: {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          address: formData.address,
+          apartment: formData.apartment,
+          city: formData.city,
+          state: formData.state,
+          postal_code: formData.postalCode,
+          country: 'India',
+        },
+        payment_method: formData.paymentMethod,
+        payment_status: paymentStatus,
+        payment_gateway_ref: paymentRef,
+        courier_name: `India Post (${selectedSpeed?.name || 'Standard'})`,
+        subtotal,
+        discount_total: discount,
+        shipping_total: shipping,
+        tax_total: Math.round(subtotal - (subtotal / 1.05)), // 5% GST included in price
+        grand_total: grandTotal,
+        points_redeemed: redeemedPoints,
+        points_discount: pointsDiscount,
+        reward_points_earned: estEarnedPoints,
+        items,
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to create order record.');
+      }
+    } catch (orderCreationErr: any) {
+      // If order creation failed, rollback redeemed points to restore customer wallet
+      if (pointsSuccessfullyRedeemed) {
+        try {
+          await rewardsService.rollbackRedemption(orderNum);
+        } catch (rollbackErr) {
+          console.error('Rollback failed after order creation error:', rollbackErr);
+        }
+      }
+      setIsProcessing(false);
+      addToast({
+        type: 'error',
+        title: 'Order Creation Failed',
+        description: orderCreationErr?.message || 'Unable to complete order. Any redeemed points have been restored.',
+      });
+      return;
+    }
 
     if (coupon?.code) {
       api.recordCouponUsage(coupon.code).catch(() => {});
-    }
-
-    const orderNum = res.order_number || `TAN-${Math.floor(100000 + Math.random() * 900000)}`;
-
-    // Atomically redeem points from customer's Rewards Wallet (FIFO batches)
-    if (redeemedPoints > 0 && user?.id) {
-      try {
-        await rewardsService.redeemPoints(user.id, orderNum, redeemedPoints);
-      } catch (ptsErr) {
-        console.warn('Failed to redeem reward points:', ptsErr);
-      }
     }
 
     const orderPayload = {
@@ -1327,54 +1363,60 @@ export const CheckoutPage: React.FC = () => {
                       <span className="font-bold text-xs uppercase tracking-wide text-neutral-900 block">
                         REWARDS WALLET
                       </span>
-                      <span className="text-[11px] text-[#666666] block mt-0.5">
-                        Available balance: {user ? walletBalance : 0} points
-                      </span>
+                      {user ? (
+                        <span className="text-[11px] text-[#666666] block mt-0.5">
+                          Available balance: {walletBalance} points
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#666666] block mt-0.5">
+                          Sign in to view and use your points
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-xs font-semibold text-[#3F3F8F] block font-sans">
-                      {user
-                        ? redeemedPoints > 0
-                          ? `Using: ${redeemedPoints} points (${formatPrice(pointsDiscount)})`
-                          : maxAllowedForOrder >= minRedeem
-                          ? `Can use: ${maxAllowedForOrder} points (${formatPrice(Math.round(maxAllowedForOrder * pointRatio))})`
-                          : walletBalance < minRedeem
-                          ? `Min ${minRedeem} points required`
-                          : '0 points usable'
-                        : 'Sign in to use points'}
-                    </span>
                     {user ? (
-                      redeemedPoints > 0 ? (
-                        <div className="flex items-center justify-end gap-1.5 pt-1">
-                          <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> Applied
-                          </span>
+                      <>
+                        <span className="text-xs font-semibold text-[#3F3F8F] block font-sans">
+                          {redeemedPoints > 0
+                            ? `Using: ${redeemedPoints} points (${formatPrice(pointsDiscount)})`
+                            : maxAllowedForOrder >= minRedeem
+                            ? `Can use: ${maxAllowedForOrder} points (${formatPrice(Math.round(maxAllowedForOrder * pointRatio))})`
+                            : walletBalance < minRedeem
+                            ? `Min ${minRedeem} points required`
+                            : '0 points usable'}
+                        </span>
+                        {redeemedPoints > 0 ? (
+                          <div className="flex items-center justify-end gap-1.5 pt-1">
+                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> Applied
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleRemovePoints}
+                              className="text-[11px] text-neutral-400 hover:text-red-500 underline ml-1 cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            onClick={handleRemovePoints}
-                            className="text-[11px] text-neutral-400 hover:text-red-500 underline ml-1 cursor-pointer"
+                            onClick={() => handleApplyPoints(maxAllowedForOrder)}
+                            disabled={maxAllowedForOrder < minRedeem}
+                            className="text-xs font-bold text-[#3F3F8F] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer block text-right pt-1"
                           >
-                            Remove
+                            Apply
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleApplyPoints(maxAllowedForOrder)}
-                          disabled={maxAllowedForOrder < minRedeem}
-                          className="text-xs font-bold text-[#3F3F8F] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer block text-right pt-1"
-                        >
-                          Apply
-                        </button>
-                      )
+                        )}
+                      </>
                     ) : (
                       <Link
                         to={`/login?from=${encodeURIComponent('/checkout')}`}
-                        className="text-[11px] text-[#3F3F8F] font-semibold hover:underline block pt-1"
+                        className="inline-flex items-center text-xs font-bold text-[#3F3F8F] hover:underline pt-0.5 cursor-pointer"
                       >
-                        Sign In
+                        Sign In &rarr;
                       </Link>
                     )}
                   </div>

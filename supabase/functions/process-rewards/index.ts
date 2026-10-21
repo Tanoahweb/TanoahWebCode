@@ -22,6 +22,26 @@ Deno.serve(async (req) => {
       throw new Error('Missing Supabase environment variables (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)');
     }
 
+    // Authorization Guard: Require valid CRON_SECRET or Supabase service_role key
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+    const cronSecretHeader = req.headers.get('x-cron-secret') || '';
+
+    const isServiceRoleMatch = Boolean(supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`);
+    const isCronSecretMatch = Boolean(
+      cronSecret && (authHeader === `Bearer ${cronSecret}` || cronSecretHeader === cronSecret)
+    );
+
+    if (cronSecret && !isCronSecretMatch && !isServiceRoleMatch) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid or missing cron authorization header.' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });

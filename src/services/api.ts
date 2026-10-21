@@ -3083,6 +3083,7 @@ export const api = {
 
   // Create Order (saves locally with complete details + decrements inventory + remote sync)
   async createOrder(params: {
+    order_number?: string;
     user_id?: string | null;
     guest_email: string;
     guest_phone: string;
@@ -3114,7 +3115,32 @@ export const api = {
       return { success: false, error: phoneValidation.error || 'Invalid phone number. Must be a valid 10-digit mobile number.' };
     }
 
-    const orderNumber = 'TAN-' + Math.floor(100000 + Math.random() * 900000);
+    // Defensive Rewards Integrity Validation
+    const pointsRedeemed = Math.max(0, Math.floor(Number(params.points_redeemed || 0)));
+    let pointsDiscount = Math.max(0, Number(params.points_discount || 0));
+
+    // Hard ceiling: max 500 points per order
+    if (pointsRedeemed > 500) {
+      return { success: false, error: 'Maximum reward points redemption limit is 500 points per order.' };
+    }
+    // Hard ceiling: discount cannot exceed redeemed points (1 point = 1 INR)
+    if (pointsDiscount > pointsRedeemed) {
+      pointsDiscount = pointsRedeemed;
+    }
+    // Hard ceiling: discount cannot exceed 20% of subtotal
+    const maxAllowedDiscount = Math.floor(params.subtotal * 0.20);
+    if (pointsDiscount > maxAllowedDiscount) {
+      pointsDiscount = maxAllowedDiscount;
+    }
+
+    // Defensive Cap on reward points earned (max 15% of subtotal)
+    const maxEarnablePoints = Math.ceil(params.subtotal * 0.15);
+    const rewardPointsEarned = Math.min(
+      Math.max(0, Math.floor(Number(params.reward_points_earned || 0))),
+      maxEarnablePoints
+    );
+
+    const orderNumber = params.order_number || ('TAN-' + Math.floor(100000 + Math.random() * 900000));
 
     const localOrder = {
       id: `ord_${Date.now()}`,
@@ -3147,9 +3173,9 @@ export const api = {
       shipping_total: params.shipping_total,
       tax_total: params.tax_total,
       grand_total: params.grand_total,
-      points_redeemed: params.points_redeemed || 0,
-      points_discount: params.points_discount || 0,
-      reward_points_earned: params.reward_points_earned || 0,
+      points_redeemed: pointsRedeemed,
+      points_discount: pointsDiscount,
+      reward_points_earned: rewardPointsEarned,
       status: params.payment_status === 'paid' ? 'confirmed' : 'pending_payment',
       created_at: new Date().toISOString(),
       items: params.items.map((item) => {
@@ -3207,9 +3233,9 @@ export const api = {
           shipping_total: params.shipping_total,
           tax_total: params.tax_total,
           grand_total: params.grand_total,
-          points_redeemed: params.points_redeemed || 0,
-          points_discount: params.points_discount || 0,
-          reward_points_earned: params.reward_points_earned || 0,
+          points_redeemed: pointsRedeemed,
+          points_discount: pointsDiscount,
+          reward_points_earned: rewardPointsEarned,
           status: params.payment_status === 'paid' ? 'confirmed' : 'pending_payment',
         }])
         .select('id')
