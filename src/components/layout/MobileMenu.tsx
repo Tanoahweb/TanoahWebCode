@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { X, ChevronDown, ChevronRight, Heart, User, Search } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Heart, User, Search, Gift } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
+import { useRewardsStore } from '../../store/useRewardsStore';
 import { useNavigationStore } from '../../store/useNavigationStore';
 import { MegaMenuColumn, MegaMenuSubLink } from '../../types/navigation';
 import { Collection } from '../../types';
@@ -13,9 +14,16 @@ import { getLenis } from '../../animations/smoothScroll';
 export const MobileMenu: React.FC = () => {
   const { isMobileMenuOpen, closeMobileMenu, openSearch } = useUIStore();
   const { user, isAdmin } = useAuthStore();
+  const { wallet, loadWallet } = useRewardsStore();
   const wishlistCount = useWishlistStore((state) => state.getItemCount());
   const { config } = useNavigationStore();
   const location = useLocation();
+
+  useEffect(() => {
+    if (user?.id) {
+      loadWallet(user.id, user.email, user.user_metadata?.full_name);
+    }
+  }, [user?.id, user?.email, user?.user_metadata?.full_name, loadWallet]);
 
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [storeCollections, setStoreCollections] = useState<Collection[]>([]);
@@ -250,6 +258,22 @@ export const MobileMenu: React.FC = () => {
               </span>
             )}
           </Link>
+
+          {user && (
+            <Link
+              to="/account?tab=rewards"
+              onClick={closeMobileMenu}
+              className="flex items-center justify-between text-black hover:text-[#3F3F8F]"
+            >
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-[#3F3F8F]" />
+                <span>Rewards Wallet</span>
+              </div>
+              <span className="bg-[#EEEEF8] text-[#3F3F8F] text-[10px] px-2 py-0.5 rounded-full font-bold font-mono">
+                {wallet ? `${wallet.balance_points} pts` : '0 pts'}
+              </span>
+            </Link>
+          )}
 
           <Link
             to={user ? (isAdmin ? '/admin' : '/account') : '/login'}
