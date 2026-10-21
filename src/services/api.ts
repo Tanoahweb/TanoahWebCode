@@ -10,6 +10,7 @@ import { safeSetItem, safeGetItem, sanitizeOrderForStorage } from '@/utils/safeS
 import { formatCouponDate, isCouponDateExpired, isCouponNotStarted } from '@/utils/formatters';
 import { validateEmail, validatePhone } from '@/utils/validation';
 import { reservationService } from './reservationService';
+import { rewardsService } from './rewardsService';
 
 export type { ProductReview };
 
@@ -3098,6 +3099,9 @@ export const api = {
     tax_total: number;
     grand_total: number;
     items: CartItem[];
+    points_redeemed?: number;
+    points_discount?: number;
+    reward_points_earned?: number;
   }): Promise<{ success: boolean; order_number?: string; error?: string }> {
     // Backend Validation Guards
     const emailValidation = validateEmail(params.guest_email);
@@ -3143,6 +3147,9 @@ export const api = {
       shipping_total: params.shipping_total,
       tax_total: params.tax_total,
       grand_total: params.grand_total,
+      points_redeemed: params.points_redeemed || 0,
+      points_discount: params.points_discount || 0,
+      reward_points_earned: params.reward_points_earned || 0,
       status: params.payment_status === 'paid' ? 'confirmed' : 'pending_payment',
       created_at: new Date().toISOString(),
       items: params.items.map((item) => {
@@ -3200,6 +3207,9 @@ export const api = {
           shipping_total: params.shipping_total,
           tax_total: params.tax_total,
           grand_total: params.grand_total,
+          points_redeemed: params.points_redeemed || 0,
+          points_discount: params.points_discount || 0,
+          reward_points_earned: params.reward_points_earned || 0,
           status: params.payment_status === 'paid' ? 'confirmed' : 'pending_payment',
         }])
         .select('id')
@@ -4102,6 +4112,9 @@ export const api = {
       if (cleanTracking !== undefined) {
         updateData.tracking_number = cleanTracking || null;
       }
+      if (status === 'delivered') {
+        updateData.delivered_at = new Date().toISOString();
+      }
       updateData.courier_name = courierName || 'India Post (Speed Post)';
       updateData.updated_at = new Date().toISOString();
 
@@ -4111,6 +4124,98 @@ export const api = {
           await supabase.from('orders').update(updateData).eq('id', cleanId);
         } else {
           await supabase.from('orders').update(updateData).eq('order_number', cleanId);
+        }
+
+        // Rewards Lifecycle Integration
+        if (status === 'delivered') {
+          // Fetch order to inspect rewards
+          const { data: ord } = await (isUUID
+            ? supabase.from('orders').select('*').eq('id', cleanId).maybeSingle()
+            : supabase.from('orders').select('*').eq('order_number', cleanId).maybeSingle());
+
+          if (ord && ord.user_id) {
+            let pts = Number(ord.reward_points_earned || 0);
+            if (pts <= 0 && ord.subtotal) {
+              const settings = await rewardsService.getSettings();
+              pts = Math.round((Number(ord.subtotal) * settings.purchase_reward_percentage) / 100);
+            }
+
+            if (pts > 0) {
+              const wallet = await rewardsService.getWallet(ord.user_id, ord.guest_email);
+              if (wallet) {
+                // Ensure no duplicate pending transaction exists
+                const { data: existingTx } = await supabase
+                  .from('reward_transactions')
+                  .select('id')
+                  .eq('reference_id', ord.order_number)
+                  .eq('type', 'earned_purchase')
+                  .maybeSingle();
+
+                if (!existingTx) {
+                  const unlockAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+                  await supabase.from('reward_transactions').insert({
+                    wallet_id: wallet.id,
+                    user_id: ord.user_id,
+                    type: 'earned_purchase',
+                    status: 'pending',
+                    points: pts,
+                    balance_after: wallet.balance_points,
+                    reference_id: ord.order_number,
+                    description: `Pending Delivery Reward for Order #${ord.order_number} (Unlocks after 24h return window)`,
+                    unlock_at: unlockAt,
+                  });
+
+                  await supabase
+                    .from('customer_reward_wallets')
+                    .update({
+                      pending_points: wallet.pending_points + pts,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', wallet.id);
+                }
+              }
+            }
+          }
+        } else if (status === 'cancelled' || status === 'returned') {
+          const { data: ord } = await (isUUID
+            ? supabase.from('orders').select('*').eq('id', cleanId).maybeSingle()
+            : supabase.from('orders').select('*').eq('order_number', cleanId).maybeSingle());
+
+          if (ord) {
+            // Cancel pending reward transaction if any
+            const { data: pendingTx } = await supabase
+              .from('reward_transactions')
+              .select('*')
+              .eq('reference_id', ord.order_number)
+              .eq('type', 'earned_purchase')
+              .eq('status', 'pending')
+              .maybeSingle();
+
+            if (pendingTx) {
+              await supabase
+                .from('reward_transactions')
+                .update({ status: 'cancelled', description: `${pendingTx.description} (Cancelled: Order ${status})` })
+                .eq('id', pendingTx.id);
+
+              if (ord.user_id) {
+                const wallet = await rewardsService.getWallet(ord.user_id);
+                if (wallet) {
+                  await supabase
+                    .from('customer_reward_wallets')
+                    .update({
+                      pending_points: Math.max(0, wallet.pending_points - pendingTx.points),
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', wallet.id);
+                }
+              }
+            }
+
+            // If order spent points, rollback to customer wallet
+            if (ord.points_redeemed && ord.points_redeemed > 0) {
+              await rewardsService.rollbackRedemption(ord.order_number);
+            }
+          }
         }
       } catch (e) {
         console.warn('Supabase update order status error:', e);
@@ -5524,4 +5629,6 @@ export const api = {
       issues,
     };
   },
+
+  rewards: rewardsService,
 };

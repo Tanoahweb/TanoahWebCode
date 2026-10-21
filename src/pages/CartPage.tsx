@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Heart, ArrowRight, ShoppingBag, ShieldCheck, Tag } from 'lucide-react';
+import { Trash2, Heart, ArrowRight, ShoppingBag, ShieldCheck, Tag, Sparkles } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useWishlistStore } from '../store/useWishlistStore';
 import { useUIStore } from '../store/useUIStore';
@@ -299,6 +299,13 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between text-[#666666]">
                   <span>Estimated Shipping</span>
                   <span>{shipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(shipping)}</span>
+                </div>
+                <div className="flex justify-between text-[#3F3F8F] bg-[#EEEEF8] px-3 py-2 rounded-[4px] font-medium text-xs items-center">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#3F3F8F]" />
+                    Rewards to Earn
+                  </span>
+                  <span className="font-bold">+{Math.round((subtotal * 10) / 100)} pts ({formatPrice(Math.round((subtotal * 10) / 100))})</span>
                 </div>
                 <div className="flex justify-between text-base font-semibold text-black pt-3 border-t border-[#E7E7E7]">
                   <span>Grand Total</span>

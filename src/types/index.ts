@@ -1,3 +1,4 @@
+export * from './rewards';
 export type ProductStatus = 'draft' | 'active' | 'archived';
 
 export interface ProductImage {
@@ -330,6 +331,10 @@ export interface Order {
   internal_notes?: string;
   customer_notes?: string;
   cancellation_reason?: string;
+  points_redeemed?: number;
+  points_discount?: number;
+  reward_points_earned?: number;
+  delivered_at?: string;
   items?: OrderItem[];
   created_at: string;
   updated_at: string;

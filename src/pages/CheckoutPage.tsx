@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, Sparkles, LogOut, Check, Clock } from 'lucide-react';
+import { ShieldCheck, CreditCard, Banknote, ArrowRight, Lock, Tag, CheckCircle2, Plus, MapPin, Sparkles, LogOut, Check, Clock, Gift } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useUIStore } from '../store/useUIStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useRewardsStore } from '../store/useRewardsStore';
+import { rewardsService } from '../services/rewardsService';
 import { formatPrice, isCouponAvailable, computeProductPricing } from '../utils/formatters';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
@@ -27,6 +29,21 @@ export const CheckoutPage: React.FC = () => {
 
   const [voucherInput, setVoucherInput] = useState('');
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+
+  // Rewards Wallet State
+  const { wallet, settings, loadWallet, loadSettings } = useRewardsStore();
+  const [redeemedPoints, setRedeemedPoints] = useState<number>(0);
+  const [pointsInput, setPointsInput] = useState<string>('');
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadWallet(user.id, user.email, profile?.full_name);
+    }
+  }, [user, profile, loadWallet]);
 
   useEffect(() => {
     validateCurrentCoupon();
@@ -225,7 +242,56 @@ export const CheckoutPage: React.FC = () => {
 
   const isFreeEligible = Boolean(selectedSpeed?.is_free_eligible && subtotal >= freeShipThreshold);
   const shipping = isFreeEligible ? 0 : (selectedSpeed?.charge ?? 0);
-  const grandTotal = Math.max(0, subtotal - discount + shipping);
+
+  // Rewards wallet calculations
+  const pointRatio = settings?.point_to_inr_ratio || 1.0;
+  const pointsDiscount = Math.round(redeemedPoints * pointRatio);
+  const grandTotal = Math.max(0, subtotal - discount - pointsDiscount + shipping);
+
+  // Rewards limits
+  const maxOrderPercent = settings?.max_order_percentage || 20.0;
+  const maxAmountAllowed = (subtotal * maxOrderPercent) / 100;
+  const maxOrderPoints = Math.floor(maxAmountAllowed / pointRatio);
+  const walletBalance = wallet?.balance_points || 0;
+  const maxRedeem = settings?.max_redeem_points || 500;
+  const minRedeem = settings?.min_redeem_points || 100;
+  const maxAllowedForOrder = Math.max(0, Math.min(walletBalance, maxRedeem, maxOrderPoints));
+  const isEligibleForRedemption = Boolean(user && walletBalance >= minRedeem && maxAllowedForOrder >= minRedeem);
+  const estEarnedPoints = Math.round((subtotal * (settings?.purchase_reward_percentage || 10)) / 100);
+
+  const handleApplyPoints = (ptsToUse: number) => {
+    if (!user) {
+      addToast({ type: 'info', title: 'Sign In Required', description: 'Please sign in to redeem rewards points.' });
+      return;
+    }
+    if (ptsToUse <= 0) {
+      setRedeemedPoints(0);
+      setPointsInput('');
+      return;
+    }
+    if (ptsToUse < minRedeem) {
+      addToast({ type: 'error', title: 'Minimum Points Threshold', description: `A minimum of ${minRedeem} points is required to redeem.` });
+      return;
+    }
+    if (ptsToUse > maxAllowedForOrder) {
+      addToast({ type: 'error', title: 'Maximum Points Limit', description: `You can use up to ${maxAllowedForOrder} points on this order.` });
+      return;
+    }
+
+    setRedeemedPoints(ptsToUse);
+    setPointsInput(String(ptsToUse));
+    addToast({
+      type: 'success',
+      title: 'Rewards Applied',
+      description: `Applied ${ptsToUse} points (-₹${ptsToUse * pointRatio} discount).`,
+    });
+  };
+
+  const handleRemovePoints = () => {
+    setRedeemedPoints(0);
+    setPointsInput('');
+    addToast({ type: 'info', title: 'Rewards Removed', description: 'Points discount removed from your order.' });
+  };
 
   const handleApplyVoucher = async (codeToApply?: string) => {
     const code = (codeToApply || voucherInput).trim().toUpperCase();
@@ -457,6 +523,9 @@ export const CheckoutPage: React.FC = () => {
       shipping_total: shipping,
       tax_total: Math.round(subtotal - (subtotal / 1.05)), // 5% GST included in price
       grand_total: grandTotal,
+      points_redeemed: redeemedPoints,
+      points_discount: pointsDiscount,
+      reward_points_earned: estEarnedPoints,
       items,
     });
 
@@ -465,6 +534,15 @@ export const CheckoutPage: React.FC = () => {
     }
 
     const orderNum = res.order_number || `TAN-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // Atomically redeem points from customer's Rewards Wallet (FIFO batches)
+    if (redeemedPoints > 0 && user?.id) {
+      try {
+        await rewardsService.redeemPoints(user.id, orderNum, redeemedPoints);
+      } catch (ptsErr) {
+        console.warn('Failed to redeem reward points:', ptsErr);
+      }
+    }
 
     const orderPayload = {
       orderNumber: orderNum,
@@ -490,6 +568,9 @@ export const CheckoutPage: React.FC = () => {
       codFee: 0,
       grandTotal,
       grand_total: grandTotal,
+      points_redeemed: redeemedPoints,
+      points_discount: pointsDiscount,
+      reward_points_earned: estEarnedPoints,
       payment_method: formData.paymentMethod,
       payment_status: paymentStatus,
       payment_gateway_ref: paymentRef,
@@ -587,6 +668,12 @@ export const CheckoutPage: React.FC = () => {
         : Date.now() + 7 * 60 * 1000;
       setReservationExpiry(expiryMs);
       sessionStorage.setItem('tanoah_reservation_expiry', expiryMs.toString());
+
+      // If order total is ₹0 (100% covered by loyalty points or coupon), complete immediately
+      if (grandTotal === 0) {
+        await processOrderCreation('REWARDS_100_PERCENT', 'paid');
+        return;
+      }
 
       // Online Cashfree Payment Flow
       if (formData.paymentMethod === 'cashfree') {
@@ -1231,6 +1318,104 @@ export const CheckoutPage: React.FC = () => {
                 ))}
               </div>
 
+              {/* Rewards Wallet Redemption Box */}
+              <div className="pt-3 border-t border-[#E7E7E7] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-black uppercase tracking-wider">
+                    <Gift className="w-4 h-4 text-[#3F3F8F]" />
+                    <span>Rewards Wallet</span>
+                  </div>
+                  {user ? (
+                    <span className="text-[11px] font-mono font-medium text-[#3F3F8F] bg-[#EEEEF8] px-2 py-0.5 rounded">
+                      Balance: {walletBalance} pts ({formatPrice(walletBalance)})
+                    </span>
+                  ) : (
+                    <Link
+                      to={`/login?from=${encodeURIComponent('/checkout')}`}
+                      className="text-[11px] text-[#3F3F8F] font-semibold hover:underline"
+                    >
+                      Sign In to Use Points &rarr;
+                    </Link>
+                  )}
+                </div>
+
+                {user && (
+                  <>
+                    {redeemedPoints > 0 ? (
+                      <div className="flex items-center justify-between p-2.5 bg-[#EEEEF8] border border-[#3F3F8F]/30 rounded-[4px]">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-[#3F3F8F]" />
+                          <div>
+                            <span className="font-bold text-[#3F3F8F] font-mono text-xs">
+                              {redeemedPoints} Loyalty Points Applied
+                            </span>
+                            <span className="text-[10px] text-[#666666] ml-2">
+                              (-{formatPrice(pointsDiscount)} discount)
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemovePoints}
+                          className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : isEligibleForRedemption ? (
+                      <div className="space-y-2 bg-[#FAFAFA] p-3 rounded border border-[#E7E7E7]">
+                        <div className="flex items-center justify-between text-[11px] text-[#666666]">
+                          <span>Use points to discount this order (Max {maxAllowedForOrder} pts)</span>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyPoints(maxAllowedForOrder)}
+                            className="text-[#3F3F8F] font-semibold hover:underline cursor-pointer"
+                          >
+                            Apply Max ({maxAllowedForOrder} pts)
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min={minRedeem}
+                            max={maxAllowedForOrder}
+                            placeholder={`Points to use (min ${minRedeem})`}
+                            value={pointsInput}
+                            onChange={(e) => setPointsInput(e.target.value)}
+                            className="flex-1 p-2 bg-white border border-[#E7E7E7] rounded-[4px] text-xs font-mono focus:outline-none focus:border-[#3F3F8F]"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleApplyPoints(Number(pointsInput));
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleApplyPoints(Number(pointsInput))}
+                            disabled={!pointsInput || Number(pointsInput) <= 0}
+                            className="px-4 py-2 bg-black hover:bg-[#3F3F8F] text-white rounded-[4px] text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            APPLY
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-[#888888]">
+                          1 Point = ₹1 • Max {settings?.max_order_percentage || 20}% of order subtotal
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-[#FBFBFB] border border-[#E7E7E7] rounded-[4px] text-[11px] text-[#777777] flex items-center justify-between">
+                        <span>
+                          {walletBalance < minRedeem
+                            ? `Earn ${minRedeem - walletBalance} more points to unlock checkout discounts (Min ${minRedeem} pts).`
+                            : `Order subtotal too low for points redemption (Max ${settings?.max_order_percentage || 20}% of order).`}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
               {/* Voucher / Promo Code Box & Dynamic Available Offers */}
               <div className="pt-3 border-t border-[#E7E7E7] space-y-3">
                 {coupon ? (
@@ -1389,6 +1574,15 @@ export const CheckoutPage: React.FC = () => {
                     <span>-{formatPrice(discount)}</span>
                   </div>
                 )}
+                {pointsDiscount > 0 && (
+                  <div className="flex justify-between text-amber-700 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <Gift className="w-3.5 h-3.5 text-amber-600" />
+                      Rewards Wallet ({redeemedPoints} pts)
+                    </span>
+                    <span>-{formatPrice(pointsDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-[#666666]">
                   <span>Delivery ({selectedSpeed?.name || 'Standard'})</span>
                   <span>{shipping === 0 ? <strong className="text-[#3F3F8F]">FREE</strong> : formatPrice(shipping)}</span>
@@ -1397,6 +1591,18 @@ export const CheckoutPage: React.FC = () => {
                   <span>Total Amount</span>
                   <span className="text-[#3F3F8F] text-xl font-bold">{formatPrice(grandTotal)}</span>
                 </div>
+
+                {estEarnedPoints > 0 && (
+                  <div className="mt-2 p-2.5 rounded-[4px] bg-amber-50/70 border border-amber-200/60 flex items-center justify-between text-[11px] text-amber-900">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      Rewards you'll earn on this order:
+                    </span>
+                    <span className="font-bold text-amber-800">
+                      +{estEarnedPoints} pts (₹{estEarnedPoints})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Terms & Conditions and Refund Policy Agreement Checkbox */}

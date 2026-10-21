@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
-import { CheckCircle2, ArrowRight, Truck } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Truck, Gift, Sparkles } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxInvoiceModal } from '../components/checkout/TaxInvoiceModal';
 import { safeGetItem } from '../utils/safeStorage';
@@ -81,6 +81,48 @@ export const OrderConfirmationPage: React.FC = () => {
                   {orderData.formData.address}, {orderData.formData.city}, {orderData.formData.state} - {orderData.formData.postalCode}
                 </p>
                 <p className="text-[#666666]">Phone: {orderData.formData.phone}</p>
+              </div>
+            )}
+
+            {/* Rewards Loyalty Summary */}
+            {((orderData?.reward_points_earned && orderData.reward_points_earned > 0) ||
+              (orderData?.points_redeemed && orderData.points_redeemed > 0)) && (
+              <div className="p-4 rounded-[4px] bg-[#FAF8F5] border border-amber-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-amber-900 font-semibold text-xs uppercase tracking-wide">
+                    <Gift className="w-4 h-4 text-amber-600" />
+                    Rewards & Loyalty Summary
+                  </span>
+                  <Link to="/account?tab=rewards" className="text-[11px] font-semibold text-[#3F3F8F] hover:underline">
+                    View Wallet →
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {orderData.reward_points_earned > 0 && (
+                    <div className="flex items-start gap-2 bg-white/90 p-2.5 rounded border border-amber-150 shadow-2xs">
+                      <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-[10px] text-neutral-500 uppercase block font-medium">Points to Earn</span>
+                        <strong className="text-amber-900 font-mono text-sm">+{orderData.reward_points_earned} Points</strong>
+                        <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
+                          Credited 24 hrs after delivery window expires.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {orderData.points_redeemed > 0 && (
+                    <div className="flex items-start gap-2 bg-white/90 p-2.5 rounded border border-amber-150 shadow-2xs">
+                      <Gift className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-[10px] text-neutral-500 uppercase block font-medium">Points Redeemed</span>
+                        <strong className="text-emerald-700 font-mono text-sm">-{orderData.points_redeemed} Points (₹{orderData.points_discount || orderData.points_redeemed})</strong>
+                        <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
+                          Applied as immediate discount.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

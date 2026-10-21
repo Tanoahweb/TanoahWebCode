@@ -15,6 +15,8 @@ import {
   Send,
   AlertCircle,
   ExternalLink,
+  Gift,
+  Sparkles,
 } from 'lucide-react';
 import { AdminLayout } from './AdminLayout';
 import { Button } from '../../components/common/Button';
@@ -465,6 +467,15 @@ export const OrderDetailPage: React.FC = () => {
                     <span className="font-mono">-{formatPrice(order.discount || order.discount_total || 0)}</span>
                   </div>
                 )}
+                {Boolean((order.points_discount && order.points_discount > 0) || (order.points_redeemed && order.points_redeemed > 0)) && (
+                  <div className="flex justify-between text-amber-800 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <Gift className="w-3.5 h-3.5 text-amber-600" />
+                      Rewards Wallet ({order.points_redeemed || 0} pts)
+                    </span>
+                    <span className="font-mono">-{formatPrice(order.points_discount || order.points_redeemed || 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-[#666666]">
                   <span>Shipping Freight</span>
                   <span className="font-mono">
@@ -547,6 +558,52 @@ export const OrderDetailPage: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Loyalty & Rewards Status Card */}
+            {(order.reward_points_earned > 0 || order.points_redeemed > 0) && (
+              <div className="bg-white p-5 rounded-[4px] border border-amber-200/80 shadow-xs space-y-3">
+                <h3 className="font-semibold text-amber-950 uppercase tracking-wider text-xs flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-amber-600" />
+                  <span>LOYALTY & REWARDS IMPACT</span>
+                </h3>
+
+                <div className="space-y-2 text-xs">
+                  {order.reward_points_earned > 0 && (
+                    <div className="p-2.5 rounded bg-amber-50/60 border border-amber-150">
+                      <div className="flex justify-between items-center">
+                        <span className="text-neutral-600 font-medium">Points to Award</span>
+                        <strong className="text-amber-900 font-mono">+{order.reward_points_earned} Points</strong>
+                      </div>
+                      <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
+                        {order.status === 'delivered' ? (
+                          order.delivered_at ? (
+                            <span>Delivered at {new Date(order.delivered_at).toLocaleDateString('en-IN')}. Points unlock after 24h return window expires.</span>
+                          ) : (
+                            <span>Delivered. Pending 24h return window reconciliation.</span>
+                          )
+                        ) : ['returned', 'refunded'].includes(order.status) ? (
+                          <span className="text-red-600 font-semibold">Cancelled due to return claim.</span>
+                        ) : (
+                          <span>Pending delivery. Points queue until parcel is marked DELIVERED + 24 hrs.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {order.points_redeemed > 0 && (
+                    <div className="p-2.5 rounded bg-emerald-50/60 border border-emerald-150">
+                      <div className="flex justify-between items-center">
+                        <span className="text-neutral-600 font-medium">Points Redeemed</span>
+                        <strong className="text-emerald-800 font-mono">-{order.points_redeemed} Points (₹{order.points_discount || order.points_redeemed})</strong>
+                      </div>
+                      <div className="text-[10px] text-neutral-500 mt-1">
+                        Deducted from customer Rewards Wallet via FIFO batch allocation.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -563,6 +620,8 @@ export const OrderDetailPage: React.FC = () => {
           discount: order.discount || 0,
           shipping: order.shipping || 0,
           codFee: order.codFee || 0,
+          points_redeemed: order.points_redeemed || 0,
+          points_discount: order.points_discount || 0,
           grandTotal: order.grandTotal || order.subtotal,
           formData,
         }}

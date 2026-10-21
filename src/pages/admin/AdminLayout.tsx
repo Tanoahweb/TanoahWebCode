@@ -79,6 +79,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Navigation & Menus', icon: <Compass className="w-4 h-4" />, path: '/admin/navigation' },
     { label: 'Media Library (R2)', icon: <ImageIcon className="w-4 h-4" />, path: '/admin/media' },
     { label: 'Coupons & Discounts', icon: <Tag className="w-4 h-4" />, path: '/admin/coupons' },
+    { label: 'Rewards & Loyalty', icon: <Gift className="w-4 h-4" />, path: '/admin/rewards' },
     { label: 'Reviews & Testimonials', icon: <Star className="w-4 h-4" />, path: '/admin/reviews' },
     { label: 'Technical SEO & Health', icon: <Globe className="w-4 h-4" />, path: '/admin/seo' },
     { label: '301 Redirects Manager', icon: <Zap className="w-4 h-4" />, path: '/admin/seo/redirects' },

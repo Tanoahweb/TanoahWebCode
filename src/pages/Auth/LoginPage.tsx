@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
 import { validateEmail } from '../../utils/validation';
+import { rewardsService } from '../../services/rewardsService';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -91,6 +92,23 @@ export const LoginPage: React.FC = () => {
           addToast({ type: 'success', title: 'Admin Access Verified', description: 'Redirecting to Store Management OS...' });
           navigate('/admin', { replace: true });
         } else {
+          // Check & award welcome bonus if first login
+          if (data?.user) {
+            rewardsService.awardWelcomeBonus(
+              data.user.id,
+              data.user.email || emailValidation.normalized,
+              data.user.user_metadata?.full_name || ''
+            ).then((bonusRes) => {
+              if (bonusRes?.success && bonusRes.points) {
+                addToast({
+                  type: 'success',
+                  title: 'Welcome Gift Credited!',
+                  description: `You have received ${bonusRes.points} Loyalty Points (₹${bonusRes.points} value) in your Rewards Wallet!`,
+                });
+              }
+            }).catch(() => {});
+          }
+
           addToast({ type: 'success', title: 'Welcome Back', description: 'Logged into your Tanoah account.' });
           const destination = getDestination();
           navigate(destination, { replace: true });

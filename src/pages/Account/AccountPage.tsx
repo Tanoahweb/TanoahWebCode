@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X, AlertTriangle, Lock, Shield, KeyRound, Copy } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Package, MapPin, Heart, User, LogOut, RotateCcw, ExternalLink, Download, Plus, Trash2, CheckCircle2, X, AlertTriangle, Lock, Shield, KeyRound, Copy, Gift } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWishlistStore } from '../../store/useWishlistStore';
@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { formatPrice } from '../../utils/formatters';
 import { Button } from '../../components/common/Button';
 import { TaxInvoiceModal } from '../../components/checkout/TaxInvoiceModal';
+import { RewardsWalletTab } from '../../components/account/RewardsWalletTab';
 import { api } from '../../services/api';
 import { SavedAddress } from '../../types';
 import { validatePhone } from '../../utils/validation';
@@ -17,8 +18,17 @@ export const AccountPage: React.FC = () => {
   const wishlistItems = useWishlistStore((s) => s.items);
   const { addToast } = useUIStore();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'returns' | 'profile'>('orders');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'rewards' ? 'rewards' : 'orders';
+  const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'returns' | 'profile' | 'rewards'>(initialTab);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any | null>(null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'rewards') {
+      setActiveTab('rewards');
+    }
+  }, [searchParams]);
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -268,6 +278,21 @@ export const AccountPage: React.FC = () => {
             >
               <Package className="w-4 h-4" />
               <span>Order History</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('rewards')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[4px] font-medium transition-colors text-left ${
+                activeTab === 'rewards' ? 'bg-[#3F3F8F] text-white font-semibold' : 'text-black hover:bg-[#F8F8F8]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Gift className="w-4 h-4" />
+                <span>Rewards Wallet</span>
+              </div>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${activeTab === 'rewards' ? 'bg-white/20 text-white' : 'bg-[#EEEEF8] text-[#3F3F8F]'}`}>
+                ₹1=1pt
+              </span>
             </button>
 
             <button
@@ -854,6 +879,8 @@ export const AccountPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {activeTab === 'rewards' && <RewardsWalletTab />}
           </div>
         </div>
       </div>

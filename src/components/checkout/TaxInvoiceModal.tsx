@@ -15,6 +15,8 @@ interface TaxInvoiceModalProps {
     discount?: number;
     shipping?: number;
     codFee?: number;
+    points_redeemed?: number;
+    points_discount?: number;
     grandTotal: number;
     formData: {
       firstName: string;
@@ -210,6 +212,12 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ isOpen, onClos
                 <div className="flex justify-between text-[#3F3F8F] font-semibold">
                   <span>Discount</span>
                   <span>-{formatPrice(order.discount)}</span>
+                </div>
+              )}
+              {Boolean(order.points_discount && order.points_discount > 0) && (
+                <div className="flex justify-between text-amber-800 font-semibold">
+                  <span>Loyalty Points ({order.points_redeemed || 0} pts)</span>
+                  <span>-{formatPrice(order.points_discount || 0)}</span>
                 </div>
               )}
               <div className="flex justify-between text-[#666666]">

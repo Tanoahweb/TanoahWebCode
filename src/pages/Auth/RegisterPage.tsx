@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Button } from '../../components/common/Button';
 import { validateEmail, validatePhone } from '../../utils/validation';
+import { rewardsService } from '../../services/rewardsService';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -87,10 +88,17 @@ export const RegisterPage: React.FC = () => {
       if (error) {
         addToast({ type: 'error', title: 'Sign Up Failed', description: error.message });
       } else {
+        if (data?.user?.id) {
+          rewardsService.awardWelcomeBonus(
+            data.user.id,
+            emailValidation.normalized,
+            formData.fullName.trim()
+          ).catch(() => {});
+        }
         addToast({
           type: 'success',
           title: 'Account Created',
-          description: 'Welcome to Tanoah. You can now sign in to your profile.',
+          description: 'Welcome to Tanoah! 100 Reward Points (₹100 value) have been credited to your Rewards Wallet.',
         });
         navigate(`/login${location.search}`, { state: location.state, replace: true });
       }

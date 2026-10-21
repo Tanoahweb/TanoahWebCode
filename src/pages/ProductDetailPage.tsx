@@ -1318,6 +1318,14 @@ export const ProductDetailPage: React.FC = () => {
               <p className="text-[11px] text-[#888888] mt-1">
                 Inclusive of all taxes (GST 5%). SKU: <strong className="font-mono text-black">{activeVariant?.sku || 'TAN-TANOAH'}</strong>
               </p>
+
+              {/* Rewards Wallet Incentive Banner */}
+              <div className="flex items-center gap-2 text-xs bg-[#EEEEF8] text-[#3F3F8F] px-3.5 py-2 rounded-[4px] mt-3 border border-[#E0E0F0]">
+                <Sparkles className="w-4 h-4 shrink-0 text-[#3F3F8F]" />
+                <span className="leading-snug">
+                  Earn up to <strong>{Math.round((currentPrice * 10) / 100)} Loyalty Points</strong> ({formatPrice(Math.round((currentPrice * 10) / 100))} reward value) on this purchase.
+                </span>
+              </div>
             </div>
 
             <p className="text-xs text-[#666666] leading-relaxed border-t border-[#E7E7E7] pt-4">
