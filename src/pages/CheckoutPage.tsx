@@ -1335,7 +1335,15 @@ export const CheckoutPage: React.FC = () => {
 
                   <div className="text-right">
                     <span className="text-xs font-semibold text-[#3F3F8F] block font-sans">
-                      {user ? walletBalance : 0} points = {formatPrice(Math.round((user ? walletBalance : 0) * pointRatio))}
+                      {user
+                        ? redeemedPoints > 0
+                          ? `Using: ${redeemedPoints} points (${formatPrice(pointsDiscount)})`
+                          : maxAllowedForOrder >= minRedeem
+                          ? `Can use: ${maxAllowedForOrder} points (${formatPrice(Math.round(maxAllowedForOrder * pointRatio))})`
+                          : walletBalance < minRedeem
+                          ? `Min ${minRedeem} points required`
+                          : '0 points usable'
+                        : 'Sign in to use points'}
                     </span>
                     {user ? (
                       redeemedPoints > 0 ? (
@@ -1355,7 +1363,8 @@ export const CheckoutPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleApplyPoints(maxAllowedForOrder)}
-                          className="text-xs font-bold text-[#3F3F8F] hover:underline cursor-pointer block text-right pt-1"
+                          disabled={maxAllowedForOrder < minRedeem}
+                          className="text-xs font-bold text-[#3F3F8F] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer block text-right pt-1"
                         >
                           Apply
                         </button>
