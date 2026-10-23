@@ -109,14 +109,14 @@ export const RewardsWalletTab: React.FC = () => {
             </span>
             <span className="inline-flex items-center gap-1 bg-[#EEEEF8] text-[#3F3F8F] text-[9px] font-bold px-2 py-0.5 rounded uppercase">
               <Sparkles className="w-3 h-3" />
-              1 Point = ₹1
+              1 Point = ₹{settings?.point_to_inr_ratio ?? 1}
             </span>
           </div>
           <h2 className="font-wondra text-2xl sm:text-3xl text-black mt-1">
             REWARDS WALLET & LOYALTY
           </h2>
           <p className="text-[#666666] text-xs mt-0.5">
-            Earn 10% back on luxury apparel purchases. Points unlock automatically after the 24-hour return window closes.
+            Earn {settings?.purchase_reward_percentage ?? 10}% back on luxury apparel purchases. Points unlock automatically after the {settings?.credit_delay_hours ?? 24}-hour return window closes.
           </p>
         </div>
 
@@ -143,7 +143,7 @@ export const RewardsWalletTab: React.FC = () => {
           </span>
           <div className="text-3xl font-bold font-mono tracking-tight">{balancePoints}</div>
           <div className="text-[11px] text-white/90 mt-1 font-medium flex items-center gap-1">
-            <span>Worth {formatPrice(balancePoints)} Reward Value</span>
+            <span>Worth {formatPrice(balancePoints * (settings?.point_to_inr_ratio ?? 1))} Reward Value</span>
           </div>
           <p className="text-[10px] text-white/70 mt-3 pt-2 border-t border-white/10">
             Usable directly at checkout
@@ -158,10 +158,10 @@ export const RewardsWalletTab: React.FC = () => {
           <div className="text-3xl font-bold text-amber-700 font-mono tracking-tight">{pendingPoints}</div>
           <div className="text-[11px] text-amber-800 mt-1 flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" />
-            <span>Worth {formatPrice(pendingPoints)}</span>
+            <span>Worth {formatPrice(pendingPoints * (settings?.point_to_inr_ratio ?? 1))}</span>
           </div>
           <p className="text-[10px] text-[#888888] mt-3 pt-2 border-t border-[#E7E7E7]">
-            Unlocks 24h post-delivery (Return window closed)
+            Unlocks {settings?.credit_delay_hours ?? 24}h post-delivery (Return window closed)
           </p>
         </div>
 
@@ -184,7 +184,7 @@ export const RewardsWalletTab: React.FC = () => {
             )}
           </div>
           <p className="text-[10px] text-[#888888] mt-3 pt-2 border-t border-[#E7E7E7]">
-            12-month expiry term per batch
+            {settings?.point_expiry_months ?? 12}-month expiry term per batch
           </p>
         </div>
 
@@ -211,7 +211,7 @@ export const RewardsWalletTab: React.FC = () => {
           <div className="space-y-1">
             <h4 className="font-semibold text-xs">Points Approaching Expiration</h4>
             <p className="text-[11px] text-amber-900 leading-relaxed">
-              You have <strong>{totalExpiringSoon} Points ({formatPrice(totalExpiringSoon)})</strong> expiring within the next 30 days. Points are automatically redeemed on a First-In, First-Out basis. Redeem them on your next order before expiration.
+              You have <strong>{totalExpiringSoon} Points ({formatPrice(totalExpiringSoon * (settings?.point_to_inr_ratio ?? 1))})</strong> expiring within the next 30 days. Points are automatically redeemed on a First-In, First-Out basis. Redeem them on your next order before expiration.
             </p>
             <div className="pt-1">
               <Link to="/collections/all" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3F3F8F] hover:underline">
@@ -234,15 +234,15 @@ export const RewardsWalletTab: React.FC = () => {
             <div className="w-6 h-6 rounded bg-[#EEEEF8] text-[#3F3F8F] flex items-center justify-center font-bold text-xs">1</div>
             <h5 className="font-semibold text-black">Shop & Earn</h5>
             <p className="text-[10px] leading-relaxed text-[#666666]">
-              Earn 10% reward points on every completed purchase. 1 Point equals ₹1 reward value.
+              Earn {settings?.purchase_reward_percentage ?? 10}% reward points on every completed purchase. 1 Point equals ₹{settings?.point_to_inr_ratio ?? 1} reward value.
             </p>
           </div>
 
           <div className="bg-white p-3.5 rounded border border-[#E7E7E7] space-y-1">
             <div className="w-6 h-6 rounded bg-[#EEEEF8] text-[#3F3F8F] flex items-center justify-center font-bold text-xs">2</div>
-            <h5 className="font-semibold text-black">Delivery & 24h Window</h5>
+            <h5 className="font-semibold text-black">Delivery & {settings?.credit_delay_hours ?? 24}h Window</h5>
             <p className="text-[10px] leading-relaxed text-[#666666]">
-              Points remain pending for 24 hours post-delivery while our strict transit-damage return window is open.
+              Points remain pending for {settings?.credit_delay_hours ?? 24} hours post-delivery while our strict transit-damage return window is open.
             </p>
           </div>
 
@@ -250,7 +250,7 @@ export const RewardsWalletTab: React.FC = () => {
             <div className="w-6 h-6 rounded bg-[#EEEEF8] text-[#3F3F8F] flex items-center justify-center font-bold text-xs">3</div>
             <h5 className="font-semibold text-black">Automatic Credit</h5>
             <p className="text-[10px] leading-relaxed text-[#666666]">
-              Once the 24-hour return window closes, points move automatically to your usable wallet balance.
+              Once the {settings?.credit_delay_hours ?? 24}-hour return window closes, points move automatically to your usable wallet balance.
             </p>
           </div>
 
@@ -258,7 +258,7 @@ export const RewardsWalletTab: React.FC = () => {
             <div className="w-6 h-6 rounded bg-[#EEEEF8] text-[#3F3F8F] flex items-center justify-center font-bold text-xs">4</div>
             <h5 className="font-semibold text-black">Redeem at Checkout</h5>
             <p className="text-[10px] leading-relaxed text-[#666666]">
-              Use points directly at checkout (up to {settings?.max_order_percentage || 20}% of order subtotal, min {settings?.min_redeem_points || 100} pts).
+              Use points directly at checkout.
             </p>
           </div>
         </div>

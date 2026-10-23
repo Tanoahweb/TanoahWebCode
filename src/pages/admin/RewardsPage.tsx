@@ -429,7 +429,7 @@ export const RewardsPage: React.FC = () => {
               </h1>
             </div>
             <p className="text-xs text-[#666666]">
-              1 Point = ₹1 Reward Value • FIFO Expiry Tracking • Automatic 24h Post-Delivery Return Window Unlocking
+              1 Point = ₹{settings?.point_to_inr_ratio ?? 1} Reward Value • FIFO Expiry Tracking • Automatic {settings?.credit_delay_hours ?? 24}h Post-Delivery Return Window Unlocking
             </p>
           </div>
 
